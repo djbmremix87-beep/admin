@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User specific settings and profile data",
+      "type": "object",
+      "properties": {
+        "customLogo": { "type": "string", "description": "Base64 encoded logo image" },
+        "darkMode": { "type": "boolean", "description": "User's dark mode preference" },
+        "expenseCategories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Custom expense categories"
+        },
+        "seeded": { "type": "boolean", "description": "Whether default data has been seeded" }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory product details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "image": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "stock"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Client and warranty details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "installationDate": { "type": "string" },
+        "warrantyExpiry": { "type": "string" },
+        "notes": { "type": "string" },
+        "works": { "type": "number" },
+        "totalPaid": { "type": "number" },
+        "due": { "type": "number" },
+        "status": { "type": "string" },
+        "workHistory": { "type": "array", "items": { "type": "object" } },
+        "paymentHistory": { "type": "array", "items": { "type": "object" } },
+        "orders": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Business expense record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "category", "amount", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and settings"
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": "Product",
+      "description": "User's inventory products"
+    },
+    "/users/{userId}/clients/{clientId}": {
+      "schema": "Client",
+      "description": "User's client database"
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "User's expense records"
+    }
+  }
+}

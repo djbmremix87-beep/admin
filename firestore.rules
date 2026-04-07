@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Fields:
+    //   - customLogo: string (optional) - Base64 encoded logo image
+    //   - darkMode: bool (optional) - User's dark mode preference
+    //
+    // Collection: /users/{userId}/products/{productId}
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required, size 1-100)
+    //   - category: string (optional)
+    //   - price: number (required, positive)
+    //   - stock: number (required, non-negative)
+    //   - image: string (optional, URL or base64)
+    //   - description: string (optional, size 0-1000)
+    //
+    // Collection: /users/{userId}/clients/{clientId}
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required, size 1-100)
+    //   - phone: string (required, size 1-20)
+    //   - address: string (optional, size 0-500)
+    //   - installationDate: string (optional, ISO 8601)
+    //   - warrantyExpiry: string (optional, ISO 8601)
+    //   - notes: string (optional, size 0-1000)
+    //
+    // Collection: /users/{userId}/expenses/{expenseId}
+    // Fields:
+    //   - id: string (required)
+    //   - category: string (required)
+    //   - amount: number (required, positive)
+    //   - date: string (required, ISO 8601)
+    //   - description: string (optional, size 0-500)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidString(field, min, max) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= min && 
+             request.resource.data[field].size() <= max;
+    }
+
+    function isValidOptionalString(field, max) {
+      return !(field in request.resource.data) || 
+             (request.resource.data[field] is string && request.resource.data[field].size() <= max);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['customLogo', 'darkMode', 'expenseCategories', 'seeded']) &&
+             (!( 'customLogo' in data) || data.customLogo is string) &&
+             (!( 'darkMode' in data) || data.darkMode is bool) &&
+             (!( 'expenseCategories' in data) || data.expenseCategories is list) &&
+             (!( 'seeded' in data) || data.seeded is bool);
+    }
+
+    function isValidProduct(data) {
+      return hasRequiredFields(['id', 'name', 'price', 'stock']) &&
+             (data.id is string || data.id is number) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is number &&
+             isValidOptionalString('category', 50) &&
+             isValidOptionalString('image', 1000000) && // Base64 can be large
+             isValidOptionalString('description', 1000) &&
+             isValidOptionalString('badge', 20);
+    }
+
+    function isValidClient(data) {
+      return hasRequiredFields(['id', 'name', 'phone', 'works', 'totalPaid', 'due', 'status', 'workHistory', 'paymentHistory', 'orders']) &&
+             (data.id is string || data.id is number) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() <= 20 &&
+             data.works is number &&
+             data.totalPaid is number &&
+             data.due is number &&
+             data.status is string &&
+             data.workHistory is list &&
+             data.paymentHistory is list &&
+             data.orders is list &&
+             isValidOptionalString('address', 500) &&
+             isValidOptionalString('installationDate', 50) &&
+             isValidOptionalString('warrantyExpiry', 50) &&
+             isValidOptionalString('notes', 1000);
+    }
+
+    function isValidExpense(data) {
+      return hasRequiredFields(['id', 'category', 'amount', 'date']) &&
+             data.id is string &&
+             data.category is string &&
+             data.amount is number && data.amount >= 0 &&
+             data.date is string &&
+             isValidOptionalString('description', 500);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
+
+      match /products/{productId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidProduct(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /clients/{clientId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidClient(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidExpense(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

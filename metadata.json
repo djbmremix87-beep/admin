@@ -1,0 +1,5 @@
+{
+  "name": "CCTV Management System",
+  "description": "A comprehensive CCTV business management system with client profiles, order tracking, WhatsApp integration, and PDF invoicing.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,16 @@
+{
+  "short_name": "CCTV PRO",
+  "name": "CCTV PRO - Inventory & Warranty Management",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3208/3208726.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#2563eb",
+  "background_color": "#0f172a"
+}
