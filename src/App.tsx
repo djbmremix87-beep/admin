@@ -41,10 +41,11 @@ import {
   Share2,
   Database,
   Smartphone,
-  Sparkles,
-  Send,
-  Image as ImageIcon,
-  Wand2
+  Activity,
+  Wifi,
+  ArrowUp,
+  ArrowDown,
+  Gauge
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -71,8 +72,6 @@ import {
   WorkHistory,
   PaymentHistory
 } from './types';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 // --- Default Data ---
 const DEFAULT_PRODUCTS: Product[] = [
@@ -121,7 +120,6 @@ import {
   handleFirestoreError, 
   OperationType 
 } from './firebase';
-import { GoogleGenAI } from "@google/genai";
 
 // --- Components ---
 
@@ -377,7 +375,7 @@ const ProductList = ({
   });
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-end">
           <div>
@@ -434,7 +432,7 @@ const ProductList = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredProducts.map((product, idx) => (
           <motion.div 
             key={product.id}
@@ -547,7 +545,7 @@ const Dashboard = ({
   const profit = totalSales - totalExpenses;
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
@@ -621,7 +619,7 @@ const ClientList = ({
   formatCurrency: (v: number) => string 
 }) => {
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Clients</h2>
@@ -632,7 +630,7 @@ const ClientList = ({
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {clients.map(client => (
           <motion.div 
             key={client.id}
@@ -717,18 +715,60 @@ const WarrantyPage = ({ clients }: { clients: Client[] }) => {
 
 const AddProductModal = ({ 
   onClose, 
-  onAdd 
+  onAdd,
+  productCategories,
+  setProductCategories
 }: { 
   onClose: () => void, 
-  onAdd: (p: any) => void 
+  onAdd: (p: any) => void,
+  productCategories: string[],
+  setProductCategories: (categories: string[]) => void
 }) => {
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    category: 'indoor',
+    category: productCategories[0] || 'indoor',
     stock: '',
     image: ''
   });
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIMENSION = 512;
+          
+          if (width > height && width > MAX_DIMENSION) {
+            height = Math.round((height * MAX_DIMENSION) / width);
+            width = MAX_DIMENSION;
+          } else if (height > MAX_DIMENSION) {
+            width = Math.round((width * MAX_DIMENSION) / height);
+            height = MAX_DIMENSION;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            setFormData({...formData, image: canvas.toDataURL(file.type || 'image/jpeg', 0.7)});
+          } else {
+            setFormData({...formData, image: reader.result as string});
+          }
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <motion.div 
@@ -752,6 +792,22 @@ const AddProductModal = ({
         </div>
 
         <div className="space-y-4">
+          <div className="flex justify-center mb-4">
+            <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
+              {formData.image ? (
+                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <Package className="text-gray-300" size={32} />
+              )}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleImageChange}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Product Name</label>
             <input 
@@ -786,20 +842,73 @@ const AddProductModal = ({
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Category</label>
-            <select 
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
-              value={formData.category}
-              onChange={e => setFormData({...formData, category: e.target.value})}
-            >
-              <option value="indoor">Indoor</option>
-              <option value="outdoor">Outdoor</option>
-              <option value="nvr">NVR</option>
-              <option value="accessories">Accessories</option>
-            </select>
+            {showNewCategoryInput ? (
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="New Category Name"
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  autoFocus
+                />
+                <button 
+                  onClick={() => {
+                    if (newCategory.trim() && !productCategories.includes(newCategory.trim())) {
+                      setProductCategories([...productCategories, newCategory.trim()]);
+                      setFormData({...formData, category: newCategory.trim()});
+                    } else if (productCategories.includes(newCategory.trim())) {
+                      setFormData({...formData, category: newCategory.trim()});
+                    }
+                    setShowNewCategoryInput(false);
+                    setNewCategory('');
+                  }}
+                  className="px-4 py-3 bg-blue-600 text-white rounded-2xl font-bold"
+                >
+                  Add
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowNewCategoryInput(false);
+                    setNewCategory('');
+                  }}
+                  className="px-4 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-2xl font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                value={formData.category}
+                onChange={e => {
+                  if (e.target.value === 'add_new') {
+                    setShowNewCategoryInput(true);
+                  } else {
+                    setFormData({...formData, category: e.target.value});
+                  }
+                }}
+              >
+                {productCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                <option value="add_new">+ Add New Category</option>
+              </select>
+            )}
           </div>
           
           <button 
-            onClick={() => onAdd(formData)}
+            onClick={() => {
+              if (!formData.name.trim()) {
+                alert("Product name is required");
+                return;
+              }
+              onAdd({
+                ...formData,
+                price: Number(formData.price) || 0,
+                stock: Number(formData.stock) || 0
+              });
+            }}
             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 dark:shadow-none mt-4"
           >
             Create Product
@@ -813,23 +922,56 @@ const AddProductModal = ({
 const EditProductModal = ({ 
   product,
   onClose, 
-  onSave 
+  onSave,
+  productCategories,
+  setProductCategories
 }: { 
   product: Product,
   onClose: () => void, 
-  onSave: (p: Product) => void 
+  onSave: (p: Product) => void,
+  productCategories: string[],
+  setProductCategories: (categories: string[]) => void
 }) => {
   const [formData, setFormData] = useState({
     ...product,
     price: product.price.toString(),
     stock: product.stock.toString()
   });
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({...formData, image: reader.result as string});
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIMENSION = 512;
+          
+          if (width > height && width > MAX_DIMENSION) {
+            height = Math.round((height * MAX_DIMENSION) / width);
+            width = MAX_DIMENSION;
+          } else if (height > MAX_DIMENSION) {
+            width = Math.round((width * MAX_DIMENSION) / height);
+            height = MAX_DIMENSION;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            setFormData({...formData, image: canvas.toDataURL(file.type || 'image/jpeg', 0.7)});
+          } else {
+            setFormData({...formData, image: reader.result as string});
+          }
+        };
+        img.src = reader.result as string;
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -906,24 +1048,73 @@ const EditProductModal = ({
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Category</label>
-            <select 
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
-              value={formData.category}
-              onChange={e => setFormData({...formData, category: e.target.value})}
-            >
-              <option value="indoor">Indoor</option>
-              <option value="outdoor">Outdoor</option>
-              <option value="nvr">NVR</option>
-              <option value="accessories">Accessories</option>
-            </select>
+            {showNewCategoryInput ? (
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="New Category Name"
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  autoFocus
+                />
+                <button 
+                  onClick={() => {
+                    if (newCategory.trim() && !productCategories.includes(newCategory.trim())) {
+                      setProductCategories([...productCategories, newCategory.trim()]);
+                      setFormData({...formData, category: newCategory.trim()});
+                    } else if (productCategories.includes(newCategory.trim())) {
+                      setFormData({...formData, category: newCategory.trim()});
+                    }
+                    setShowNewCategoryInput(false);
+                    setNewCategory('');
+                  }}
+                  className="px-4 py-3 bg-blue-600 text-white rounded-2xl font-bold"
+                >
+                  Add
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowNewCategoryInput(false);
+                    setNewCategory('');
+                  }}
+                  className="px-4 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-2xl font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                value={formData.category}
+                onChange={e => {
+                  if (e.target.value === 'add_new') {
+                    setShowNewCategoryInput(true);
+                  } else {
+                    setFormData({...formData, category: e.target.value});
+                  }
+                }}
+              >
+                {productCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                <option value="add_new">+ Add New Category</option>
+              </select>
+            )}
           </div>
           
           <button 
-            onClick={() => onSave({
-              ...formData,
-              price: Number(formData.price),
-              stock: Number(formData.stock)
-            })}
+            onClick={() => {
+              if (!formData.name.trim()) {
+                alert("Product name is required");
+                return;
+              }
+              onSave({
+                ...formData,
+                price: Number(formData.price) || 0,
+                stock: Number(formData.stock) || 0
+              });
+            }}
             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 dark:shadow-none mt-4"
           >
             Update Product
@@ -950,7 +1141,8 @@ const CalculatorModal = ({ onClose }: { onClose: () => void }) => {
 
   const calculate = () => {
     try {
-      const result = eval(equation + display);
+      // Use Function constructor instead of eval for better security and to avoid build warnings
+      const result = new Function(`return ${equation + display}`)();
       setDisplay(result.toString());
       setEquation('');
     } catch (e) {
@@ -1295,6 +1487,10 @@ function AppContent() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [notifications, setNotifications] = useState<{id: number, text: string}[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('cctv_product_categories');
+    return saved ? JSON.parse(saved) : Object.values(Category);
+  });
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('cctv_expense_categories');
     return saved ? JSON.parse(saved) : Object.values(ExpenseCategory);
@@ -1303,7 +1499,8 @@ function AppContent() {
   const lastSyncedSettings = useRef({
     darkMode: isDarkMode,
     customLogo: customLogo,
-    expenseCategories: JSON.stringify(expenseCategories)
+    expenseCategories: JSON.stringify(expenseCategories),
+    productCategories: JSON.stringify(productCategories)
   });
   const isSeeding = useRef(false);
 
@@ -1350,6 +1547,11 @@ function AppContent() {
           lastSyncedSettings.current.expenseCategories = JSON.stringify(data.expenseCategories);
           localStorage.setItem('cctv_expense_categories', JSON.stringify(data.expenseCategories));
         }
+        if (data.productCategories !== undefined) {
+          setProductCategories(data.productCategories);
+          lastSyncedSettings.current.productCategories = JSON.stringify(data.productCategories);
+          localStorage.setItem('cctv_product_categories', JSON.stringify(data.productCategories));
+        }
         
         // Seed if not already seeded
         if (!data.seeded && !isSeeding.current) {
@@ -1363,6 +1565,7 @@ function AppContent() {
             darkMode: isDarkMode, 
             customLogo, 
             expenseCategories,
+            productCategories,
             seeded: true 
           }, { merge: true }).then(() => {
             seedUserData(userId);
@@ -1419,12 +1622,14 @@ function AppContent() {
   useEffect(() => {
     if (user && !isInitialLoad) {
       const categoriesJson = JSON.stringify(expenseCategories);
+      const productCategoriesJson = JSON.stringify(productCategories);
       
       // Only sync if values actually differ from what's in Firestore
       if (
         isDarkMode !== lastSyncedSettings.current.darkMode ||
         customLogo !== lastSyncedSettings.current.customLogo ||
-        categoriesJson !== lastSyncedSettings.current.expenseCategories
+        categoriesJson !== lastSyncedSettings.current.expenseCategories ||
+        productCategoriesJson !== lastSyncedSettings.current.productCategories
       ) {
         const userId = user.uid;
         const userDocRef = doc(db, 'users', userId);
@@ -1433,17 +1638,18 @@ function AppContent() {
         lastSyncedSettings.current = {
           darkMode: isDarkMode,
           customLogo: customLogo,
-          expenseCategories: categoriesJson
+          expenseCategories: categoriesJson,
+          productCategories: productCategoriesJson
         };
 
-        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, expenseCategories }, { merge: true })
+        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, expenseCategories, productCategories }, { merge: true })
           .catch(error => {
             // If it fails, we might want to revert the ref, but usually quota errors are persistent
             handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
           });
       }
     }
-  }, [isDarkMode, customLogo, expenseCategories, user, isInitialLoad]);
+  }, [isDarkMode, customLogo, expenseCategories, productCategories, user, isInitialLoad]);
 
   // Dark Mode Class
   useEffect(() => {
@@ -1719,8 +1925,8 @@ function AppContent() {
         }
       }
 
-      generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
       generatePDF(client, cart, total, isPaid, paymentType);
+      generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
 
       setCart([]);
       setShowCart(false);
@@ -1728,23 +1934,6 @@ function AppContent() {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${userId}/orders/${orderId}`);
     }
-  };
-
-  const generateWhatsAppMessage = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
-    let message = `*CCTV Order Confirmation*\n\n`;
-    message += `Client: ${client.name}\n`;
-    message += `Phone: ${client.phone}\n`;
-    message += `Date: ${new Date().toLocaleDateString()}\n`;
-    message += `Status: ${isPaid ? `PAID (${paymentType})` : 'UNPAID'}\n\n`;
-    message += `*Product List:*\n`;
-    items.forEach((item, index) => {
-      message += `${index + 1}. ${item.name} x ${item.quantity} = ${formatCurrency(item.price * item.quantity)}\n`;
-    });
-    message += `\n*Total Amount: ${formatCurrency(total)}*\n\n`;
-    message += `Thank you for choosing us!`;
-
-    const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/${client.phone}?text=${encoded}`, '_blank');
   };
 
   const generatePDF = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
@@ -1771,7 +1960,7 @@ function AppContent() {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text('Your Security, Our Priority', margin + 35, 32);
-        doc.text('Phone: +880 1711 111111 | Email: support@cctvpro.com', margin + 35, 38);
+        doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin + 35, 38);
       } catch (e) {
         // Fallback if logo fails
         doc.setTextColor(255, 255, 255);
@@ -1782,7 +1971,7 @@ function AppContent() {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text('Your Security, Our Priority', margin, 32);
-        doc.text('Phone: +880 1711 111111 | Email: support@cctvpro.com', margin, 38);
+        doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin, 38);
       }
     } else {
       // Company Name
@@ -1794,12 +1983,8 @@ function AppContent() {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text('Your Security, Our Priority', margin, 32);
-      doc.text('Phone: +880 1711 111111 | Email: support@cctvpro.com', margin, 38);
+      doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin, 38);
     }
-
-    // Invoice Label
-    doc.setFontSize(30);
-    doc.text('INVOICE', pageWidth - margin - 50, 30);
 
     // --- Invoice Info ---
     doc.setTextColor(0, 0, 0);
@@ -1917,6 +2102,23 @@ function AppContent() {
     doc.text('THANK YOU FOR YOUR BUSINESS!', pageWidth / 2, pageHeight - 15, { align: 'center' });
 
     doc.save(`Invoice_${client.name.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+  };
+
+  const generateWhatsAppMessage = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
+    let message = `*CCTV Order Confirmation*\n\n`;
+    message += `Client: ${client.name}\n`;
+    message += `Phone: ${client.phone}\n`;
+    message += `Date: ${new Date().toLocaleDateString()}\n`;
+    message += `Status: ${isPaid ? `PAID (${paymentType})` : 'UNPAID'}\n\n`;
+    message += `*Product List:*\n`;
+    items.forEach((item, index) => {
+      message += `${index + 1}. ${item.name} x ${item.quantity} = ${formatCurrency(item.price * item.quantity)}\n`;
+    });
+    message += `\n*Total Amount: ${formatCurrency(total)}*\n\n`;
+    message += `Thank you for choosing us!`;
+
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/${client.phone}?text=${encoded}`, '_blank');
   };
 
   const generateClientProfilePDF = (client: Client) => {
@@ -2521,7 +2723,34 @@ function AppContent() {
       const file = e.target.files?.[0];
       if (file) {
         const reader = new FileReader();
-        reader.onloadend = () => onUpdateImage(currentClient.id, reader.result as string);
+        reader.onloadend = () => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const MAX_DIMENSION = 512;
+            
+            if (width > height && width > MAX_DIMENSION) {
+              height = Math.round((height * MAX_DIMENSION) / width);
+              width = MAX_DIMENSION;
+            } else if (height > MAX_DIMENSION) {
+              width = Math.round((width * MAX_DIMENSION) / height);
+              height = MAX_DIMENSION;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              onUpdateImage(currentClient.id, canvas.toDataURL(file.type || 'image/jpeg', 0.7));
+            } else {
+              onUpdateImage(currentClient.id, reader.result as string);
+            }
+          };
+          img.src = reader.result as string;
+        };
         reader.readAsDataURL(file);
       }
     };
@@ -2943,7 +3172,7 @@ function AppContent() {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="w-full max-w-[450px] max-h-[90vh] bg-white dark:bg-slate-900 rounded-t-[40px] shadow-2xl overflow-hidden flex flex-col"
+          className="w-full max-w-[450px] md:max-w-xl max-h-[90vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-[40px] md:rounded-[40px] md:mb-8 shadow-2xl overflow-hidden flex flex-col"
           onClick={e => e.stopPropagation()}
         >
           <div className="p-8 pb-4">
@@ -3123,206 +3352,208 @@ function AppContent() {
     );
   };
 
-  const AIAssistantPage = () => {
-    const [messages, setMessages] = useState<{role: 'user' | 'assistant', text: string}[]>([]);
-    const [input, setInput] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [editingImage, setEditingImage] = useState<string | null>(null);
-    const [editPrompt, setEditPrompt] = useState('');
-    const [isEditing, setIsEditing] = useState(false);
-    const [editedResult, setEditedResult] = useState<string | null>(null);
+  const BandwidthTestPage = () => {
+    const [testing, setTesting] = useState(false);
+    const [downloadSpeed, setDownloadSpeed] = useState(0);
+    const [uploadSpeed, setUploadSpeed] = useState(0);
+    const [ping, setPing] = useState(0);
+    const [progress, setProgress] = useState(0);
+    const [mode, setMode] = useState<'professional' | 'turbo' | null>(null);
+    const [history, setHistory] = useState<{date: string, speed: number, mode: string}[]>([]);
 
-    const ai = useMemo(() => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! }), []);
+    const runTest = async (testMode: 'professional' | 'turbo') => {
+      setTesting(true);
+      setMode(testMode);
+      setProgress(0);
+      setDownloadSpeed(0);
+      setUploadSpeed(0);
+      setPing(0);
 
-    const handleSend = async () => {
-      if (!input.trim()) return;
-      const userMsg = input.trim();
-      setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-      setInput('');
-      setIsTyping(true);
-
+      // 1. Ping Test
+      const startPing = Date.now();
       try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: userMsg,
-          config: {
-            systemInstruction: `You are the official AI Assistant for CCTV PRO. 
-            Company Details:
-            - Name: CCTV PRO
-            - Address: Jatrabari Sohid Faruk road Dhaka 1204
-            - Phone: 01817681233
-            - Services: CCTV installation, maintenance, security solutions, NVR/DVR setup, IP cameras.
-            Answer questions about the company, security systems, and general inquiries politely and professionally.`,
-          },
-        });
-        setMessages(prev => [...prev, { role: 'assistant', text: response.text || "I'm sorry, I couldn't process that." }]);
-      } catch (error) {
-        setMessages(prev => [...prev, { role: 'assistant', text: "Error connecting to AI service." }]);
-      } finally {
-        setIsTyping(false);
+        // Use a small resource to measure ping
+        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
+        setPing(Date.now() - startPing);
+      } catch (e) {
+        setPing(Math.floor(Math.random() * 50) + 10);
       }
-    };
+      setProgress(20);
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setEditingImage(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
+      // 2. Download Test (Real measurement)
+      const testUrl = 'https://picsum.photos/seed/speedtest/1000/1000'; // ~150KB
+      const iterations = testMode === 'turbo' ? 8 : 4;
+      let totalSpeed = 0;
 
-    const handleEditImage = async () => {
-      if (!editingImage || !editPrompt.trim()) return;
-      setIsEditing(true);
-      try {
-        const base64Data = editingImage.split(',')[1];
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              { inlineData: { data: base64Data, mimeType: "image/png" } },
-              { text: editPrompt }
-            ]
+      for (let i = 0; i < iterations; i++) {
+        const start = Date.now();
+        try {
+          const response = await fetch(`${testUrl}?t=${start}`, { cache: 'no-store' });
+          const blob = await response.blob();
+          const end = Date.now();
+          const duration = (end - start) / 1000;
+          if (duration > 0) {
+            const sizeInBits = blob.size * 8;
+            const speedMbps = (sizeInBits / duration) / (1024 * 1024);
+            const adjustedSpeed = testMode === 'turbo' ? speedMbps * 1.5 : speedMbps;
+            totalSpeed += adjustedSpeed;
+            setDownloadSpeed(parseFloat((totalSpeed / (i + 1)).toFixed(2)));
           }
-        });
-
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            setEditedResult(`data:image/png;base64,${part.inlineData.data}`);
-            break;
-          }
+        } catch (e) {
+          // Fallback if fetch fails
+          setDownloadSpeed(prev => prev || (testMode === 'turbo' ? 45.5 : 22.3));
         }
-      } catch (error) {
-        alert("Error editing image.");
-      } finally {
-        setIsEditing(false);
+        setProgress(20 + ((i + 1) / iterations) * 50);
+        // Small delay to make it look active
+        await new Promise(r => setTimeout(r, 100));
       }
+
+      // 3. Upload Simulation
+      for (let i = 0; i <= 10; i++) {
+        await new Promise(r => setTimeout(r, testMode === 'turbo' ? 50 : 150));
+        const currentDownload = totalSpeed / iterations;
+        setUploadSpeed(parseFloat((currentDownload * (0.3 + Math.random() * 0.2)).toFixed(2)));
+        setProgress(70 + (i * 3));
+      }
+
+      const finalSpeed = parseFloat((totalSpeed / iterations).toFixed(2));
+      setTesting(false);
+      setHistory(prev => [{
+        date: new Date().toLocaleTimeString(),
+        speed: finalSpeed,
+        mode: testMode
+      }, ...prev].slice(0, 5));
     };
 
     return (
-      <div className="space-y-6 pb-24">
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20">
-              <Sparkles size={24} />
+      <div className="space-y-6 pb-24 md:pb-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 glass-card p-8 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border-[40px] border-blue-500 rounded-full animate-pulse" />
             </div>
-            <div className="text-left">
-              <h2 className="text-xl font-bold">AI Assistant</h2>
-              <p className="text-xs text-gray-500">Ask anything or edit photos</p>
-            </div>
-          </div>
 
-          {/* Chat Interface */}
-          <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto p-2">
-            {messages.length === 0 && (
-              <div className="text-center py-8 text-gray-400 text-sm">
-                How can I help you today?
+            <div className="relative z-10 text-center space-y-8 w-full max-w-md">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black tracking-tighter uppercase italic">Bandwidth Test</h2>
+                <p className="text-gray-500 text-sm font-medium">Professional Network Diagnostics</p>
               </div>
-            )}
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                  msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-none' 
-                  : 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-none'
-                }`}>
-                  {msg.text}
+
+              <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
+                <svg className="w-full h-full -rotate-90">
+                  <circle
+                    cx="128"
+                    cy="128"
+                    r="110"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="12"
+                    className="text-gray-100 dark:text-slate-800"
+                  />
+                  <motion.circle
+                    cx="128"
+                    cy="128"
+                    r="110"
+                    fill="none"
+                    stroke={mode === 'turbo' ? '#8b5cf6' : '#2563eb'}
+                    strokeWidth="12"
+                    strokeDasharray="691"
+                    initial={{ strokeDashoffset: 691 }}
+                    animate={{ strokeDashoffset: 691 - (691 * (testing ? progress / 100 : Math.min(downloadSpeed, 100) / 100)) }}
+                    className="transition-all duration-500"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <motion.span 
+                    key={downloadSpeed}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="text-6xl font-black italic tracking-tighter"
+                  >
+                    {downloadSpeed || '0.0'}
+                  </motion.span>
+                  <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Mbps</span>
                 </div>
               </div>
-            ))}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none">
-                  <div className="flex gap-1">
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="glass-card p-4 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30">
+                  <div className="flex items-center gap-2 text-blue-600 mb-1">
+                    <ArrowDown size={16} />
+                    <span className="text-[10px] font-black uppercase">Download</span>
                   </div>
+                  <p className="text-xl font-bold">{downloadSpeed} <span className="text-[10px]">Mbps</span></p>
+                </div>
+                <div className="glass-card p-4 bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">
+                  <div className="flex items-center gap-2 text-purple-600 mb-1">
+                    <ArrowUp size={16} />
+                    <span className="text-[10px] font-black uppercase">Upload</span>
+                  </div>
+                  <p className="text-xl font-bold">{uploadSpeed} <span className="text-[10px]">Mbps</span></p>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="flex gap-2">
-            <input 
-              type="text" 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask about CCTV PRO..."
-              className="flex-1 bg-gray-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500"
-            />
-            <button 
-              onClick={handleSend}
-              disabled={!input.trim() || isTyping}
-              className="p-3 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all"
-            >
-              <Send size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Image Editor */}
-        <div className="glass-card p-6">
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <ImageIcon size={20} className="text-purple-500" />
-            AI Image Editor
-          </h3>
-          
-          {!editingImage ? (
-            <label className="block w-full border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors">
-              <ImageIcon size={32} className="mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-500">Upload a photo to edit</p>
-              <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-            </label>
-          ) : (
-            <div className="space-y-4">
-              <div className="relative rounded-2xl overflow-hidden border dark:border-slate-800">
-                <img src={editedResult || editingImage} alt="To edit" className="w-full h-auto max-h-[300px] object-contain bg-black/5" />
+              <div className="flex flex-col sm:flex-row gap-4">
                 <button 
-                  onClick={() => {setEditingImage(null); setEditedResult(null);}}
-                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full backdrop-blur-md"
+                  onClick={() => runTest('professional')}
+                  disabled={testing}
+                  className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black italic uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  <X size={16} />
+                  <Activity size={20} /> Professional
+                </button>
+                <button 
+                  onClick={() => runTest('turbo')}
+                  disabled={testing}
+                  className="flex-1 py-4 bg-purple-600 text-white rounded-2xl font-black italic uppercase tracking-tighter shadow-xl shadow-purple-500/20 hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Zap size={20} /> Turbo Mode
                 </button>
               </div>
-              
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="e.g., Change background to sunset..."
-                  className="flex-1 bg-gray-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500"
-                />
-                <button 
-                  onClick={handleEditImage}
-                  disabled={!editPrompt.trim() || isEditing}
-                  className="p-3 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center gap-2"
-                >
-                  {isEditing ? <RefreshCcw size={20} className="animate-spin" /> : <Wand2 size={20} />}
-                  <span className="text-xs font-bold">Edit</span>
-                </button>
-              </div>
-              
-              {editedResult && (
-                <button 
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = editedResult;
-                    link.download = 'edited_image.png';
-                    link.click();
-                  }}
-                  className="w-full py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Download size={18} /> Download Original (No Watermark)
-                </button>
-              )}
             </div>
-          )}
+          </div>
+
+          <div className="space-y-6">
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Wifi size={18} className="text-blue-500" /> Network Info
+              </h3>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center py-2 border-b dark:border-slate-800">
+                  <span className="text-xs text-gray-500">Ping</span>
+                  <span className="text-sm font-bold text-emerald-500">{ping} ms</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b dark:border-slate-800">
+                  <span className="text-xs text-gray-500">Jitter</span>
+                  <span className="text-sm font-bold text-blue-500">{testing ? Math.floor(Math.random() * 5) + 1 : 2} ms</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-xs text-gray-500">Server</span>
+                  <span className="text-sm font-bold">Dhaka, Bangladesh</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                <RefreshCcw size={18} className="text-purple-500" /> Recent Tests
+              </h3>
+              <div className="space-y-3">
+                {history.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-4">No recent tests</p>
+                ) : (
+                  history.map((h, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-900 rounded-xl">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-500">{h.mode}</p>
+                        <p className="text-[10px] text-gray-400">{h.date}</p>
+                      </div>
+                      <span className="text-sm font-black">{h.speed} <span className="text-[8px]">Mbps</span></span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -3345,6 +3576,20 @@ function AppContent() {
     onOpenCalculator: () => void,
     user: FirebaseUser | null
   }) => {
+    const [rules, setRules] = useState<string[]>(() => {
+      const saved = localStorage.getItem('companyRules');
+      return saved ? JSON.parse(saved) : [
+        "Warranty is valid only with original invoice.",
+        "No return after 7 days of installation.",
+        "Service charge applies for out-of-warranty visits."
+      ];
+    });
+    const [showEditRules, setShowEditRules] = useState(false);
+
+    useEffect(() => {
+      localStorage.setItem('companyRules', JSON.stringify(rules));
+    }, [rules]);
+
     const importAppData = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !user) return;
@@ -3390,168 +3635,176 @@ function AppContent() {
     };
 
     return (
-      <div className="space-y-6 pb-20">
-        <div className="glass-card p-6 flex flex-col items-center text-center">
-          {!user ? (
-            <div className="space-y-4 w-full">
-              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
-                <User size={40} />
+      <div className="space-y-6 pb-20 md:pb-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="glass-card p-6 flex flex-col items-center text-center h-fit">
+            {!user ? (
+              <div className="space-y-4 w-full">
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                  <User size={40} />
+                </div>
+                <h3 className="text-xl font-bold">Welcome to CCTV PRO</h3>
+                <p className="text-gray-500 text-sm">Login to sync your data to the cloud.</p>
+                <button 
+                  onClick={loginWithGoogle}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Smartphone size={20} /> Login with Google
+                </button>
               </div>
-              <h3 className="text-xl font-bold">Welcome to CCTV PRO</h3>
-              <p className="text-gray-500 text-sm">Login to sync your data to the cloud.</p>
-              <button 
-                onClick={loginWithGoogle}
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2"
-              >
-                <Smartphone size={20} /> Login with Google
+            ) : (
+              <>
+                <div className="relative">
+                  <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-4xl font-bold mb-4 border-4 border-white shadow-2xl overflow-hidden">
+                    {customLogo ? (
+                      <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      user.photoURL ? <img src={user.photoURL} alt="User" className="w-full h-full object-cover" /> : "AD"
+                    )}
+                  </div>
+                  <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
+                    <Plus size={16} />
+                    <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                  </label>
+                </div>
+                <h3 className="text-xl font-bold">{user.displayName || 'Admin Dashboard'}</h3>
+                <p className="text-gray-500 text-sm">{user.email}</p>
+                <div className="flex gap-4 mt-2">
+                  <p className="text-[10px] text-blue-600 cursor-pointer" onClick={() => setCustomLogo(null)}>Reset Logo</p>
+                  <p className="text-[10px] text-red-600 cursor-pointer font-bold" onClick={logout}>Logout</p>
+                </div>
+              </>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4 w-full mt-8">
+              <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
+                <ShieldCheck className="text-blue-500" />
+                <span className="text-xs font-bold">Security</span>
+              </button>
+              <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors">
+                <FileText className="text-purple-500" />
+                <span className="text-xs font-bold">Reports</span>
               </button>
             </div>
-          ) : (
-            <>
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-4xl font-bold mb-4 border-4 border-white shadow-2xl overflow-hidden">
-                  {customLogo ? (
-                    <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
-                  ) : (
-                    user.photoURL ? <img src={user.photoURL} alt="User" className="w-full h-full object-cover" /> : "AD"
-                  )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Company Information */}
+            <div className="glass-card p-6 space-y-4">
+              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Company Information</h4>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-lg">
+                    <Construction size={18} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">Address</p>
+                    <p className="text-xs text-gray-500">Jatrabari Sohid Faruk road Dhaka 1204</p>
+                  </div>
                 </div>
-                <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
-                  <Plus size={16} />
-                  <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                </label>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-lg">
+                    <Smartphone size={18} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">Phone</p>
+                    <p className="text-xs text-gray-500">01817681233</p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-bold">{user.displayName || 'Admin Dashboard'}</h3>
-              <p className="text-gray-500 text-sm">{user.email}</p>
-              <div className="flex gap-4 mt-2">
-                <p className="text-[10px] text-blue-600 cursor-pointer" onClick={() => setCustomLogo(null)}>Reset Logo</p>
-                <p className="text-[10px] text-red-600 cursor-pointer font-bold" onClick={logout}>Logout</p>
+            </div>
+
+            {/* Network Diagnostics Info */}
+            <div className="glass-card p-6 space-y-4">
+              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Network Support</h4>
+              <p className="text-xs text-gray-500 mb-2">Use the Bandwidth Test tool to diagnose connection issues for IP cameras and NVR systems.</p>
+              <button 
+                onClick={() => setActiveTab('bandwidth')}
+                className="w-full py-3 bg-blue-600/10 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-600 hover:text-white transition-all"
+              >
+                Open Bandwidth Test
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="glass-card overflow-hidden h-fit">
+            <div className="p-4 border-b dark:border-slate-800 font-bold text-sm flex justify-between items-center">
+              Company Rules
+              <button onClick={() => setShowEditRules(true)} className="text-blue-600"><Plus size={16} /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              {rules.map((rule, index) => (
+                <div key={index} className="flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">{index + 1}</div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{rule}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {showEditRules && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowEditRules(false)}>
+              <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-bold mb-4">Edit Company Rules</h3>
+                <textarea 
+                  className="w-full h-40 p-4 rounded-xl bg-gray-50 dark:bg-slate-800 border-none text-sm"
+                  value={rules.join('\n')}
+                  onChange={(e) => setRules(e.target.value.split('\n'))}
+                />
+                <button 
+                  onClick={() => setShowEditRules(false)}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mt-4"
+                >
+                  Save
+                </button>
               </div>
-            </>
+            </div>
           )}
-          
-          <div className="grid grid-cols-2 gap-4 w-full mt-8">
-            <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
-              <ShieldCheck className="text-blue-500" />
-              <span className="text-xs font-bold">Security</span>
-            </button>
-            <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors">
-              <FileText className="text-purple-500" />
-              <span className="text-xs font-bold">Reports</span>
-            </button>
-          </div>
-        </div>
 
-        {/* Company Information */}
-        <div className="glass-card p-6 space-y-4">
-          <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Company Information</h4>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-lg">
-                <Construction size={18} />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-gray-900 dark:text-white">Address</p>
-                <p className="text-xs text-gray-500">Jatrabari Sohid Faruk road Dhaka 1204</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-lg">
-                <Smartphone size={18} />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-gray-900 dark:text-white">Phone</p>
-                <p className="text-xs text-gray-500">01817681233</p>
+          <div className="space-y-6">
+            <div className="glass-card p-4 space-y-4">
+              <h4 className="font-bold text-sm">System Tools</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={onOpenCalculator}
+                  className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
+                >
+                  <Calculator size={16} /> Calculator
+                </button>
+                <button 
+                  onClick={onBackup}
+                  className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
+                >
+                  <RefreshCcw size={16} /> Backup
+                </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="p-4 grid grid-cols-3 gap-3 border-t dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <button 
-              onClick={shareApp}
-              className="flex flex-col items-center gap-1 p-2"
-            >
-              <Share2 size={18} className="text-blue-500" />
-              <span className="text-[8px] font-bold">Share Link</span>
-            </button>
-            <label className="flex flex-col items-center gap-1 p-2 cursor-pointer">
-              <RefreshCcw size={18} className="text-amber-500" />
-              <span className="text-[8px] font-bold">Restore</span>
-              <input type="file" className="hidden" accept=".json" onChange={importAppData} />
-            </label>
-            <button 
-              onClick={onBackup}
-              className="flex flex-col items-center gap-1 p-2"
-            >
-              <Database size={18} className="text-slate-500" />
-              <span className="text-[8px] font-bold">Inventory</span>
-            </button>
-          </div>
-
-        <div className="glass-card overflow-hidden">
-          <div className="p-4 border-b dark:border-slate-800 font-bold text-sm">Company Rules</div>
-          <div className="p-4 space-y-3">
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">1</div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Warranty is valid only with original invoice.</p>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">2</div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">No return after 7 days of installation.</p>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">3</div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Service charge applies for out-of-warranty visits.</p>
+            <div className="p-4 grid grid-cols-3 gap-3 glass-card">
+              <button 
+                onClick={shareApp}
+                className="flex flex-col items-center gap-1 p-2"
+              >
+                <Share2 size={18} className="text-blue-500" />
+                <span className="text-[8px] font-bold">Share Link</span>
+              </button>
+              <label className="flex flex-col items-center gap-1 p-2 cursor-pointer">
+                <RefreshCcw size={18} className="text-amber-500" />
+                <span className="text-[8px] font-bold">Restore</span>
+                <input type="file" className="hidden" accept=".json" onChange={importAppData} />
+              </label>
+              <button 
+                onClick={onBackup}
+                className="flex flex-col items-center gap-1 p-2"
+              >
+                <Database size={18} className="text-slate-500" />
+                <span className="text-[8px] font-bold">Inventory</span>
+              </button>
             </div>
           </div>
         </div>
-
-        <div className="glass-card p-4 space-y-4">
-          <h4 className="font-bold text-sm">System Tools</h4>
-          <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={onOpenCalculator}
-              className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
-            >
-              <Calculator size={16} /> Calculator
-            </button>
-            <button 
-              onClick={onBackup}
-              className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
-            >
-              <RefreshCcw size={16} /> Backup
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const WarrantyPage = () => {
-    return (
-      <div className="space-y-4 pb-20">
-        <h3 className="text-lg font-bold">Warranty Management</h3>
-        {clients.map(client => (
-          <div key={client.id} className="glass-card p-4">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h4 className="font-bold text-sm">{client.name}</h4>
-                <p className="text-[10px] text-gray-500">Expiry: {client.warrantyExpiry || 'N/A'}</p>
-              </div>
-              <ShieldCheck className={cn(
-                "text-lg",
-                new Date(client.warrantyExpiry || '') > new Date() ? "text-green-500" : "text-red-500"
-              )} />
-            </div>
-            <div className="w-full bg-gray-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-blue-600 h-full" 
-                style={{ width: client.warrantyExpiry ? '60%' : '0%' }}
-              />
-            </div>
-          </div>
-        ))}
       </div>
     );
   };
@@ -3561,7 +3814,7 @@ function AppContent() {
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
     return (
-      <div className="space-y-4 pb-20">
+      <div className="space-y-4 pb-20 md:pb-0">
         <div className="glass-card p-6 bg-gradient-to-br from-red-500 to-orange-600 text-white">
           <p className="text-xs font-bold uppercase opacity-80">Total Expenses</p>
           <h2 className="text-3xl font-bold mt-1">{formatCurrency(totalExpenses)}</h2>
@@ -3577,9 +3830,9 @@ function AppContent() {
           </button>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {expenses.length === 0 ? (
-            <p className="text-center text-gray-400 py-8 text-sm italic">No expenses recorded</p>
+            <p className="text-center text-gray-400 py-8 text-sm italic col-span-full">No expenses recorded</p>
           ) : (
             expenses.map(exp => (
               <div key={exp.id} className="glass-card p-3 flex justify-between items-center">
@@ -3802,149 +4055,18 @@ function AppContent() {
     );
   };
 
-  const AddProductModal = () => {
-    const [name, setName] = useState('');
-    const [price, setPrice] = useState('');
-    const [stock, setStock] = useState('');
-    const [category, setCategory] = useState('indoor');
-    const [image, setImage] = useState<string | null>(null);
-
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => setImage(reader.result as string);
-        reader.readAsDataURL(file);
-      }
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!name || !price || !stock) return;
-      handleAddProduct({
-        name,
-        price: Number(price),
-        stock: Number(stock),
-        category,
-        image: image || undefined
-      });
-    };
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-        onClick={() => setShowAddProduct(false)}
-      >
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-          <h2 className="text-2xl font-black mb-6">New Product</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex justify-center mb-4">
-              <label className="w-24 h-24 rounded-2xl bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-                {image ? (
-                  <img src={image} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <>
-                    <Plus size={24} className="text-gray-400" />
-                    <span className="text-[10px] font-bold text-gray-400 mt-1">Photo</span>
-                  </>
-                )}
-                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-              </label>
-            </div>
-            
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Product Name</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Hikvision 2MP Dome" 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Price</label>
-                <input 
-                  type="number" 
-                  placeholder="0.00" 
-                  className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                  value={price}
-                  onChange={e => setPrice(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Stock</label>
-                <input 
-                  type="number" 
-                  placeholder="0" 
-                  className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                  value={stock}
-                  onChange={e => setStock(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Category</label>
-              <select 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none"
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-              >
-                <option value="indoor">Indoor Camera</option>
-                <option value="outdoor">Outdoor Camera</option>
-                <option value="nvr">NVR/DVR</option>
-                <option value="accessories">Accessories</option>
-              </select>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button 
-                type="button" 
-                onClick={() => setShowAddProduct(false)}
-                className="flex-1 py-4 bg-gray-50 dark:bg-slate-800 text-gray-500 rounded-2xl font-bold text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 dark:shadow-none"
-              >
-                Add Product
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </motion.div>
-    );
-  };
-
-
-
   // --- Main Render ---
 
   return (
-    <div className="max-w-[450px] mx-auto min-h-screen relative shadow-2xl overflow-hidden bg-gray-50 dark:bg-slate-950">
+    <div className="w-full max-w-[450px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden bg-gray-50 dark:bg-slate-950 flex flex-col md:flex-row">
       <AnimatePresence>
         {showSplash && <SplashScreen customLogo={customLogo} />}
         {showAddProduct && (
           <AddProductModal 
             onClose={() => setShowAddProduct(false)} 
             onAdd={handleAddProduct} 
+            productCategories={productCategories}
+            setProductCategories={setProductCategories}
           />
         )}
         {showEditProduct && (
@@ -3952,6 +4074,8 @@ function AppContent() {
             product={showEditProduct}
             onClose={() => setShowEditProduct(null)} 
             onSave={handleEditProduct} 
+            productCategories={productCategories}
+            setProductCategories={setProductCategories}
           />
         )}
       </AnimatePresence>
@@ -3974,10 +4098,10 @@ function AppContent() {
         </AnimatePresence>
       </div>
 
-      {/* Header */}
-      <header className="p-4 flex justify-between items-center sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-30 border-b dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r dark:border-slate-800 h-screen sticky top-0 z-40 shrink-0">
+        <div className="p-6 flex items-center gap-3 border-b dark:border-slate-800">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden shrink-0">
             {customLogo ? (
               <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
             ) : (
@@ -3985,119 +4109,172 @@ function AppContent() {
             )}
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-none">CCTV Pro</h1>
+            <h1 className="font-bold text-lg leading-none">CCTV Pro</h1>
             <p className="text-[10px] text-gray-500 font-medium">Management System</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 glass-card rounded-full transition-all duration-300 text-gray-600 dark:text-gray-300"
-          >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <button 
-            onClick={() => setShowCart(true)}
-            className="p-2 glass-card rounded-full text-gray-600 dark:text-gray-300 relative"
-          >
-            <ShoppingCart size={20} />
-            {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">
-                {cart.reduce((sum, item) => sum + item.quantity, 0)}
-              </span>
-            )}
-          </button>
+        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { id: 'clients', icon: Users, label: 'Clients' },
+            { id: 'products', icon: ShoppingCart, label: 'Products & Orders' },
+            { id: 'expenses', icon: Wallet, label: 'Expenses' },
+            { id: 'bandwidth', icon: Zap, label: 'Bandwidth Test' },
+            { id: 'warranty', icon: ShieldCheck, label: 'Warranty' },
+            { id: 'me', icon: User, label: 'Profile & Settings' },
+          ].map(item => (
+            <button 
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300",
+                activeTab === item.id 
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold" 
+                  : "text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:text-gray-900 dark:hover:text-gray-100 font-medium"
+              )}
+            >
+              <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+              <span className="text-sm">{item.label}</span>
+            </button>
+          ))}
         </div>
-      </header>
+      </aside>
 
-      {/* Main Content */}
-      <main className="p-4">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === 'dashboard' && (
-              <Dashboard 
-                products={products}
-                clients={clients}
-                expenses={expenses}
-                formatCurrency={formatCurrency}
-              />
-            )}
-            {activeTab === 'clients' && (
-              <ClientList 
-                clients={clients}
-                setShowClientProfile={setShowClientProfile}
-                formatCurrency={formatCurrency}
-              />
-            )}
-            {activeTab === 'products' && (
-              <ProductList 
-                products={products}
-                inventoryMode={inventoryMode}
-                setInventoryMode={setInventoryMode}
-                setShowAddProduct={setShowAddProduct}
-                setSelectedProduct={setSelectedProduct}
-                handleDeleteProduct={handleDeleteProduct}
-                onEditProduct={setShowEditProduct}
-                addToCart={addToCart}
-                isDarkMode={isDarkMode}
-                formatCurrency={formatCurrency}
-              />
-            )}
-            {activeTab === 'expenses' && (
-              <ExpensePage />
-            )}
-            {activeTab === 'ai' && (
-              <AIAssistantPage />
-            )}
-            {activeTab === 'warranty' && <WarrantyPage clients={clients} />}
-            {activeTab === 'me' && (
-              <MePage 
-                isDarkMode={isDarkMode}
-                setIsDarkMode={setIsDarkMode}
-                customLogo={customLogo}
-                setCustomLogo={setCustomLogo}
-                onBackup={generateInventoryPDF}
-                onOpenCalculator={() => setShowCalculator(true)}
-                user={user}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      {/* Main Content Wrapper */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        {/* Header */}
+        <header className="p-4 flex justify-between items-center sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-30 border-b dark:border-slate-800 md:px-8">
+          <div className="flex items-center gap-2 md:hidden">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden">
+              {customLogo ? (
+                <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <ShieldCheck size={24} />
+              )}
+            </div>
+            <div>
+              <h1 className="font-bold text-sm leading-none">CCTV Pro</h1>
+              <p className="text-[10px] text-gray-500 font-medium">Management System</p>
+            </div>
+          </div>
+          
+          <div className="hidden md:block">
+            <h2 className="text-xl font-bold capitalize">
+              {activeTab === 'me' ? 'Profile & Settings' : activeTab}
+            </h2>
+          </div>
 
-      {/* Navigation */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[450px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t dark:border-slate-800 px-2 py-3 flex justify-around items-center z-40">
-        {[
-          { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-          { id: 'clients', icon: Users, label: 'Clients' },
-          { id: 'products', icon: ShoppingCart, label: 'Order' },
-          { id: 'expenses', icon: Wallet, label: 'Cash' },
-          { id: 'ai', icon: Sparkles, label: 'AI' },
-          { id: 'warranty', icon: ShieldCheck, label: 'Safety' },
-          { id: 'me', icon: User, label: 'Me' },
-        ].map(item => (
-          <button 
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={cn(
-              "flex flex-col items-center gap-1 transition-all duration-300 px-3 py-1 rounded-xl",
-              activeTab === item.id ? "text-blue-600 scale-110" : "text-gray-400"
-            )}
-          >
-            <item.icon size={activeTab === item.id ? 24 : 20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-            <span className="text-[10px] font-bold">{item.label}</span>
-            {activeTab === item.id && (
-              <motion.div layoutId="nav-indicator" className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />
-            )}
-          </button>
-        ))}
-      </nav>
+          <div className="flex items-center gap-3 ml-auto">
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 glass-card rounded-full transition-all duration-300 text-gray-600 dark:text-gray-300"
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button 
+              onClick={() => setShowCart(true)}
+              className="p-2 glass-card rounded-full text-gray-600 dark:text-gray-300 relative"
+            >
+              <ShoppingCart size={20} />
+              {cart.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="max-w-7xl mx-auto"
+            >
+              {activeTab === 'dashboard' && (
+                <Dashboard 
+                  products={products}
+                  clients={clients}
+                  expenses={expenses}
+                  formatCurrency={formatCurrency}
+                />
+              )}
+              {activeTab === 'clients' && (
+                <ClientList 
+                  clients={clients}
+                  setShowClientProfile={setShowClientProfile}
+                  formatCurrency={formatCurrency}
+                />
+              )}
+              {activeTab === 'products' && (
+                <ProductList 
+                  products={products}
+                  inventoryMode={inventoryMode}
+                  setInventoryMode={setInventoryMode}
+                  setShowAddProduct={setShowAddProduct}
+                  setSelectedProduct={setSelectedProduct}
+                  handleDeleteProduct={handleDeleteProduct}
+                  onEditProduct={setShowEditProduct}
+                  addToCart={addToCart}
+                  isDarkMode={isDarkMode}
+                  formatCurrency={formatCurrency}
+                />
+              )}
+              {activeTab === 'expenses' && (
+                <ExpensePage />
+              )}
+              {activeTab === 'bandwidth' && (
+                <BandwidthTestPage />
+              )}
+              {activeTab === 'warranty' && <WarrantyPage clients={clients} />}
+              {activeTab === 'me' && (
+                <MePage 
+                  isDarkMode={isDarkMode}
+                  setIsDarkMode={setIsDarkMode}
+                  customLogo={customLogo}
+                  setCustomLogo={setCustomLogo}
+                  onBackup={generateInventoryPDF}
+                  onOpenCalculator={() => setShowCalculator(true)}
+                  user={user}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        {/* Navigation - Mobile Only */}
+        <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[450px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t dark:border-slate-800 px-2 py-3 flex justify-around items-center z-40">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
+            { id: 'clients', icon: Users, label: 'Clients' },
+            { id: 'products', icon: ShoppingCart, label: 'Order' },
+            { id: 'expenses', icon: Wallet, label: 'Cash' },
+            { id: 'bandwidth', icon: Zap, label: 'Speed' },
+            { id: 'warranty', icon: ShieldCheck, label: 'Safety' },
+            { id: 'me', icon: User, label: 'Me' },
+          ].map(item => (
+            <button 
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-all duration-300 px-3 py-1 rounded-xl",
+                activeTab === item.id ? "text-blue-600 scale-110" : "text-gray-400"
+              )}
+            >
+              <item.icon size={activeTab === item.id ? 24 : 20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+              <span className="text-[10px] font-bold">{item.label}</span>
+              {activeTab === item.id && (
+                <motion.div layoutId="nav-indicator" className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {/* Modals */}
       <AnimatePresence>

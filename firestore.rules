@@ -87,7 +87,7 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.price is number && data.price >= 0 &&
              data.stock is number &&
-             isValidOptionalString('category', 50) &&
+             isValidOptionalString('category', 100) &&
              isValidOptionalString('image', 1000000) && // Base64 can be large
              isValidOptionalString('description', 1000) &&
              isValidOptionalString('badge', 20);
