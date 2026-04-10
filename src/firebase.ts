@@ -4,8 +4,25 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
+console.log("Initializing Firebase with Project ID:", firebaseConfig.projectId);
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Try to initialize with the specific database ID, fallback to default if it's missing or invalid
+let dbInstance;
+try {
+  if (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)") {
+    console.log("Using Custom Firestore Database ID:", firebaseConfig.firestoreDatabaseId);
+    dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  } else {
+    console.log("Using Default Firestore Database");
+    dbInstance = getFirestore(app);
+  }
+} catch (e) {
+  console.error("Failed to initialize Firestore with ID, falling back to default:", e);
+  dbInstance = getFirestore(app);
+}
+
+export const db = dbInstance;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -63,12 +80,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Validate Connection to Firestore
 async function testConnection() {
   try {
+    console.log("Testing Firestore connection...");
     await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firestore connection successful!");
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
+    console.error("Firestore connection test failed:", error);
+    if(error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Backend didn\'t respond'))) {
+      console.error("CRITICAL: Firestore is unreachable. Please verify that the database ID '" + firebaseConfig.firestoreDatabaseId + "' exists in project '" + firebaseConfig.projectId + "'.");
     }
-    // Skip logging for other errors, as this is simply a connection test.
   }
 }
 testConnection();

@@ -47,6 +47,25 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == "djbmremix87@gmail.com";
+    }
+
+    function isOrderPlacement() {
+      // Only allow updating specific fields related to an order
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return affectedKeys.hasOnly(['orders', 'due', 'totalPaid', 'paymentHistory', 'status', 'works']) &&
+             request.resource.data.name == resource.data.name &&
+             request.resource.data.phone == resource.data.phone;
+    }
+
+    function isStockUpdate() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return affectedKeys.hasOnly(['stock']) &&
+             request.resource.data.stock >= 0 &&
+             request.resource.data.stock < resource.data.stock; // Only allow decreasing stock
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -123,6 +142,42 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
+    
+    // Global Settings
+    match /settings/global {
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    // Health check path
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Global Collections (Shared among all users)
+    match /products/{productId} {
+      allow read: if true; 
+      allow create, delete: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if (isAdmin() && isValidProduct(request.resource.data)) || isStockUpdate();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAdmin(); 
+      allow create, update: if isAdmin() && isValidClient(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /public_orders/{orderId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isAdmin(); 
+      allow create, update, delete: if isAdmin() && isValidExpense(request.resource.data);
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create, update: if isOwner(userId) && isValidUser(request.resource.data);

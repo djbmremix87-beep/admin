@@ -19,6 +19,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^11.3.0",
+    "fuse.js": "^7.3.0",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

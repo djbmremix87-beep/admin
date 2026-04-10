@@ -27,6 +27,7 @@ export interface Product {
   category: string;
   image?: string; // base64 or URL
   badge?: 'new' | 'hot' | 'lowstock';
+  description?: string;
 }
 
 export interface WorkHistory {
@@ -45,12 +46,21 @@ export interface PaymentHistory {
   purpose?: string;
 }
 
+export enum OrderStatus {
+  PENDING = 'Pending',
+  PROCESSING = 'Processing',
+  SHIPPED = 'Shipped',
+  DELIVERED = 'Delivered',
+  CANCELLED = 'Cancelled'
+}
+
 export interface Order {
   id: string;
   date: string;
   items: CartItem[];
   total: number;
   dueDate?: string | null;
+  status: OrderStatus;
 }
 
 export interface CartItem {
@@ -73,6 +83,8 @@ export interface Client {
   paymentHistory: PaymentHistory[];
   orders: Order[];
   warrantyExpiry?: string;
+  installationDate?: string;
+  notes?: string;
   image?: string; // base64 or URL
 }
 
@@ -82,4 +94,15 @@ export interface Expense {
   category: string;
   amount: number;
   description: string;
+}
+
+export interface PublicOrder {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  items: CartItem[];
+  total: number;
+  date: string;
+  status: 'pending' | 'accepted' | 'rejected';
 }

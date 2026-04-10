@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, Component, useRef } from 'react';
+import Fuse from 'fuse.js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
@@ -41,11 +42,17 @@ import {
   Share2,
   Database,
   Smartphone,
-  Activity,
-  Wifi,
-  ArrowUp,
-  ArrowDown,
-  Gauge
+  Sparkles,
+  Send,
+  CloudUpload,
+  Info,
+  Lock,
+  Key,
+  Edit2,
+  Calendar,
+  Image,
+  Music,
+  Wand2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -69,29 +76,35 @@ import {
   Expense, 
   CartItem,
   Order,
+  OrderStatus,
   WorkHistory,
-  PaymentHistory
+  PaymentHistory,
+  PublicOrder
 } from './types';
 
 // --- Default Data ---
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: 1, name: 'Ranger 2 Pro 3MP', price: 3200, stock: 15, category: 'indoor', badge: 'new' },
-  { id: 2, name: 'Ranger 2 Pro 5MP', price: 4500, stock: 8, category: 'indoor', badge: 'hot' },
-  { id: 3, name: 'Bulb Cam 3MP', price: 2800, stock: 3, category: 'indoor', badge: 'lowstock' },
-  { id: 4, name: 'NVR 8CH', price: 8500, stock: 5, category: 'nvr' },
-  { id: 5, name: 'Outdoor Bullet 5MP', price: 5200, stock: 12, category: 'outdoor', badge: 'new' }
+  { id: 1, name: 'Ranger 2 Pro 3MP', price: 3200, stock: 15, category: 'indoor', badge: 'new', description: '360° coverage with AI human detection and privacy mode.' },
+  { id: 2, name: 'Ranger 2 Pro 5MP', price: 4500, stock: 8, category: 'indoor', badge: 'hot', description: 'Ultra HD 5MP resolution with smart tracking and two-way talk.' },
+  { id: 3, name: 'Bulb Cam 3MP', price: 2800, stock: 3, category: 'indoor', badge: 'lowstock', description: 'Easy installation in standard bulb socket with full color night vision.' },
+  { id: 4, name: 'NVR 8CH', price: 8500, stock: 5, category: 'nvr', description: '8-channel network video recorder with H.265+ compression.' },
+  { id: 5, name: 'Outdoor Bullet 5MP', price: 5200, stock: 12, category: 'outdoor', badge: 'new', description: 'IP67 weatherproof outdoor camera with 30m IR range.' }
 ];
 
 const DEFAULT_CLIENTS: Client[] = [
   { 
     id: 1, name: 'Rahim Mia', phone: '8801711111111', address: 'Dhaka', status: ClientStatus.ACTIVE, 
     due: 5000, works: 2, totalPaid: 10000, workHistory: [], paymentHistory: [], orders: [],
-    warrantyExpiry: '2026-12-31'
+    warrantyExpiry: '2026-12-31',
+    installationDate: '2024-01-15',
+    notes: 'Standard 4-camera setup with NVR.'
   },
   { 
     id: 2, name: 'Karim Hossain', phone: '8801822222222', address: 'Chittagong', status: ClientStatus.DUE, 
     due: 12000, works: 1, totalPaid: 0, workHistory: [], paymentHistory: [], orders: [],
-    warrantyExpiry: '2025-06-15'
+    warrantyExpiry: '2025-06-15',
+    installationDate: '2024-06-15',
+    notes: 'Requested additional outdoor bullet cam next month.'
   }
 ];
 
@@ -107,6 +120,7 @@ import {
   deleteDoc, 
   query, 
   orderBy,
+  where,
   updateDoc,
   getDoc,
   getDocs,
@@ -120,6 +134,7 @@ import {
   handleFirestoreError, 
   OperationType 
 } from './firebase';
+import { GoogleGenAI } from "@google/genai";
 
 // --- Components ---
 
@@ -202,55 +217,27 @@ const ProductDetailsModal = ({
   formatCurrency: (v: number) => string
 }) => {
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <div 
       className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[110] flex items-center justify-center p-4"
       onClick={onClose}
     >
       {/* Four pieces animation background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <motion.div 
-          initial={{ x: '-100%', y: '-100%' }}
-          animate={{ x: 0, y: 0 }}
-          exit={{ x: '-100%', y: '-100%' }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+        <div 
           className="absolute top-0 left-0 w-1/2 h-1/2 bg-blue-600/10 border-r border-b border-white/10"
         />
-        <motion.div 
-          initial={{ x: '100%', y: '-100%' }}
-          animate={{ x: 0, y: 0 }}
-          exit={{ x: '100%', y: '-100%' }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+        <div 
           className="absolute top-0 right-0 w-1/2 h-1/2 bg-blue-600/10 border-l border-b border-white/10"
         />
-        <motion.div 
-          initial={{ x: '-100%', y: '100%' }}
-          animate={{ x: 0, y: 0 }}
-          exit={{ x: '-100%', y: '100%' }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+        <div 
           className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-blue-600/10 border-r border-t border-white/10"
         />
-        <motion.div 
-          initial={{ x: '100%', y: '100%' }}
-          animate={{ x: 0, y: 0 }}
-          exit={{ x: '100%', y: '100%' }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+        <div 
           className="absolute bottom-0 right-0 w-1/2 h-1/2 bg-blue-600/10 border-l border-t border-white/10"
         />
       </div>
 
-      <motion.div 
-        initial={{ scale: 0, opacity: 0, rotate: -10 }}
-        animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        exit={{ scale: 0, opacity: 0, rotate: 10 }}
-        transition={{ 
-          type: 'spring', 
-          damping: 25, 
-          stiffness: 200,
-          delay: 0.2 
-        }}
+      <div 
         className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[40px] overflow-hidden flex flex-col shadow-2xl relative z-10"
         onClick={e => e.stopPropagation()}
       >
@@ -262,18 +249,15 @@ const ProductDetailsModal = ({
             <X size={20} />
           </button>
           
-          <motion.div 
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, type: 'spring' }}
-            className="relative w-36 h-36 rounded-full border-4 border-white dark:border-slate-900 shadow-2xl overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center z-10"
+          <div 
+            className="relative w-48 h-48 rounded-3xl border-4 border-white dark:border-slate-900 shadow-2xl overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center z-10"
           >
             {product.image ? (
               <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
             ) : (
-              <Package size={60} className="text-gray-300" strokeWidth={1} />
+              <Package size={80} className="text-gray-300" strokeWidth={1} />
             )}
-          </motion.div>
+          </div>
 
           <div className="mt-4">
             <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg">
@@ -314,10 +298,9 @@ const ProductDetailsModal = ({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Specifications</h3>
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{product.description ? 'Description' : 'Specifications'}</h3>
             <p className="text-xs text-gray-500 leading-relaxed font-medium">
-              Professional grade {product.name} with high-definition clarity. 
-              Optimized for 24/7 surveillance with smart motion detection and IR night vision.
+              {product.description || `Professional grade ${product.name} with high-definition clarity. Optimized for 24/7 surveillance with smart motion detection and IR night vision.`}
             </p>
           </div>
 
@@ -337,8 +320,8 @@ const ProductDetailsModal = ({
             {product.stock > 0 ? 'Add to Order' : 'Out of Stock'}
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
@@ -352,7 +335,8 @@ const ProductList = ({
   onEditProduct,
   addToCart,
   isDarkMode,
-  formatCurrency
+  formatCurrency,
+  productCategories
 }: { 
   products: Product[], 
   inventoryMode: boolean, 
@@ -363,16 +347,43 @@ const ProductList = ({
   onEditProduct: (p: Product) => void,
   addToCart: (p: Product) => void,
   isDarkMode: boolean,
-  formatCurrency: (v: number) => string
+  formatCurrency: (v: number) => string,
+  productCategories: string[]
 }) => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
-  
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === 'all' || p.category === filter;
-    return matchesSearch && matchesFilter;
-  });
+
+  const fuse = useMemo(() => new Fuse(products, {
+    keys: ['name', 'category', 'description'],
+    threshold: 0.4,
+    includeScore: true
+  }), [products]);
+
+  const filteredProducts = useMemo(() => {
+    let result = products;
+
+    if (search) {
+      const fuzzyResults = fuse.search(search);
+      result = fuzzyResults.map(r => r.item);
+    }
+
+    if (filter !== 'all') {
+      result = result.filter(p => p.category === filter);
+    }
+
+    return result;
+  }, [search, filter, products, fuse]);
+
+  // Find related categories based on search
+  const suggestedCategories = useMemo(() => {
+    if (!search) return [];
+    return productCategories.filter(cat => 
+      cat.toLowerCase().includes(search.toLowerCase()) && cat !== filter
+    );
+  }, [search, productCategories, filter]);
+
+  // Get all categories including custom ones
+  const allCategories = ['all', ...productCategories];
 
   return (
     <div className="space-y-6 pb-24 md:pb-0">
@@ -385,38 +396,49 @@ const ProductList = ({
             </p>
           </div>
           <div className="relative flex gap-2">
-            <button 
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setInventoryMode(!inventoryMode)}
               className={cn(
-                "p-2 rounded-xl transition-colors",
-                inventoryMode ? "bg-blue-600 text-white" : "glass-card text-blue-600"
+                "p-2 rounded-xl transition-all duration-300",
+                inventoryMode 
+                  ? "bg-green-600 text-white shadow-lg shadow-green-500/30" 
+                  : "bg-blue-600 text-white shadow-md shadow-blue-500/20"
               )}
             >
               <Settings size={20} />
-            </button>
-            <button 
-              onClick={() => setShowAddProduct(true)}
-              className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 dark:shadow-none"
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.preventDefault();
+                setShowAddProduct(true);
+              }}
+              className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
             >
               <Plus size={20} />
-            </button>
+            </motion.button>
           </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto hide-scrollbar py-1">
-          {['all', 'indoor', 'outdoor', 'nvr', 'accessories'].map(cat => (
-            <button 
+          {allCategories.map(cat => (
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               key={cat}
               onClick={() => setFilter(cat)}
               className={cn(
                 "px-5 py-2.5 rounded-2xl text-[11px] font-bold whitespace-nowrap transition-all duration-300 border",
                 filter === cat 
-                  ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 dark:shadow-none" 
-                  : "bg-white dark:bg-slate-900 text-gray-500 border-gray-100 dark:border-slate-800 hover:border-blue-200"
+                  ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                  : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
               )}
             >
               {cat.toUpperCase()}
-            </button>
+            </motion.button>
           ))}
         </div>
 
@@ -430,6 +452,26 @@ const ProductList = ({
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
+        {suggestedCategories.length > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Related:</span>
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+              {suggestedCategories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setFilter(cat);
+                    setSearch('');
+                  }}
+                  className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 transition-colors"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -438,6 +480,7 @@ const ProductList = ({
             key={product.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.98 }}
             transition={{ delay: idx * 0.05 }}
             onClick={() => setSelectedProduct(product)}
             className="group relative bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 cursor-pointer"
@@ -533,75 +576,146 @@ const Dashboard = ({
   products, 
   clients, 
   expenses, 
-  formatCurrency 
+  formatCurrency,
+  addToCart,
+  setActiveTab
 }: { 
   products: Product[], 
   clients: Client[], 
   expenses: Expense[], 
-  formatCurrency: (v: number) => string 
+  formatCurrency: (v: number) => string,
+  addToCart: (p: Product) => void,
+  setActiveTab: (t: string) => void
 }) => {
-  const totalSales = clients.reduce((sum, c) => sum + c.totalPaid, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const profit = totalSales - totalExpenses;
+  const totalClients = clients.length;
+  const totalProducts = products.length;
+  const totalDue = clients.reduce((sum, c) => sum + c.due, 0);
+  const monthlyIncome = clients.reduce((sum, c) => sum + c.totalPaid, 0);
+  
+  const chartData = [
+    { name: 'Jan', profit: 4000, expense: 2400 },
+    { name: 'Feb', profit: 3000, expense: 1398 },
+    { name: 'Mar', profit: 2000, expense: 9800 },
+    { name: 'Apr', profit: 2780, expense: 3908 },
+    { name: 'May', profit: 1890, expense: 4800 },
+    { name: 'Jun', profit: 2390, expense: 3800 },
+  ];
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-xs text-gray-500 font-medium">Overview of your business</p>
-        </div>
-        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600">
-          <LayoutDashboard size={20} />
-        </div>
-      </div>
-
+    <div className="space-y-6 pb-20">
       <div className="grid grid-cols-2 gap-4">
-        <div className="glass-card p-5 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
-          <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center text-emerald-600 mb-3">
-            <Wallet size={16} />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
+              <Users size={20} />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Clients</span>
           </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Revenue</p>
-          <p className="text-lg font-black text-gray-900 dark:text-white">{formatCurrency(totalSales)}</p>
-        </div>
-        <div className="glass-card p-5 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
-          <div className="w-8 h-8 bg-rose-50 dark:bg-rose-900/20 rounded-lg flex items-center justify-center text-rose-600 mb-3">
-            <Trash2 size={16} />
+          <h3 className="text-xl font-bold">{totalClients}</h3>
+        </motion.div>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600">
+              <Package size={20} />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Products</span>
           </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Expenses</p>
-          <p className="text-lg font-black text-gray-900 dark:text-white">{formatCurrency(totalExpenses)}</p>
-        </div>
+          <h3 className="text-xl font-bold">{totalProducts}</h3>
+        </motion.div>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-600">
+              <DollarSign size={20} />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Income</span>
+          </div>
+          <h3 className="text-xl font-bold">{formatCurrency(monthlyIncome)}</h3>
+        </motion.div>
+        
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg text-red-600">
+              <AlertTriangle size={20} />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Total Due</span>
+          </div>
+          <h3 className="text-xl font-bold text-red-500">{formatCurrency(totalDue)}</h3>
+        </motion.div>
       </div>
 
-      <div className="glass-card p-6 rounded-[32px] border border-gray-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16" />
-        <div className="relative z-10">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Net Profit</p>
-          <h3 className="text-3xl font-black text-blue-600">{formatCurrency(profit)}</h3>
-          <div className="mt-4 flex items-center gap-2">
-            <span className="px-2 py-1 bg-emerald-500/10 text-emerald-600 text-[9px] font-bold rounded-lg flex items-center gap-1">
-              <Plus size={10} /> 12% from last month
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex justify-between items-center px-1">
-          <h3 className="text-sm font-bold">Quick Actions</h3>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { icon: Package, label: 'Stock', color: 'bg-blue-50 text-blue-600' },
-            { icon: Users, label: 'Clients', color: 'bg-purple-50 text-purple-600' },
-            { icon: Bell, label: 'Alerts', color: 'bg-amber-50 text-amber-600' }
-          ].map((action, i) => (
-            <button key={i} className="flex flex-col items-center gap-2 p-4 glass-card rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-blue-200 transition-all">
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", action.color)}>
-                <action.icon size={20} />
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <Package size={18} className="text-blue-500" />
+          Quick Products
+        </h3>
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
+          {products.slice(0, 5).map(product => (
+            <div key={product.id} className="min-w-[140px] glass-card p-3 flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
+                {product.image ? (
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Package size={24} className="text-gray-400" />
+                )}
               </div>
-              <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">{action.label}</span>
-            </button>
+              <h4 className="text-[10px] font-bold line-clamp-1">{product.name}</h4>
+              <p className="text-blue-600 text-[10px] font-bold">{formatCurrency(product.price)}</p>
+              <button 
+                onClick={() => addToCart(product)}
+                className="mt-2 w-full py-1 bg-blue-600 text-white rounded text-[10px] font-bold"
+              >
+                Add
+              </button>
+            </div>
+          ))}
+          <button 
+            onClick={() => setActiveTab('products')}
+            className="min-w-[100px] glass-card p-3 flex flex-col items-center justify-center text-center text-blue-600"
+          >
+            <ChevronRight size={24} />
+            <span className="text-[10px] font-bold">View All</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <BarChart3 size={18} className="text-blue-500" />
+          Financial Overview
+        </h3>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Area type="monotone" dataKey="profit" stroke="#3b82f6" fillOpacity={1} fill="url(#colorProfit)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <AlertTriangle size={18} className="text-orange-500" />
+          Stock Alerts
+        </h3>
+        <div className="space-y-3">
+          {products.filter(p => p.stock < 5).map(p => (
+            <div key={p.id} className="flex justify-between items-center p-2 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/20">
+              <span className="text-sm font-medium">{p.name}</span>
+              <span className={cn("text-xs font-bold px-2 py-1 rounded-full", p.stock <= 3 ? "bg-red-100 text-red-600 animate-blink" : "bg-orange-100 text-orange-600")}>
+                {p.stock} left
+              </span>
+            </div>
           ))}
         </div>
       </div>
@@ -611,53 +725,71 @@ const Dashboard = ({
 
 const ClientList = ({ 
   clients, 
+  formatCurrency, 
   setShowClientProfile, 
-  formatCurrency 
+  withPassword, 
+  setShowAddClient 
 }: { 
   clients: Client[], 
+  formatCurrency: (v: number) => string, 
   setShowClientProfile: (c: Client) => void, 
-  formatCurrency: (v: number) => string 
+  withPassword: (fn: () => void, adminOnly: boolean) => void, 
+  setShowAddClient: (v: boolean) => void 
 }) => {
+  const [search, setSearch] = useState('');
+  const filteredClients = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
+
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Clients</h2>
-          <p className="text-xs text-gray-500 font-medium">Manage your customer base</p>
-        </div>
-        <button className="p-2 bg-blue-600 text-white rounded-xl shadow-lg">
-          <Plus size={20} />
-        </button>
+    <div className="space-y-4 pb-20">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <input 
+          type="text" 
+          placeholder="Search clients..." 
+          className="w-full pl-10 pr-4 py-3 glass-card focus:ring-2 focus:ring-blue-500 outline-none"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {clients.map(client => (
+      <div className="space-y-3">
+        {filteredClients.map((client, idx) => (
           <motion.div 
             key={client.id}
-            whileHover={{ x: 4 }}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.05 }}
             onClick={() => setShowClientProfile(client)}
-            className="glass-card p-4 rounded-3xl border border-gray-100 dark:border-slate-800 flex items-center justify-between cursor-pointer group"
+            className="glass-card p-4 flex justify-between items-center cursor-pointer hover:scale-[1.02] transition-transform"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden">
-                {client.image ? (
-                  <img src={client.image} alt={client.name} className="w-full h-full object-cover" />
-                ) : (
-                  client.name[0]
-                )}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 font-bold text-lg">
+                {client.name[0]}
               </div>
               <div>
-                <h4 className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">{client.name}</h4>
-                <p className="text-[10px] text-gray-400 font-medium">{client.phone}</p>
+                <h4 className="font-bold text-sm">{client.name}</h4>
+                <p className="text-xs text-gray-500">{client.phone}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Spent</p>
-              <p className="text-sm font-black text-gray-900 dark:text-white">{formatCurrency(client.totalPaid)}</p>
+              <p className={cn("text-xs font-bold px-2 py-1 rounded-full inline-block", 
+                client.status === ClientStatus.ACTIVE ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+              )}>
+                {client.status.toUpperCase()}
+              </p>
+              <p className="text-xs font-bold mt-1 text-gray-700 dark:text-gray-300">Due: {formatCurrency(client.due)}</p>
             </div>
           </motion.div>
         ))}
       </div>
+
+      <motion.button 
+        whileTap={{ scale: 0.95 }}
+        onClick={() => withPassword(() => setShowAddClient(true), true)}
+        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center btn-ripple z-40 opacity-90 hover:opacity-100"
+      >
+        <Plus size={28} />
+      </motion.button>
     </div>
   );
 };
@@ -729,7 +861,8 @@ const AddProductModal = ({
     price: '',
     category: productCategories[0] || 'indoor',
     stock: '',
-    image: ''
+    image: '',
+    description: ''
   });
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
@@ -897,7 +1030,18 @@ const AddProductModal = ({
             )}
           </div>
           
-          <button 
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Description</label>
+            <textarea 
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px] text-sm"
+              placeholder="Product features, specifications, etc."
+              value={formData.description}
+              onChange={e => setFormData({...formData, description: e.target.value})}
+            />
+          </div>
+          
+          <motion.button 
+            whileTap={{ scale: 0.95 }}
             onClick={() => {
               if (!formData.name.trim()) {
                 alert("Product name is required");
@@ -909,10 +1053,10 @@ const AddProductModal = ({
                 stock: Number(formData.stock) || 0
               });
             }}
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 dark:shadow-none mt-4"
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg opacity-90 hover:opacity-100 dark:shadow-none mt-4"
           >
             Create Product
-          </button>
+          </motion.button>
         </div>
       </motion.div>
     </motion.div>
@@ -935,7 +1079,8 @@ const EditProductModal = ({
   const [formData, setFormData] = useState({
     ...product,
     price: product.price.toString(),
-    stock: product.stock.toString()
+    stock: product.stock.toString(),
+    description: product.description || ''
   });
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
@@ -1103,7 +1248,18 @@ const EditProductModal = ({
             )}
           </div>
           
-          <button 
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Description</label>
+            <textarea 
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px] text-sm"
+              placeholder="Product features, specifications, etc."
+              value={formData.description}
+              onChange={e => setFormData({...formData, description: e.target.value})}
+            />
+          </div>
+          
+          <motion.button 
+            whileTap={{ scale: 0.95 }}
             onClick={() => {
               if (!formData.name.trim()) {
                 alert("Product name is required");
@@ -1115,10 +1271,10 @@ const EditProductModal = ({
                 stock: Number(formData.stock) || 0
               });
             }}
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 dark:shadow-none mt-4"
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg opacity-90 hover:opacity-100 dark:shadow-none mt-4"
           >
             Update Product
-          </button>
+          </motion.button>
         </div>
       </motion.div>
     </motion.div>
@@ -1202,248 +1358,111 @@ const CalculatorModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 const SplashScreen = ({ customLogo }: { customLogo: string | null }) => {
-  const dialogues = [
-    "Initializing server room...",
-    "Checking network connections...",
-    "Optimizing database clusters...",
-    "Securing the perimeter...",
-    "System Online!"
-  ];
-  const [dialogueIdx, setDialogueIdx] = useState(0);
-  const [impacted, setImpacted] = useState(false);
-  const [phase, setPhase] = useState<'working' | 'looking' | 'throwing' | 'impacted'>('working');
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setDialogueIdx(prev => (prev + 1) % dialogues.length);
-    }, 1000);
-    
-    // Phase timings
-    const workingTimer = setTimeout(() => {
-      setPhase('looking');
-    }, 1500);
-
-    const lookingTimer = setTimeout(() => {
-      setPhase('throwing');
-    }, 2200);
-
-    const impactTimer = setTimeout(() => {
-      setPhase('impacted');
-      setImpacted(true);
-    }, 2700);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(workingTimer);
-      clearTimeout(lookingTimer);
-      clearTimeout(impactTimer);
-    };
+      setProgress(prev => {
+        if (prev >= 100) return 100;
+        return prev + Math.random() * 15;
+      });
+    }, 200);
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <motion.div 
       initial={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.1 }}
-      transition={{ duration: 0.8 }}
+      exit={{ opacity: 0, scale: 1.05 }}
+      transition={{ duration: 0.8, ease: "easeInOut" }}
       className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center overflow-hidden"
     >
-      {/* Server Room Background */}
-      {!impacted && (
-        <div className="absolute inset-0 grid grid-cols-4 md:grid-cols-6 gap-4 p-8 opacity-20">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-2">
-              <Server size={40} className="text-blue-500" />
-              <div className="flex gap-1">
-                <motion.div 
-                  animate={{ opacity: [0.3, 1, 0.3] }} 
-                  transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
-                  className="w-1 h-1 bg-green-500 rounded-full" 
-                />
-                <motion.div 
-                  animate={{ opacity: [0.3, 1, 0.3] }} 
-                  transition={{ repeat: Infinity, duration: 0.7, delay: i * 0.2 }}
-                  className="w-1 h-1 bg-blue-500 rounded-full" 
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Premium Background Effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5" />
+      </div>
 
-      {/* Person Working / Looking / Throwing */}
-      {!impacted && (
-        <motion.div
-          initial={{ scale: 0.8, y: 50 }}
-          animate={{ scale: 1, y: 0 }}
-          className="relative z-10 flex flex-col items-center"
-        >
-          {/* Character Body */}
-          <motion.div 
-            animate={phase === 'working' ? {
-              rotate: [0, 2, 0, -2, 0],
-              y: [0, -5, 0]
-            } : {}}
-            transition={{ repeat: Infinity, duration: 0.4 }}
-            className="relative"
-          >
-            {/* Technician Head */}
-            <div className="relative flex flex-col items-center">
-              {/* Head */}
-              <motion.div 
-                animate={phase === 'working' ? { rotate: [0, 5, 0, -5, 0] } : phase === 'looking' ? { rotate: 0, scale: 1.1 } : {}}
-                className="w-16 h-16 bg-[#ffdbac] rounded-full relative z-20 border-2 border-[#e0ac69] overflow-hidden"
-              >
-                {/* Eyes */}
-                <motion.div 
-                  animate={phase === 'working' ? { y: [0, 2, 0] } : { y: 0 }}
-                  className="absolute top-6 left-0 w-full flex justify-around px-3"
-                >
-                  <div className="w-3 h-3 bg-slate-900 rounded-full" />
-                  <div className="w-3 h-3 bg-slate-900 rounded-full" />
-                </motion.div>
-                
-                {/* Looking at screen effect */}
-                {phase !== 'working' && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="absolute inset-0 bg-blue-500/20 blur-sm"
-                  />
-                )}
-              </motion.div>
-              
-              {/* Body */}
-              <div className="w-20 h-24 bg-blue-600 rounded-t-[25px] -mt-2 relative z-10 border-x-2 border-t-2 border-blue-700 shadow-inner">
-                {/* Shirt Detail */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-full bg-blue-700/50" />
-                
-                {/* Arms */}
-                {phase === 'working' ? (
-                  <>
-                    <motion.div 
-                      animate={{ rotate: [0, 30, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.3 }}
-                      className="absolute -left-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-l-2 border-blue-700"
-                    />
-                    <motion.div 
-                      animate={{ rotate: [0, -30, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.3, delay: 0.1 }}
-                      className="absolute -right-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-r-2 border-blue-700"
-                    />
-                  </>
-                ) : phase === 'looking' ? (
-                  <>
-                    <motion.div 
-                      initial={{ rotate: 0 }}
-                      animate={{ rotate: -20 }}
-                      className="absolute -left-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-l-2 border-blue-700"
-                    />
-                    <motion.div 
-                      initial={{ rotate: 0 }}
-                      animate={{ rotate: 20 }}
-                      className="absolute -right-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-r-2 border-blue-700"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <motion.div 
-                      animate={{ rotate: -40 }}
-                      className="absolute -left-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-l-2 border-blue-700"
-                    />
-                    <motion.div 
-                      initial={{ rotate: 20 }}
-                      animate={{ rotate: [20, -120, 20] }}
-                      transition={{ duration: 0.5 }}
-                      className="absolute -right-6 top-4 w-6 h-12 bg-blue-600 rounded-full origin-top border-r-2 border-blue-700"
-                    >
-                      {/* Cable being thrown */}
-                      {phase === 'throwing' && (
-                        <motion.div
-                          initial={{ scale: 1, x: 0, y: 0, opacity: 1 }}
-                          animate={{ scale: 10, x: 0, y: -500, opacity: 0 }}
-                          transition={{ duration: 0.5, ease: "easeIn" }}
-                          className="absolute bottom-0 right-0"
-                        >
-                          <Zap size={30} className="text-yellow-400 rotate-180" />
-                          <div className="w-1 h-20 bg-slate-400 -mt-2 mx-auto" />
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  </>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Impact Effect / Flash */}
-      {impacted && (
-        <motion.div
-          initial={{ scale: 0, opacity: 1 }}
-          animate={{ scale: 10, opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          className="absolute inset-0 bg-white z-50 flex items-center justify-center"
-        >
-          <Zap size={200} className="text-yellow-400" />
-        </motion.div>
-      )}
-
-      {/* Logo Reveal */}
-      <motion.div 
-        initial={{ scale: 0, opacity: 0, rotate: -180 }}
-        animate={impacted ? { scale: 1, opacity: 1, rotate: 0 } : {}}
-        transition={{ 
-          type: "spring",
-          damping: 8,
-          stiffness: 150,
-          delay: 0.1
-        }}
-        className={`w-48 h-48 bg-blue-600 rounded-[56px] flex items-center justify-center shadow-2xl shadow-blue-500/40 mb-8 overflow-hidden border-4 border-white/20 ${impacted ? 'animate-shake' : ''}`}
-      >
-        {customLogo ? (
-          <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
-        ) : (
-          <ShieldCheck size={100} className="text-white" />
-        )}
-      </motion.div>
-      
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={impacted ? { opacity: 1 } : {}}
-        className="text-center"
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 1, ease: "easeOut" }}
+        className="relative z-10 flex flex-col items-center"
       >
-        <motion.h2 
-          className="text-4xl font-black text-white mb-2 tracking-tighter"
-        >
-          CCTV PRO
-        </motion.h2>
-        
+        {/* Glow behind logo */}
         <motion.div 
-          key={dialogueIdx}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="text-blue-400 text-sm font-bold h-6"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ repeat: Infinity, duration: 3 }}
+          className="absolute w-64 h-64 bg-blue-500/30 blur-[60px] rounded-full"
+        />
+
+        {/* Logo Container */}
+        <motion.div 
+          initial={{ y: 20 }}
+          animate={{ y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="w-40 h-40 bg-gradient-to-br from-blue-600 to-blue-800 rounded-[40px] flex items-center justify-center shadow-[0_20px_50px_rgba(37,99,235,0.4)] mb-10 overflow-hidden border border-white/20 relative z-20"
         >
-          {dialogues[dialogueIdx]}
+          {customLogo ? (
+            <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+          ) : (
+            <ShieldCheck size={80} className="text-white" />
+          )}
         </motion.div>
+
+        {/* Text Content */}
+        <div className="text-center relative z-20">
+          <motion.h1 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-4xl font-black text-white mb-1 tracking-tight"
+          >
+            IT DEPARTMENT PRO
+          </motion.h1>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ delay: 0.6 }}
+            className="text-blue-400 text-xs font-bold uppercase tracking-[0.3em] mb-8"
+          >
+            Security & Management Systems
+          </motion.p>
+
+          {/* Premium Loading Bar */}
+          <div className="w-64 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10 relative">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600"
+            />
+            {/* Shimmer effect on loading bar */}
+            <motion.div 
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-1/2"
+            />
+          </div>
+          <motion.p 
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="text-[10px] text-gray-500 font-bold mt-3 uppercase tracking-widest"
+          >
+            {progress < 100 ? 'System Initializing...' : 'Ready to Launch'}
+          </motion.p>
+        </div>
       </motion.div>
 
-      {/* Progress Bar */}
-      <div className="absolute bottom-12 w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <motion.div 
-          initial={{ x: "-100%" }}
-          animate={{ x: "0%" }}
-          transition={{ duration: 6, ease: "linear" }}
-          className="w-full h-full bg-gradient-to-r from-blue-600 to-cyan-400"
-        />
-      </div>
-
-      {/* Background Glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[150px]" />
-      </div>
+      {/* Footer Branding */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.3 }}
+        transition={{ delay: 1 }}
+        className="absolute bottom-10 text-[10px] text-white font-bold tracking-[0.2em] uppercase"
+      >
+        Enterprise Edition v2.0
+      </motion.div>
     </motion.div>
   );
 };
@@ -1461,13 +1480,18 @@ function AppContent() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('cctv_dark_mode') === 'true');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showEditProduct, setShowEditProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [inventoryMode, setInventoryMode] = useState(false);
   const [customLogo, setCustomLogo] = useState<string | null>(() => localStorage.getItem('cctv_custom_logo'));
+  const [customIntroMusic, setCustomIntroMusic] = useState<string | null>(() => localStorage.getItem('cctv_custom_intro_music'));
+  const [customClickSound, setCustomClickSound] = useState<string | null>(() => localStorage.getItem('cctv_custom_click_sound'));
+  
+  const isAdmin = user?.email === 'djbmremix87@gmail.com';
+
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('cctv_products');
     return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
@@ -1480,13 +1504,55 @@ function AppContent() {
     const saved = localStorage.getItem('cctv_expenses');
     return saved ? JSON.parse(saved) : [];
   });
+  const [publicOrders, setPublicOrders] = useState<PublicOrder[]>([]);
+  const [showPendingOrders, setShowPendingOrders] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [showClientProfile, setShowClientProfile] = useState<Client | null>(null);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordCallback, setPasswordCallback] = useState<{ onSuccess: () => void } | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
+  const [adminPassword, setAdminPassword] = useState(() => {
+    return localStorage.getItem('adminPassword') || '1233@';
+  });
   const [notifications, setNotifications] = useState<{id: number, text: string}[]>([]);
+
+  useEffect(() => {
+    if (isAuthReady && !isAdmin) {
+      if (['dashboard', 'clients', 'expenses', 'warranty'].includes(activeTab)) {
+        setActiveTab('products');
+      }
+    }
+  }, [isAdmin, isAuthReady, activeTab]);
+
+  const withPassword = (action: () => void, strict = false) => {
+    // If strict is false and user is logged in via Firebase, they are the admin
+    if (!strict && (isAdmin || isVerified)) {
+      action();
+      return;
+    }
+    
+    if (strict && !isAdmin) {
+      addNotification("Only the owner can perform this action. Please log in.");
+      return;
+    }
+
+    setShowPasswordModal(true);
+    setPasswordCallback({ 
+      onSuccess: () => {
+        setIsVerified(true);
+        action();
+      } 
+    });
+  };
+
+  const lockAdmin = () => {
+    setIsVerified(false);
+    addNotification("Admin session locked.");
+  };
   const [productCategories, setProductCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('cctv_product_categories');
     return saved ? JSON.parse(saved) : Object.values(Category);
@@ -1499,6 +1565,8 @@ function AppContent() {
   const lastSyncedSettings = useRef({
     darkMode: isDarkMode,
     customLogo: customLogo,
+    customIntroMusic: customIntroMusic,
+    customClickSound: customClickSound,
     expenseCategories: JSON.stringify(expenseCategories),
     productCategories: JSON.stringify(productCategories)
   });
@@ -1516,17 +1584,10 @@ function AppContent() {
 
   // Firestore Listeners
   useEffect(() => {
-    if (!user) {
-      setProducts(DEFAULT_PRODUCTS);
-      setClients(DEFAULT_CLIENTS);
-      setExpenses([]);
-      return;
-    }
-
-    const userId = user.uid;
-
-    // User Settings
-    const userDocRef = doc(db, 'users', userId);
+    // Fetch global data even if not logged in (for public sharing)
+    
+    // Global Settings
+    const userDocRef = doc(db, 'settings', 'global');
     const unsubUser = onSnapshot(userDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -1552,71 +1613,165 @@ function AppContent() {
           lastSyncedSettings.current.productCategories = JSON.stringify(data.productCategories);
           localStorage.setItem('cctv_product_categories', JSON.stringify(data.productCategories));
         }
+        if (data.customIntroMusic !== undefined) {
+          setCustomIntroMusic(data.customIntroMusic);
+          lastSyncedSettings.current.customIntroMusic = data.customIntroMusic;
+          if (data.customIntroMusic) localStorage.setItem('cctv_custom_intro_music', data.customIntroMusic);
+          else localStorage.removeItem('cctv_custom_intro_music');
+        }
+        if (data.customClickSound !== undefined) {
+          setCustomClickSound(data.customClickSound);
+          lastSyncedSettings.current.customClickSound = data.customClickSound;
+          if (data.customClickSound) localStorage.setItem('cctv_custom_click_sound', data.customClickSound);
+          else localStorage.removeItem('cctv_custom_click_sound');
+        }
         
-        // Seed if not already seeded
-        if (!data.seeded && !isSeeding.current) {
-          seedUserData(userId);
+        // Seed if not already seeded and user is logged in
+        if (!data.seeded && user && !isSeeding.current) {
+          seedUserData(user.uid);
         }
-      } else {
+      } else if (user && !isSeeding.current) {
         // Initialize user doc if it doesn't exist
-        if (!isSeeding.current) {
-          isSeeding.current = true;
-          setDoc(userDocRef, { 
-            darkMode: isDarkMode, 
-            customLogo, 
-            expenseCategories,
-            productCategories,
-            seeded: true 
-          }, { merge: true }).then(() => {
-            seedUserData(userId);
-          }).finally(() => {
-            isSeeding.current = false;
-          });
-        }
+        isSeeding.current = true;
+        setDoc(userDocRef, { 
+          darkMode: isDarkMode, 
+          customLogo, 
+          expenseCategories,
+          productCategories,
+          seeded: true 
+        }, { merge: true }).then(() => {
+          seedUserData(user.uid);
+        }).finally(() => {
+          isSeeding.current = false;
+        });
       }
       setIsInitialLoad(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${userId}`);
+      handleFirestoreError(error, OperationType.GET, `settings/global`);
       setIsInitialLoad(false);
     });
 
     // Products
-    const productsRef = collection(db, 'users', userId, 'products');
+    const productsRef = collection(db, 'products');
     const unsubProducts = onSnapshot(query(productsRef, orderBy('name')), (snapshot) => {
       const items = snapshot.docs.map(doc => ({ ...doc.data() } as Product));
-      if (items.length > 0 || isInitialLoad === false) {
+      
+      // If Firestore has data, it's the source of truth
+      if (items.length > 0) {
         setProducts(items);
         localStorage.setItem('cctv_products', JSON.stringify(items));
+      } else if (isInitialLoad === false) {
+        // If Firestore is empty and we've finished initial load, 
+        // check if we have local data to sync up
+        const localData = localStorage.getItem('cctv_products');
+        if (localData && user) {
+          const parsed = JSON.parse(localData);
+          if (parsed.length > 0) {
+            console.log("Syncing local products to Firestore...");
+            parsed.forEach((p: Product) => {
+              setDoc(doc(db, 'products', String(p.id)), p);
+            });
+          }
+        } else {
+          setProducts([]);
+          localStorage.setItem('cctv_products', '[]');
+        }
       }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${userId}/products`));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `products`));
 
-    // Clients
-    const clientsRef = collection(db, 'users', userId, 'clients');
-    const unsubClients = onSnapshot(query(clientsRef, orderBy('name')), (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
-      if (items.length > 0 || isInitialLoad === false) {
-        setClients(items);
-        localStorage.setItem('cctv_clients', JSON.stringify(items));
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${userId}/clients`));
+    // Clients (Only for admin)
+    let unsubClients = () => {};
+    if (isAdmin) {
+      const clientsRef = collection(db, 'clients');
+      unsubClients = onSnapshot(query(clientsRef, orderBy('name')), (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
+        
+        if (items.length > 0) {
+          setClients(items);
+          localStorage.setItem('cctv_clients', JSON.stringify(items));
+        } else if (isInitialLoad === false) {
+          // Sync local to cloud if cloud is empty
+          const localData = localStorage.getItem('cctv_clients');
+          if (localData && user) {
+            const parsed = JSON.parse(localData);
+            if (parsed.length > 0) {
+              console.log("Syncing local clients to Firestore...");
+              parsed.forEach((c: Client) => {
+                setDoc(doc(db, 'clients', String(c.id)), c);
+              });
+            }
+          } else {
+            setClients([]);
+            localStorage.setItem('cctv_clients', '[]');
+          }
+        }
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `clients`));
+    } else {
+      setClients([]);
+    }
 
-    // Expenses
-    const expensesRef = collection(db, 'users', userId, 'expenses');
-    const unsubExpenses = onSnapshot(query(expensesRef, orderBy('date', 'desc')), (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ ...doc.data() } as Expense));
-      if (items.length > 0 || isInitialLoad === false) {
-        setExpenses(items);
-        localStorage.setItem('cctv_expenses', JSON.stringify(items));
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${userId}/expenses`));
+    // Expenses (Only for admin)
+    let unsubExpenses = () => {};
+    if (isAdmin) {
+      const expensesRef = collection(db, 'expenses');
+      unsubExpenses = onSnapshot(query(expensesRef, orderBy('date', 'desc')), (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Expense));
+        
+        if (items.length > 0) {
+          setExpenses(items);
+          localStorage.setItem('cctv_expenses', JSON.stringify(items));
+        } else if (isInitialLoad === false) {
+          // Sync local to cloud if cloud is empty
+          const localData = localStorage.getItem('cctv_expenses');
+          if (localData && user) {
+            const parsed = JSON.parse(localData);
+            if (parsed.length > 0) {
+              console.log("Syncing local expenses to Firestore...");
+              parsed.forEach((e: Expense) => {
+                setDoc(doc(db, 'expenses', e.id), e);
+              });
+            }
+          } else {
+            setExpenses([]);
+            localStorage.setItem('cctv_expenses', '[]');
+          }
+        }
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
+    } else {
+      setExpenses([]);
+    }
+
+    // Public Orders (Only for admin)
+    let unsubPublicOrders = () => {};
+    let isInitialOrdersLoad = true;
+    if (isAdmin) {
+      const poRef = collection(db, 'public_orders');
+      unsubPublicOrders = onSnapshot(query(poRef, where('status', '==', 'pending')), (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PublicOrder));
+        
+        if (!isInitialOrdersLoad) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+              audio.play().catch(() => {}); // Silence autoplay block errors
+            }
+          });
+        }
+        isInitialOrdersLoad = false;
+        setPublicOrders(items);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `public_orders`));
+    } else {
+      setPublicOrders([]);
+    }
 
     return () => {
       unsubUser();
       unsubProducts();
       unsubClients();
       unsubExpenses();
+      unsubPublicOrders();
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   // Sync Settings to Firestore (Only if changed by user)
   useEffect(() => {
@@ -1628,28 +1783,46 @@ function AppContent() {
       if (
         isDarkMode !== lastSyncedSettings.current.darkMode ||
         customLogo !== lastSyncedSettings.current.customLogo ||
+        customIntroMusic !== lastSyncedSettings.current.customIntroMusic ||
+        customClickSound !== lastSyncedSettings.current.customClickSound ||
         categoriesJson !== lastSyncedSettings.current.expenseCategories ||
         productCategoriesJson !== lastSyncedSettings.current.productCategories
       ) {
-        const userId = user.uid;
-        const userDocRef = doc(db, 'users', userId);
+        const userDocRef = doc(db, 'settings', 'global');
         
         // Update ref immediately to prevent multiple triggers
         lastSyncedSettings.current = {
           darkMode: isDarkMode,
           customLogo: customLogo,
+          customIntroMusic: customIntroMusic,
+          customClickSound: customClickSound,
           expenseCategories: categoriesJson,
           productCategories: productCategoriesJson
         };
 
-        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, expenseCategories, productCategories }, { merge: true })
+        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, customIntroMusic, customClickSound, expenseCategories, productCategories }, { merge: true })
           .catch(error => {
             // If it fails, we might want to revert the ref, but usually quota errors are persistent
-            handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
+            handleFirestoreError(error, OperationType.WRITE, `settings/global`);
           });
       }
     }
-  }, [isDarkMode, customLogo, expenseCategories, productCategories, user, isInitialLoad]);
+  }, [isDarkMode, customLogo, customIntroMusic, customClickSound, expenseCategories, productCategories, user, isInitialLoad]);
+
+  // Dynamic Title for SEO
+  useEffect(() => {
+    const tabNames: Record<string, string> = {
+      dashboard: 'Dashboard',
+      clients: 'Clients Management',
+      products: 'Products & Orders',
+      expenses: 'Expense Tracker',
+      bandwidth: 'Bandwidth Test',
+      warranty: 'Warranty Status',
+      me: 'Profile & Settings'
+    };
+    const currentTab = tabNames[activeTab] || activeTab;
+    document.title = `${currentTab} | IT Department Pro`;
+  }, [activeTab]);
 
   // Dark Mode Class
   useEffect(() => {
@@ -1660,12 +1833,58 @@ function AppContent() {
     }
   }, [isDarkMode]);
 
-  // Splash Screen Timer
+  // Global Click Sound
   useEffect(() => {
+    const tapAudio = new Audio(customClickSound || 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+    tapAudio.volume = 0.3;
+    tapAudio.preload = 'auto';
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Check if the clicked element is a button or inside a button
+      if (target.closest('button') || target.closest('a') || target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'submit') {
+        const sound = tapAudio.cloneNode() as HTMLAudioElement;
+        sound.volume = 0.3;
+        sound.play().catch(() => {});
+      }
+    };
+
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  // Splash Screen Timer & Music
+  useEffect(() => {
+    const audio = new Audio(customIntroMusic || 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+    audio.volume = 1.0;
+    
+    const playIntro = () => {
+      audio.play().catch(() => {});
+    };
+
+    // Try to play immediately
+    playIntro();
+
+    // Unlock audio and play if blocked
+    const unlockAndPlay = () => {
+      playIntro();
+      window.removeEventListener('click', unlockAndPlay);
+      window.removeEventListener('touchstart', unlockAndPlay);
+    };
+    window.addEventListener('click', unlockAndPlay);
+    window.addEventListener('touchstart', unlockAndPlay);
+
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 6000);
-    return () => clearTimeout(timer);
+    }, 2000); // Faster splash for better UX
+
+    return () => {
+      clearTimeout(timer);
+      audio.pause();
+      audio.currentTime = 0;
+      window.removeEventListener('click', unlockAndPlay);
+      window.removeEventListener('touchstart', unlockAndPlay);
+    };
   }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1718,10 +1937,10 @@ function AppContent() {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       addNotification("Work added successfully!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -1750,10 +1969,10 @@ function AppContent() {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       addNotification("Payment recorded successfully!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -1777,10 +1996,10 @@ function AppContent() {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       addNotification("Payment deleted!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -1804,10 +2023,33 @@ function AppContent() {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       addNotification("Work deleted!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    }
+  };
+
+  const updateOrderStatus = async (clientId: number, orderId: string, newStatus: OrderStatus) => {
+    if (!user) {
+      addNotification("Please login to update status.");
+      return;
+    }
+    const userId = user.uid;
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const updatedClient = {
+      ...client,
+      orders: client.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
+    };
+
+    try {
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
+      addNotification(`Order status updated to ${newStatus}`);
+    } catch (err) {
+      console.error("Update status error:", err);
+      addNotification("Failed to update status.");
     }
   };
 
@@ -1830,10 +2072,10 @@ function AppContent() {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       addNotification("Order deleted!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -1869,12 +2111,100 @@ function AppContent() {
     }).filter(item => item.quantity > 0));
   };
 
-  const placeOrder = async (clientId: number, isPaid: boolean = false, paymentType: 'Cash' | 'Bkash' | 'Bank' = 'Cash') => {
-    if (!user) {
-      addNotification("Please login to place order.");
-      return;
+  const placePublicOrder = async (customerDetails: {name: string, phone: string, address: string}) => {
+    if (cart.length === 0) return;
+
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const orderId = `ORD-${Date.now()}`;
+    
+    const publicOrder: PublicOrder = {
+      id: orderId,
+      customerName: customerDetails.name,
+      customerPhone: customerDetails.phone,
+      customerAddress: customerDetails.address,
+      items: cart,
+      total,
+      date: new Date().toISOString().split('T')[0],
+      status: 'pending'
+    };
+
+    try {
+      await setDoc(doc(db, 'public_orders', orderId), publicOrder);
+      
+      // Decrease stock
+      for (const item of cart) {
+        const productRef = doc(db, 'products', String(item.productId));
+        const productSnap = await getDoc(productRef);
+        if (productSnap.exists()) {
+          const currentStock = productSnap.data().stock;
+          await updateDoc(productRef, {
+            stock: Math.max(0, currentStock - item.quantity)
+          });
+        }
+      }
+
+      setCart([]);
+      setShowCart(false);
+      addNotification("Order placed successfully! We will contact you soon.");
+    } catch (error) {
+      console.error("Error placing order:", error);
+      addNotification("Failed to place order. Please try again.");
     }
-    const userId = user.uid;
+  };
+
+  const acceptPublicOrder = async (order: PublicOrder) => {
+    // Find client by phone
+    let client = clients.find(c => c.phone === order.customerPhone);
+    let clientId = client ? client.id : Date.now();
+
+    const newOrder: Order = {
+      id: order.id,
+      date: order.date,
+      items: order.items,
+      total: order.total,
+      dueDate: null,
+      status: OrderStatus.PENDING
+    };
+
+    try {
+      if (client) {
+        // Update existing client
+        const updatedClient = {
+          ...client,
+          orders: [newOrder, ...client.orders],
+          due: client.due + order.total
+        };
+        await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
+      } else {
+        // Create new client
+        const newClient: Client = {
+          id: clientId,
+          name: order.customerName,
+          phone: order.customerPhone,
+          address: order.customerAddress,
+          status: ClientStatus.ACTIVE,
+          orders: [newOrder],
+          due: order.total,
+          totalPaid: 0,
+          works: 0,
+          workHistory: [],
+          paymentHistory: []
+        };
+        await setDoc(doc(db, 'clients', String(clientId)), newClient);
+      }
+
+      // Mark public order as accepted
+      await updateDoc(doc(db, 'public_orders', order.id), { status: 'accepted' });
+      
+      addNotification(`Order from ${order.customerName} accepted!`);
+      setShowPendingOrders(false);
+    } catch (error) {
+      console.error("Error accepting order:", error);
+      addNotification("Failed to accept order.");
+    }
+  };
+
+  const placeOrder = async (clientId: number, isPaid: boolean = false, paymentType: 'Cash' | 'Bkash' | 'Bank' = 'Cash') => {
     const client = clients.find(c => c.id === clientId);
     if (!client || cart.length === 0) return;
 
@@ -1885,7 +2215,8 @@ function AppContent() {
       date: new Date().toISOString().split('T')[0],
       items: [...cart],
       total,
-      dueDate: null
+      dueDate: null,
+      status: OrderStatus.PENDING
     };
 
     // Update Client
@@ -1913,14 +2244,18 @@ function AppContent() {
 
     try {
       // Update Client in Firestore
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), updatedClient);
+      await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
 
       // Update Stock in Firestore
       for (const item of cart) {
         const product = products.find(p => p.id === item.productId);
         if (product) {
-          await updateDoc(doc(db, 'users', userId, 'products', String(product.id)), {
-            stock: product.stock - item.quantity
+          const newStock = product.stock - item.quantity;
+          if (newStock < 0) {
+            throw new Error(`Insufficient stock for ${product.name}`);
+          }
+          await updateDoc(doc(db, 'products', String(product.id)), {
+            stock: newStock
           });
         }
       }
@@ -1932,7 +2267,59 @@ function AppContent() {
       setShowCart(false);
       addNotification(isPaid ? "Order placed & Payment recorded!" : "Order placed successfully!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/orders/${orderId}`);
+      if (error instanceof Error && error.message.includes('Insufficient stock')) {
+        addNotification(error.message);
+        return;
+      }
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    }
+  };
+
+  const migrateDataToGlobal = async () => {
+    if (!user) return;
+    const userId = user.uid;
+    addNotification("Starting data migration...");
+    
+    try {
+      let productCount = 0;
+      let clientCount = 0;
+      let expenseCount = 0;
+
+      // 1. Migrate Products
+      const oldProductsRef = collection(db, 'users', userId, 'products');
+      const productsSnap = await getDocs(oldProductsRef);
+      for (const pDoc of productsSnap.docs) {
+        await setDoc(doc(db, 'products', pDoc.id), pDoc.data());
+        productCount++;
+      }
+
+      // 2. Migrate Clients
+      const oldClientsRef = collection(db, 'users', userId, 'clients');
+      const clientsSnap = await getDocs(oldClientsRef);
+      for (const cDoc of clientsSnap.docs) {
+        await setDoc(doc(db, 'clients', cDoc.id), cDoc.data());
+        clientCount++;
+      }
+
+      // 3. Migrate Expenses
+      const oldExpensesRef = collection(db, 'users', userId, 'expenses');
+      const expensesSnap = await getDocs(oldExpensesRef);
+      for (const eDoc of expensesSnap.docs) {
+        await setDoc(doc(db, 'expenses', eDoc.id), eDoc.data());
+        expenseCount++;
+      }
+
+      // 4. Migrate Settings
+      const oldSettingsRef = doc(db, 'users', userId);
+      const settingsSnap = await getDoc(oldSettingsRef);
+      if (settingsSnap.exists()) {
+        await setDoc(doc(db, 'settings', 'global'), settingsSnap.data(), { merge: true });
+      }
+
+      addNotification(`Migration complete! ${productCount} products, ${clientCount} clients, ${expenseCount} expenses moved.`);
+    } catch (error) {
+      console.error("Migration error:", error);
+      addNotification("Migration failed. Check console for details.");
     }
   };
 
@@ -2095,13 +2482,22 @@ function AppContent() {
     doc.text('Customer Signature', margin + 25, footerY + 5, { align: 'center' });
     doc.text('Authorized Signature', pageWidth - margin - 25, footerY + 5, { align: 'center' });
 
-    // Thank you message
+    // THANK YOU FOR YOUR BUSINESS!
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(37, 99, 235);
     doc.text('THANK YOU FOR YOUR BUSINESS!', pageWidth / 2, pageHeight - 15, { align: 'center' });
 
-    doc.save(`Invoice_${client.name.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+    // Robust download for iframes
+    const pdfBlob = doc.output('blob');
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Invoice_${client.name.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const generateWhatsAppMessage = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
@@ -2283,31 +2679,48 @@ function AppContent() {
       let hasChanges = false;
 
       // Seed Products
-      const productsRef = collection(db, 'users', userId, 'products');
+      const productsRef = collection(db, 'products');
       const productsSnap = await getDocs(productsRef);
       if (productsSnap.empty) {
-        for (const p of DEFAULT_PRODUCTS) {
-          batch.set(doc(db, 'users', userId, 'products', String(p.id)), p);
+        const localProducts = localStorage.getItem('cctv_products');
+        if (localProducts && JSON.parse(localProducts).length > 0) {
+          const items = JSON.parse(localProducts);
+          for (const p of items) {
+            batch.set(doc(db, 'products', String(p.id)), p);
+          }
+        } else {
+          for (const p of DEFAULT_PRODUCTS) {
+            batch.set(doc(db, 'products', String(p.id)), p);
+          }
         }
         hasChanges = true;
       }
 
       // Seed Clients
-      const clientsRef = collection(db, 'users', userId, 'clients');
+      const clientsRef = collection(db, 'clients');
       const clientsSnap = await getDocs(clientsRef);
       if (clientsSnap.empty) {
-        for (const c of DEFAULT_CLIENTS) {
-          batch.set(doc(db, 'users', userId, 'clients', String(c.id)), c);
+        const localClients = localStorage.getItem('cctv_clients');
+        if (localClients && JSON.parse(localClients).length > 0) {
+          const items = JSON.parse(localClients);
+          for (const c of items) {
+            batch.set(doc(db, 'clients', String(c.id)), c);
+          }
+        } else {
+          for (const c of DEFAULT_CLIENTS) {
+            batch.set(doc(db, 'clients', String(c.id)), c);
+          }
         }
         hasChanges = true;
       }
 
       // Mark as seeded
-      batch.set(doc(db, 'users', userId), { seeded: true }, { merge: true });
+      batch.set(doc(db, 'settings', 'global'), { seeded: true }, { merge: true });
       hasChanges = true;
 
       if (hasChanges) {
         await batch.commit();
+        addNotification("Data synchronized with cloud!");
       }
     } catch (error) {
       console.error("Error seeding user data:", error);
@@ -2332,13 +2745,17 @@ function AppContent() {
     setShowAddProduct(false);
     addNotification("Product added!");
 
-    if (!user) return;
+    if (!user) {
+      addNotification("Saved locally! Login to sync to cloud.");
+      return;
+    }
     
     const userId = user.uid;
     try {
-      await setDoc(doc(db, 'users', userId, 'products', String(productId)), product);
+      await setDoc(doc(db, 'products', String(productId)), product);
+      addNotification("Product synced to cloud!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/products/${productId}`);
+      handleFirestoreError(error, OperationType.WRITE, `products/${productId}`);
     }
   };
 
@@ -2355,10 +2772,10 @@ function AppContent() {
     
     const userId = user.uid;
     try {
-      const docRef = doc(db, 'users', userId, 'products', String(id));
+      const docRef = doc(db, 'products', String(id));
       await deleteDoc(docRef);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${userId}/products/${id}`);
+      handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
   };
 
@@ -2376,9 +2793,9 @@ function AppContent() {
     
     const userId = user.uid;
     try {
-      await setDoc(doc(db, 'users', userId, 'products', String(updatedProduct.id)), updatedProduct);
+      await setDoc(doc(db, 'products', String(updatedProduct.id)), updatedProduct);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/products/${updatedProduct.id}`);
+      handleFirestoreError(error, OperationType.WRITE, `products/${updatedProduct.id}`);
     }
   };
 
@@ -2395,11 +2812,11 @@ function AppContent() {
     
     const userId = user.uid;
     try {
-      await updateDoc(doc(db, 'users', userId, 'clients', String(clientId)), {
+      await updateDoc(doc(db, 'clients', String(clientId)), {
         image: image || null
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -2414,13 +2831,64 @@ function AppContent() {
 
     if (!user) return;
     
-    const userId = user.uid;
     try {
-      await updateDoc(doc(db, 'users', userId, 'clients', String(clientId)), {
+      await updateDoc(doc(db, 'clients', String(clientId)), {
         warrantyExpiry: expiryDate
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    }
+  };
+
+  const handleSetInstallationDate = async (clientId: number, date: string) => {
+    setClients(prev => {
+      const updated = prev.map(c => c.id === clientId ? { ...c, installationDate: date } : c);
+      localStorage.setItem('cctv_clients', JSON.stringify(updated));
+      return updated;
+    });
+    addNotification("Installation date updated!");
+
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'clients', String(clientId)), {
+        installationDate: date
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    }
+  };
+
+  const handleUpdateClientDetails = async (clientId: number, details: { name: string, phone: string, address: string }) => {
+    setClients(prev => {
+      const updated = prev.map(c => c.id === clientId ? { ...c, ...details } : c);
+      localStorage.setItem('cctv_clients', JSON.stringify(updated));
+      return updated;
+    });
+    addNotification("Client details updated!");
+
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'clients', String(clientId)), details);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    }
+  };
+
+  const handleUpdateNotes = async (clientId: number, notes: string) => {
+    setClients(prev => {
+      const updated = prev.map(c => c.id === clientId ? { ...c, notes } : c);
+      localStorage.setItem('cctv_clients', JSON.stringify(updated));
+      return updated;
+    });
+    addNotification("Notes updated!");
+
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'clients', String(clientId)), {
+        notes
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -2438,9 +2906,9 @@ function AppContent() {
     
     const userId = user.uid;
     try {
-      await deleteDoc(doc(db, 'users', userId, 'clients', String(clientId)));
+      await deleteDoc(doc(db, 'clients', String(clientId)));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.DELETE, `clients/${clientId}`);
     }
   };
 
@@ -2455,7 +2923,10 @@ function AppContent() {
       workHistory: [],
       paymentHistory: [],
       orders: [],
-      status: ClientStatus.ACTIVE
+      status: ClientStatus.ACTIVE,
+      installationDate: newClient.installationDate || new Date().toISOString().split('T')[0],
+      warrantyExpiry: newClient.warrantyExpiry || '',
+      notes: newClient.notes || ''
     };
 
     // Update local state immediately
@@ -2467,13 +2938,11 @@ function AppContent() {
     setShowAddClient(false);
     addNotification("Client added!");
 
-    if (!user) return;
-    
-    const userId = user.uid;
     try {
-      await setDoc(doc(db, 'users', userId, 'clients', String(clientId)), client);
+      await setDoc(doc(db, 'clients', String(clientId)), client);
+      addNotification("Client synced to cloud!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/clients/${clientId}`);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
     }
   };
 
@@ -2492,662 +2961,107 @@ function AppContent() {
     });
     addNotification("Expense added!");
 
-    if (!user) return;
+    if (!user) {
+      addNotification("Saved locally! Login to sync to cloud.");
+      return;
+    }
     
     const userId = user.uid;
     try {
-      await setDoc(doc(db, 'users', userId, 'expenses', expenseId), expense);
+      await setDoc(doc(db, 'expenses', expenseId), expense);
+      addNotification("Expense synced to cloud!");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/expenses/${expenseId}`);
+      handleFirestoreError(error, OperationType.WRITE, `expenses/${expenseId}`);
     }
   };
 
-  const Dashboard = () => {
-    const totalClients = clients.length;
-    const totalProducts = products.length;
-    const totalDue = clients.reduce((sum, c) => sum + c.due, 0);
-    const monthlyIncome = clients.reduce((sum, c) => sum + c.totalPaid, 0); // Simplified for demo
-    
-    const chartData = [
-      { name: 'Jan', profit: 4000, expense: 2400 },
-      { name: 'Feb', profit: 3000, expense: 1398 },
-      { name: 'Mar', profit: 2000, expense: 9800 },
-      { name: 'Apr', profit: 2780, expense: 3908 },
-      { name: 'May', profit: 1890, expense: 4800 },
-      { name: 'Jun', profit: 2390, expense: 3800 },
-    ];
-
-    return (
-      <div className="space-y-6 pb-20">
-        <div className="grid grid-cols-2 gap-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
-                <Users size={20} />
-              </div>
-              <span className="text-xs text-gray-500 font-medium">Clients</span>
-            </div>
-            <h3 className="text-xl font-bold">{totalClients}</h3>
-          </motion.div>
-          
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600">
-                <Package size={20} />
-              </div>
-              <span className="text-xs text-gray-500 font-medium">Products</span>
-            </div>
-            <h3 className="text-xl font-bold">{totalProducts}</h3>
-          </motion.div>
-          
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-600">
-                <DollarSign size={20} />
-              </div>
-              <span className="text-xs text-gray-500 font-medium">Income</span>
-            </div>
-            <h3 className="text-xl font-bold">{formatCurrency(monthlyIncome)}</h3>
-          </motion.div>
-          
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg text-red-600">
-                <AlertTriangle size={20} />
-              </div>
-              <span className="text-xs text-gray-500 font-medium">Total Due</span>
-            </div>
-            <h3 className="text-xl font-bold text-red-500">{formatCurrency(totalDue)}</h3>
-          </motion.div>
-        </div>
-
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <Package size={18} className="text-blue-500" />
-            Quick Products
-          </h3>
-          <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-            {products.slice(0, 5).map(product => (
-              <div key={product.id} className="min-w-[140px] glass-card p-3 flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Package size={24} className="text-gray-400" />
-                  )}
-                </div>
-                <h4 className="text-[10px] font-bold line-clamp-1">{product.name}</h4>
-                <p className="text-blue-600 text-[10px] font-bold">{formatCurrency(product.price)}</p>
-                <button 
-                  onClick={() => addToCart(product)}
-                  className="mt-2 w-full py-1 bg-blue-600 text-white rounded text-[10px] font-bold"
-                >
-                  Add
-                </button>
-              </div>
-            ))}
-            <button 
-              onClick={() => setActiveTab('products')}
-              className="min-w-[100px] glass-card p-3 flex flex-col items-center justify-center text-center text-blue-600"
-            >
-              <ChevronRight size={24} />
-              <span className="text-[10px] font-bold">View All</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <BarChart3 size={18} className="text-blue-500" />
-            Financial Overview
-          </h3>
-          <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="profit" stroke="#3b82f6" fillOpacity={1} fill="url(#colorProfit)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-orange-500" />
-            Stock Alerts
-          </h3>
-          <div className="space-y-3">
-            {products.filter(p => p.stock < 5).map(p => (
-              <div key={p.id} className="flex justify-between items-center p-2 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/20">
-                <span className="text-sm font-medium">{p.name}</span>
-                <span className={cn("text-xs font-bold px-2 py-1 rounded-full", p.stock <= 3 ? "bg-red-100 text-red-600 animate-blink" : "bg-orange-100 text-orange-600")}>
-                  {p.stock} left
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const ClientList = () => {
-    const [search, setSearch] = useState('');
-    const filteredClients = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
-
-    return (
-      <div className="space-y-4 pb-20">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search clients..." 
-            className="w-full pl-10 pr-4 py-3 glass-card focus:ring-2 focus:ring-blue-500 outline-none"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-3">
-          {filteredClients.map((client, idx) => (
-            <motion.div 
-              key={client.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              onClick={() => setShowClientProfile(client)}
-              className="glass-card p-4 flex justify-between items-center cursor-pointer hover:scale-[1.02] transition-transform"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 font-bold text-lg">
-                  {client.name[0]}
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm">{client.name}</h4>
-                  <p className="text-xs text-gray-500">{client.phone}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className={cn("text-xs font-bold px-2 py-1 rounded-full inline-block", 
-                  client.status === ClientStatus.ACTIVE ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
-                )}>
-                  {client.status.toUpperCase()}
-                </p>
-                <p className="text-xs font-bold mt-1 text-gray-700 dark:text-gray-300">Due: {formatCurrency(client.due)}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        <button 
-          onClick={() => setShowAddClient(true)}
-          className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center btn-ripple z-40"
-        >
-          <Plus size={28} />
-        </button>
-      </div>
-    );
-  };
+    // Remove local Dashboard and ClientList definitions to use global ones
 
 
 
-  const ClientProfile = ({ 
-    client, 
-    onClose,
-    onUpdateImage,
-    onSetWarranty,
-    onDeleteClient
-  }: { 
-    client: Client, 
-    onClose: () => void,
-    onUpdateImage: (id: number, img: string | null) => void,
-    onSetWarranty: (id: number, date: string) => void,
-    onDeleteClient: (id: number) => void
-  }) => {
-    const [showAddWork, setShowAddWork] = useState(false);
-    const [showAddPayment, setShowAddPayment] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // Use the latest client data from the clients array
-    const currentClient = clients.find(c => c.id === client.id) || client;
+    // Remove local ClientProfile, AddWorkModal, and AddPaymentModal definitions to use global ones
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-            const MAX_DIMENSION = 512;
-            
-            if (width > height && width > MAX_DIMENSION) {
-              height = Math.round((height * MAX_DIMENSION) / width);
-              width = MAX_DIMENSION;
-            } else if (height > MAX_DIMENSION) {
-              width = Math.round((width * MAX_DIMENSION) / height);
-              height = MAX_DIMENSION;
-            }
-            
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              onUpdateImage(currentClient.id, canvas.toDataURL(file.type || 'image/jpeg', 0.7));
-            } else {
-              onUpdateImage(currentClient.id, reader.result as string);
-            }
-          };
-          img.src = reader.result as string;
-        };
-        reader.readAsDataURL(file);
+
+  const PasswordModal = () => {
+    const [input, setInput] = useState('');
+    const [error, setError] = useState(false);
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (input === adminPassword) {
+        setShowPasswordModal(false);
+        if (passwordCallback) {
+          passwordCallback.onSuccess();
+          setPasswordCallback(null);
+        }
+      } else {
+        setError(true);
+        setTimeout(() => setError(false), 500);
       }
     };
 
     return (
       <motion.div 
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        className="fixed inset-0 bg-gray-50 dark:bg-slate-950 z-50 overflow-y-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
-        <div className="p-4 flex items-center gap-4 border-b dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full">
-            <ArrowLeft size={24} />
-          </button>
-          <h2 className="font-bold text-lg">Client Profile</h2>
-        </div>
-
-        <div className="p-4 space-y-6 pb-24">
-          <div className="glass-card p-6 flex flex-col items-center text-center relative overflow-hidden">
-            {/* Background decoration */}
-            <div className="absolute top-0 left-0 w-full h-20 bg-blue-600/10 -z-10" />
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className={cn(
+            "bg-white dark:bg-slate-900 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl border border-white/10",
+            error && "animate-shake"
+          )}
+        >
+          <div className="p-8 text-center">
+            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+              <Lock size={40} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Security Check</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-8">
+              Please enter the administrative password to continue with this action.
+            </p>
             
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold mb-4 shadow-2xl border-4 border-white dark:border-slate-900 overflow-hidden">
-                {currentClient.image ? (
-                  <img src={currentClient.image} alt={currentClient.name} className="w-full h-full object-cover" />
-                ) : (
-                  currentClient.name[0]
-                )}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="relative">
+                <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  autoFocus
+                  type="password"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Enter Password"
+                  className={cn(
+                    "w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-600 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-center tracking-[0.5em]",
+                    error ? "border-red-500 text-red-500" : "text-slate-900 dark:text-white"
+                  )}
+                />
               </div>
               
-              <div className="absolute bottom-4 right-0 flex gap-1">
-                <label className="w-8 h-8 bg-white dark:bg-slate-800 text-blue-600 rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-blue-50 transition-colors border border-gray-100 dark:border-slate-700">
-                  <Plus size={16} />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                </label>
-                {currentClient.image && (
-                  <button 
-                    onClick={() => onUpdateImage(currentClient.id, null)}
-                    className="w-8 h-8 bg-white dark:bg-slate-800 text-red-500 rounded-full flex items-center justify-center shadow-lg hover:bg-red-50 transition-colors border border-gray-100 dark:border-slate-700"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordCallback(null);
+                  }}
+                  className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                >
+                  Verify
+                </button>
               </div>
-            </div>
-
-            <h3 className="text-xl font-bold">{currentClient.name}</h3>
-            <p className="text-gray-500 text-sm">{currentClient.phone}</p>
-            <p className="text-gray-500 text-xs mt-1">{currentClient.address}</p>
-            
-            <div className="grid grid-cols-3 gap-4 w-full mt-6">
-              <div className="text-center">
-                <p className="text-[10px] text-gray-500 uppercase font-bold">Due</p>
-                <p className="text-sm font-bold text-red-500">{formatCurrency(currentClient.due)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-gray-500 uppercase font-bold">Works</p>
-                <p className="text-sm font-bold">{currentClient.works}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-gray-500 uppercase font-bold">Paid</p>
-                <p className="text-sm font-bold text-green-500">{formatCurrency(currentClient.totalPaid)}</p>
-              </div>
-            </div>
+            </form>
           </div>
-
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setShowAddWork(true)}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
-            >
-              <Plus size={16} /> Add Work
-            </button>
-            <button 
-              onClick={() => setShowAddPayment(true)}
-              className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
-            >
-              <Wallet size={16} /> Payment
-            </button>
-          </div>
-
-          <div className="glass-card p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold text-sm flex items-center gap-2">
-                <ShieldCheck size={16} className="text-blue-600" /> Warranty Status
-              </h4>
-              <input 
-                type="date" 
-                className="text-xs bg-gray-50 dark:bg-slate-800 border-none rounded-lg p-1 outline-none"
-                value={currentClient.warrantyExpiry || ''}
-                onChange={(e) => onSetWarranty(currentClient.id, e.target.value)}
-              />
-            </div>
-            {currentClient.warrantyExpiry ? (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">Expires on: <span className="font-bold text-blue-600">{currentClient.warrantyExpiry}</span></p>
-                <span className="px-2 py-1 bg-emerald-100 text-emerald-600 text-[8px] font-black rounded-full uppercase">Active</span>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">No warranty registered for this client.</p>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button 
-              onClick={() => generateWhatsAppMessage(currentClient, [], 0)} // Just for demo, usually opens chat
-              className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
-            >
-              <MessageSquare size={16} /> WhatsApp
-            </button>
-            <button 
-              onClick={() => generateClientProfilePDF(currentClient)}
-              className="flex-1 py-3 bg-slate-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
-            >
-              <Download size={16} /> PDF Profile
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="font-bold text-sm flex items-center gap-2">
-              <Wrench size={18} className="text-blue-500" /> Work History
-            </h4>
-            {currentClient.workHistory.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-4">No work history found</p>
-            ) : (
-              currentClient.workHistory.map(work => (
-                <div key={work.id} className="glass-card p-3 group">
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold">{work.description}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{work.date}</span>
-                      <button 
-                        onClick={() => handleDeleteWork(currentClient.id, work.id)}
-                        className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-xs">Amount: {formatCurrency(work.amount)}</span>
-                    <span className="text-xs text-green-600 font-bold">Paid: {formatCurrency(work.paid)}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="font-bold text-sm flex items-center gap-2">
-              <Wallet size={18} className="text-green-500" /> Payment History
-            </h4>
-            {currentClient.paymentHistory.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-4">No payments found</p>
-            ) : (
-              currentClient.paymentHistory.map(payment => (
-                <div key={payment.id} className="glass-card p-3 flex justify-between items-center group">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <p className="text-xs font-bold">{payment.type}</p>
-                      <p className="text-[10px] text-gray-500">{payment.date}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-green-600">+{formatCurrency(payment.amount)}</span>
-                    <button 
-                      onClick={() => handleDeletePayment(currentClient.id, payment.id)}
-                      className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="font-bold text-sm flex items-center gap-2">
-              <ShoppingCart size={18} className="text-purple-500" /> Order History
-            </h4>
-            {currentClient.orders.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-4">No orders found</p>
-            ) : (
-              currentClient.orders.map(order => (
-                <div key={order.id} className="glass-card p-3 group">
-                  <div className="flex justify-between border-b dark:border-slate-800 pb-2 mb-2">
-                    <div>
-                      <span className="text-xs font-bold">{order.id}</span>
-                      {order.dueDate && (
-                        <p className="text-[8px] text-red-500 font-bold">Due Date: {order.dueDate}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{order.date}</span>
-                      <button 
-                        onClick={() => handleDeleteOrder(currentClient.id, order.id)}
-                        className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    {order.items.map((item, i) => (
-                      <div key={i} className="flex justify-between text-[10px]">
-                        <span>{item.name} x {item.quantity}</span>
-                        <span>{formatCurrency(item.price * item.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-right mt-2 pt-2 border-t dark:border-slate-800">
-                    <span className="text-xs font-bold text-blue-600">Total: {formatCurrency(order.total)}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="pt-8 border-t dark:border-slate-800">
-            {showDeleteConfirm ? (
-              <div className="glass-card p-4 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30">
-                <p className="text-xs font-bold text-red-600 mb-3 text-center">Are you sure you want to delete this client? All history will be lost.</p>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => onDeleteClient(currentClient.id)}
-                    className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold text-xs"
-                  >
-                    Yes, Delete
-                  </button>
-                  <button 
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-2 bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-xs"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setShowDeleteConfirm(true)}
-                className="w-full py-3 bg-red-50 dark:bg-red-900/10 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-red-100 dark:border-red-900/30"
-              >
-                <Trash2 size={16} /> Delete Client
-              </button>
-            )}
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {showAddWork && (
-            <AddWorkModal clientId={client.id} onClose={() => setShowAddWork(false)} />
-          )}
-          {showAddPayment && (
-            <AddPaymentModal clientId={client.id} onClose={() => setShowAddPayment(false)} />
-          )}
-        </AnimatePresence>
-      </motion.div>
-    );
-  };
-
-  const AddWorkModal = ({ clientId, onClose }: { clientId: number, onClose: () => void }) => {
-    const [description, setDescription] = useState('');
-    const [amount, setAmount] = useState('');
-
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!description || !amount) return;
-      handleAddWork(clientId, description, Number(amount));
-      onClose();
-    };
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-          <h2 className="text-2xl font-black mb-6">Add New Work</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Description</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Camera Installation" 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Amount</label>
-              <input 
-                type="number" 
-                placeholder="0.00" 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                required
-              />
-            </div>
-            <button 
-              type="submit"
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-500/20 mt-4"
-            >
-              Save Work
-            </button>
-          </form>
-        </motion.div>
-      </motion.div>
-    );
-  };
-
-  const AddPaymentModal = ({ clientId, onClose }: { clientId: number, onClose: () => void }) => {
-    const [amount, setAmount] = useState('');
-    const [type, setType] = useState<'Cash' | 'Bkash' | 'Bank'>('Cash');
-    const [purpose, setPurpose] = useState('General Payment');
-
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!amount) return;
-      handleAddPayment(clientId, Number(amount), type, purpose);
-      onClose();
-    };
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-          <h2 className="text-2xl font-black mb-6">Record Payment</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Amount</label>
-              <input 
-                type="number" 
-                placeholder="0.00" 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Purpose</label>
-              <select 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none"
-                value={purpose}
-                onChange={e => setPurpose(e.target.value)}
-              >
-                <option value="General Payment">General Payment</option>
-                <option value="Product Payment">Product Payment</option>
-                <option value="Service/Work Payment">Service/Work Payment</option>
-                <option value="Advance Payment">Advance Payment</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</label>
-              <select 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none"
-                value={type}
-                onChange={e => setType(e.target.value as any)}
-              >
-                <option value="Cash">Cash</option>
-                <option value="Bkash">Bkash</option>
-                <option value="Bank">Bank</option>
-              </select>
-            </div>
-            <button 
-              type="submit"
-              className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-green-500/20 mt-4"
-            >
-              Record Payment
-            </button>
-          </form>
         </motion.div>
       </motion.div>
     );
@@ -3158,20 +3072,16 @@ function AppContent() {
     const [orderClientId, setOrderClientId] = useState<number | null>(null);
     const [isPaid, setIsPaid] = useState(false);
     const [paymentType, setPaymentType] = useState<'Cash' | 'Bkash' | 'Bank'>('Cash');
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
 
     return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+      <div 
         className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-end justify-center"
         onClick={() => setShowCart(false)}
       >
-        <motion.div 
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        <div 
           className="w-full max-w-[450px] md:max-w-xl max-h-[90vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-[40px] md:rounded-[40px] md:mb-8 shadow-2xl overflow-hidden flex flex-col"
           onClick={e => e.stopPropagation()}
         >
@@ -3211,7 +3121,6 @@ function AppContent() {
                 <div className="space-y-4">
                   {cart.map(item => (
                     <motion.div 
-                      layout
                       key={item.productId} 
                       className="flex justify-between items-center p-4 bg-gray-50 dark:bg-slate-800/50 rounded-3xl border border-gray-100 dark:border-slate-800"
                     >
@@ -3226,14 +3135,22 @@ function AppContent() {
                       </div>
                       <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
                         <button 
-                          onClick={() => updateCartQuantity(item.productId, -1)}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            updateCartQuantity(item.productId, -1);
+                          }}
                           className="w-8 h-8 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-center text-gray-400 transition-colors"
                         >
                           <Minus size={14} />
                         </button>
                         <span className="text-sm font-black w-4 text-center">{item.quantity}</span>
                         <button 
-                          onClick={() => updateCartQuantity(item.productId, 1)}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            updateCartQuantity(item.productId, 1);
+                          }}
                           className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md"
                         >
                           <Plus size={14} />
@@ -3243,67 +3160,107 @@ function AppContent() {
                   ))}
                 </div>
 
-                <div className="space-y-4 pt-4">
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Assign to Client</h3>
-                  <div className="relative">
-                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <select 
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-3xl outline-none text-sm font-bold appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                      onChange={(e) => setOrderClientId(Number(e.target.value))}
-                      value={orderClientId || ''}
-                    >
-                      <option value="">Select a premium client...</option>
-                      {clients.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
-                      ))}
-                    </select>
-                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4">
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Payment Status</h3>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setIsPaid(false)}
-                      className={cn(
-                        "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
-                        !isPaid ? "bg-red-50 text-red-600 border-red-200" : "bg-gray-50 text-gray-400 border-gray-100"
-                      )}
-                    >
-                      Unpaid (Add to Due)
-                    </button>
-                    <button 
-                      onClick={() => setIsPaid(true)}
-                      className={cn(
-                        "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
-                        isPaid ? "bg-green-50 text-green-600 border-green-200" : "bg-gray-50 text-gray-400 border-gray-100"
-                      )}
-                    >
-                      Paid Now
-                    </button>
-                  </div>
-
-                  {isPaid && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</p>
-                      <div className="flex gap-2">
-                        {['Cash', 'Bkash', 'Bank'].map(type => (
-                          <button 
-                            key={type}
-                            onClick={() => setPaymentType(type as any)}
-                            className={cn(
-                              "flex-1 py-2.5 rounded-xl font-bold text-[10px] transition-all border",
-                              paymentType === type ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-gray-50 text-gray-400 border-gray-100"
-                            )}
-                          >
-                            {type}
-                          </button>
-                        ))}
+                {isAdmin ? (
+                  <>
+                    <div className="space-y-4 pt-4">
+                      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Assign to Client</h3>
+                      <div className="relative">
+                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <select 
+                          className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-3xl outline-none text-sm font-bold appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                          onChange={(e) => setOrderClientId(Number(e.target.value))}
+                          value={orderClientId || ''}
+                        >
+                          <option value="">Select a premium client...</option>
+                          {clients.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
+                          ))}
+                        </select>
+                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    <div className="space-y-4 pt-4">
+                      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Payment Status</h3>
+                      <div className="flex gap-2">
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setIsPaid(false)}
+                          className={cn(
+                            "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
+                            !isPaid 
+                              ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                              : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                          )}
+                        >
+                          Unpaid (Add to Due)
+                        </motion.button>
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setIsPaid(true)}
+                          className={cn(
+                            "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
+                            isPaid 
+                              ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                              : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                          )}
+                        >
+                          Paid Now
+                        </motion.button>
+                      </div>
+
+                      {isPaid && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</p>
+                          <div className="flex gap-2">
+                            {['Cash', 'Bkash', 'Bank'].map(type => (
+                              <motion.button 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                key={type}
+                                onClick={() => setPaymentType(type as any)}
+                                className={cn(
+                                  "flex-1 py-2.5 rounded-xl font-bold text-[10px] transition-all border",
+                                  paymentType === type 
+                                    ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                                    : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                                )}
+                              >
+                                {type}
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4 pt-4">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Your Details</h3>
+                    <input
+                      type="text"
+                      placeholder="Full Name"
+                      value={customerName}
+                      onChange={e => setCustomerName(e.target.value)}
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={customerPhone}
+                      onChange={e => setCustomerPhone(e.target.value)}
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold"
+                    />
+                    <textarea
+                      placeholder="Delivery Address"
+                      value={customerAddress}
+                      onChange={e => setCustomerAddress(e.target.value)}
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold h-24 resize-none"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -3322,237 +3279,330 @@ function AppContent() {
               </div>
               
               <div className="flex gap-3">
-                <motion.button 
-                  whileTap={{ scale: 0.98 }}
-                  disabled={!orderClientId}
-                  onClick={() => {
-                    const client = clients.find(c => c.id === orderClientId);
-                    if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
-                  }}
-                  className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                >
-                  <MessageSquare size={20} />
-                  WhatsApp Quote
-                </motion.button>
+                {isAdmin ? (
+                  <>
+                    <motion.button 
+                      whileTap={{ scale: 0.98 }}
+                      disabled={!orderClientId}
+                      onClick={() => {
+                        const client = clients.find(c => c.id === orderClientId);
+                        if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
+                      }}
+                      className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare size={20} />
+                      WhatsApp Quote
+                    </motion.button>
 
-                <motion.button 
-                  whileTap={{ scale: 0.98 }}
-                  disabled={!orderClientId}
-                  onClick={() => orderClientId && placeOrder(orderClientId, isPaid, paymentType)}
-                  className="flex-[1.5] py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                >
-                  <Save size={20} />
-                  Confirm & Order
-                </motion.button>
+                    <motion.button 
+                      whileTap={{ scale: 0.98 }}
+                      disabled={!orderClientId}
+                      onClick={() => orderClientId && placeOrder(orderClientId, isPaid, paymentType)}
+                      className="flex-[1.5] py-5 bg-green-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-green-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    >
+                      <Save size={20} />
+                      Confirm & Order
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button 
+                    whileTap={{ scale: 0.98 }}
+                    disabled={!customerName || !customerPhone || !customerAddress}
+                    onClick={() => placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress})}
+                    className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                  >
+                    <Save size={20} />
+                    Place Order
+                  </motion.button>
+                )}
               </div>
             </div>
           )}
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
+    );
+  };
+
+  const PendingOrdersModal = () => {
+    return (
+      <div 
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={() => setShowPendingOrders(false)}
+      >
+        <div 
+          className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-black">Pending Orders</h2>
+              <p className="text-xs text-gray-500">Orders placed by clients</p>
+            </div>
+            <button 
+              onClick={() => setShowPendingOrders(false)}
+              className="w-10 h-10 bg-gray-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {publicOrders.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">No pending orders.</div>
+            ) : (
+              publicOrders.map(order => (
+                <div key={order.id} className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{order.customerName}</h3>
+                      <p className="text-sm text-gray-500">{order.customerPhone}</p>
+                      <p className="text-xs text-gray-400 mt-1">{order.customerAddress}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-blue-600">{formatCurrency(order.total)}</p>
+                      <p className="text-[10px] text-gray-400">{order.date}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 mb-4">
+                    {order.items.map(item => (
+                      <div key={item.productId} className="flex justify-between text-sm">
+                        <span>{item.quantity}x {item.name}</span>
+                        <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => acceptPublicOrder(order)}
+                      className="flex-1 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
+                    >
+                      Accept Order
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await updateDoc(doc(db, 'public_orders', order.id), { status: 'rejected' });
+                        addNotification("Order rejected.");
+                      }}
+                      className="flex-1 py-2 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     );
   };
 
   const BandwidthTestPage = () => {
-    const [testing, setTesting] = useState(false);
-    const [downloadSpeed, setDownloadSpeed] = useState(0);
-    const [uploadSpeed, setUploadSpeed] = useState(0);
-    const [ping, setPing] = useState(0);
+    const [isTesting, setIsTesting] = useState(false);
+    const [testPhase, setTestPhase] = useState<'idle' | 'ping' | 'download' | 'upload'>('idle');
+    const [downloadSpeed, setDownloadSpeed] = useState<number | null>(null);
+    const [uploadSpeed, setUploadSpeed] = useState<number | null>(null);
     const [progress, setProgress] = useState(0);
-    const [mode, setMode] = useState<'professional' | 'turbo' | null>(null);
-    const [history, setHistory] = useState<{date: string, speed: number, mode: string}[]>([]);
+    const [isTurbo, setIsTurbo] = useState(false);
+    const [testHistory, setTestHistory] = useState<{download: number, upload: number, date: string}[]>([]);
+    const [ping, setPing] = useState<number>(24);
+    const [jitter, setJitter] = useState<number>(3);
 
-    const runTest = async (testMode: 'professional' | 'turbo') => {
-      setTesting(true);
-      setMode(testMode);
+    const runTest = async (turbo = false) => {
+      setIsTesting(true);
+      setIsTurbo(turbo);
+      setDownloadSpeed(null);
+      setUploadSpeed(null);
       setProgress(0);
-      setDownloadSpeed(0);
-      setUploadSpeed(0);
-      setPing(0);
 
-      // 1. Ping Test
-      const startPing = Date.now();
       try {
-        // Use a small resource to measure ping
-        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
-        setPing(Date.now() - startPing);
-      } catch (e) {
-        setPing(Math.floor(Math.random() * 50) + 10);
-      }
-      setProgress(20);
-
-      // 2. Download Test (Real measurement)
-      const testUrl = 'https://picsum.photos/seed/speedtest/1000/1000'; // ~150KB
-      const iterations = testMode === 'turbo' ? 8 : 4;
-      let totalSpeed = 0;
-
-      for (let i = 0; i < iterations; i++) {
-        const start = Date.now();
-        try {
-          const response = await fetch(`${testUrl}?t=${start}`, { cache: 'no-store' });
-          const blob = await response.blob();
-          const end = Date.now();
-          const duration = (end - start) / 1000;
-          if (duration > 0) {
-            const sizeInBits = blob.size * 8;
-            const speedMbps = (sizeInBits / duration) / (1024 * 1024);
-            const adjustedSpeed = testMode === 'turbo' ? speedMbps * 1.5 : speedMbps;
-            totalSpeed += adjustedSpeed;
-            setDownloadSpeed(parseFloat((totalSpeed / (i + 1)).toFixed(2)));
-          }
-        } catch (e) {
-          // Fallback if fetch fails
-          setDownloadSpeed(prev => prev || (testMode === 'turbo' ? 45.5 : 22.3));
+        // Phase 1: Ping
+        setTestPhase('ping');
+        const pings = [];
+        for(let i=0; i<3; i++) {
+          const start = performance.now();
+          await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
+          pings.push(performance.now() - start);
+          setProgress((i + 1) * 10);
         }
-        setProgress(20 + ((i + 1) / iterations) * 50);
-        // Small delay to make it look active
-        await new Promise(r => setTimeout(r, 100));
-      }
+        const avgPing = Math.round(pings.reduce((a, b) => a + b) / pings.length);
+        setPing(avgPing);
+        setJitter(Math.round(Math.max(...pings) - Math.min(...pings)));
 
-      // 3. Upload Simulation
-      for (let i = 0; i <= 10; i++) {
-        await new Promise(r => setTimeout(r, testMode === 'turbo' ? 50 : 150));
-        const currentDownload = totalSpeed / iterations;
-        setUploadSpeed(parseFloat((currentDownload * (0.3 + Math.random() * 0.2)).toFixed(2)));
-        setProgress(70 + (i * 3));
-      }
+        // Phase 2: Download
+        setTestPhase('download');
+        const dlStart = performance.now();
+        const dlUrl = `https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=2070&auto=format&fit=crop&sig=${Math.random()}`;
+        const dlRes = await fetch(dlUrl, { cache: 'no-store' });
+        const reader = dlRes.body?.getReader();
+        if (!reader) throw new Error('No reader');
+        
+        const cl = dlRes.headers.get('Content-Length');
+        const total = cl ? parseInt(cl) : 5000000;
+        let received = 0;
+        
+        while(true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          received += value.length;
+          const p = 30 + (received / total) * 35;
+          setProgress(Math.min(p, 65));
+          const elapsed = (performance.now() - dlStart) / 1000;
+          if (elapsed > 0.1) setDownloadSpeed(parseFloat(((received * 8) / (elapsed * 1024 * 1024)).toFixed(2)));
+        }
+        const finalDl = ((received * 8) / ((performance.now() - dlStart) / 1000 * 1024 * 1024));
+        setDownloadSpeed(parseFloat(finalDl.toFixed(2)));
 
-      const finalSpeed = parseFloat((totalSpeed / iterations).toFixed(2));
-      setTesting(false);
-      setHistory(prev => [{
-        date: new Date().toLocaleTimeString(),
-        speed: finalSpeed,
-        mode: testMode
-      }, ...prev].slice(0, 5));
+        // Phase 3: Upload
+        setTestPhase('upload');
+        const ulStart = performance.now();
+        const ulSize = turbo ? 2000000 : 1000000; // 1-2MB blob
+        const blob = new Blob([new Uint8Array(ulSize)]);
+        
+        // We use a dummy POST to a reliable endpoint
+        await fetch('https://httpbin.org/post', {
+          method: 'POST',
+          body: blob,
+          mode: 'cors'
+        });
+        
+        const ulEnd = performance.now();
+        const finalUl = (ulSize * 8) / ((ulEnd - ulStart) / 1000 * 1024 * 1024);
+        setUploadSpeed(parseFloat(finalUl.toFixed(2)));
+        setProgress(100);
+
+        setTestHistory(prev => [{
+          download: parseFloat(finalDl.toFixed(2)),
+          upload: parseFloat(finalUl.toFixed(2)),
+          date: new Date().toLocaleTimeString()
+        }, ...prev].slice(0, 5));
+        
+        addNotification(`Test Complete: DL ${finalDl.toFixed(1)} / UL ${finalUl.toFixed(1)} Mbps`);
+      } catch (error) {
+        console.error("Test failed:", error);
+        addNotification("Test failed. Check connection.");
+      } finally {
+        setIsTesting(false);
+        setTestPhase('idle');
+      }
     };
 
     return (
-      <div className="space-y-6 pb-24 md:pb-0">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 glass-card p-8 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border-[40px] border-blue-500 rounded-full animate-pulse" />
+      <div className="space-y-6 pb-24">
+        <div className="glass-card p-8 flex flex-col items-center text-center relative overflow-hidden">
+          {isTurbo && isTesting && (
+            <motion.div 
+              className="absolute inset-0 bg-orange-500/5 -z-10"
+              animate={{ opacity: [0.2, 0.5, 0.2] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            />
+          )}
+          
+          <div className={cn(
+            "w-32 h-32 rounded-full flex items-center justify-center mb-6 transition-all duration-500 relative",
+            isTesting 
+              ? (isTurbo ? "bg-gradient-to-br from-orange-400 to-red-600 shadow-[0_0_50px_rgba(249,115,22,0.6)] scale-110" : "bg-blue-600 shadow-[0_0_40px_rgba(37,99,235,0.4)]") 
+              : "bg-gray-100 dark:bg-slate-800"
+          )}>
+            <Zap size={48} className={cn(isTesting ? "text-white animate-pulse" : "text-blue-600")} />
+            {isTesting && (
+              <motion.div 
+                className={cn("absolute inset-0 rounded-full border-4", isTurbo ? "border-orange-300/50" : "border-white/30")}
+                animate={{ scale: [1, 1.4, 1], opacity: [1, 0, 1] }}
+                transition={{ duration: isTurbo ? 0.5 : 1, repeat: Infinity }}
+              />
+            )}
+            {isTurbo && isTesting && (
+              <motion.div 
+                className="absolute -inset-4 rounded-full border-2 border-orange-500/20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+            )}
+          </div>
+          
+          <h2 className="text-2xl font-bold mb-2">Network Bandwidth Test</h2>
+          <p className="text-gray-500 text-sm mb-8">
+            {testPhase === 'idle' ? 'Measure your connection speed' : 
+             testPhase === 'ping' ? 'Testing Latency...' :
+             testPhase === 'download' ? 'Testing Download Speed...' : 'Testing Upload Speed...'}
+          </p>
+
+          <div className="grid grid-cols-2 gap-8 w-full mb-8">
+            <div className="flex flex-col items-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Download</p>
+              <p className={cn("text-4xl font-black", downloadSpeed ? "text-blue-600" : "text-gray-300")}>
+                {downloadSpeed || '0.0'} <span className="text-xs">Mbps</span>
+              </p>
             </div>
-
-            <div className="relative z-10 text-center space-y-8 w-full max-w-md">
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black tracking-tighter uppercase italic">Bandwidth Test</h2>
-                <p className="text-gray-500 text-sm font-medium">Professional Network Diagnostics</p>
-              </div>
-
-              <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90">
-                  <circle
-                    cx="128"
-                    cy="128"
-                    r="110"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="12"
-                    className="text-gray-100 dark:text-slate-800"
-                  />
-                  <motion.circle
-                    cx="128"
-                    cy="128"
-                    r="110"
-                    fill="none"
-                    stroke={mode === 'turbo' ? '#8b5cf6' : '#2563eb'}
-                    strokeWidth="12"
-                    strokeDasharray="691"
-                    initial={{ strokeDashoffset: 691 }}
-                    animate={{ strokeDashoffset: 691 - (691 * (testing ? progress / 100 : Math.min(downloadSpeed, 100) / 100)) }}
-                    className="transition-all duration-500"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <motion.span 
-                    key={downloadSpeed}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-6xl font-black italic tracking-tighter"
-                  >
-                    {downloadSpeed || '0.0'}
-                  </motion.span>
-                  <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Mbps</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="glass-card p-4 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30">
-                  <div className="flex items-center gap-2 text-blue-600 mb-1">
-                    <ArrowDown size={16} />
-                    <span className="text-[10px] font-black uppercase">Download</span>
-                  </div>
-                  <p className="text-xl font-bold">{downloadSpeed} <span className="text-[10px]">Mbps</span></p>
-                </div>
-                <div className="glass-card p-4 bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">
-                  <div className="flex items-center gap-2 text-purple-600 mb-1">
-                    <ArrowUp size={16} />
-                    <span className="text-[10px] font-black uppercase">Upload</span>
-                  </div>
-                  <p className="text-xl font-bold">{uploadSpeed} <span className="text-[10px]">Mbps</span></p>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button 
-                  onClick={() => runTest('professional')}
-                  disabled={testing}
-                  className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black italic uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  <Activity size={20} /> Professional
-                </button>
-                <button 
-                  onClick={() => runTest('turbo')}
-                  disabled={testing}
-                  className="flex-1 py-4 bg-purple-600 text-white rounded-2xl font-black italic uppercase tracking-tighter shadow-xl shadow-purple-500/20 hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  <Zap size={20} /> Turbo Mode
-                </button>
-              </div>
+            <div className="flex flex-col items-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Upload</p>
+              <p className={cn("text-4xl font-black", uploadSpeed ? "text-purple-600" : "text-gray-300")}>
+                {uploadSpeed || '0.0'} <span className="text-xs">Mbps</span>
+              </p>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Wifi size={18} className="text-blue-500" /> Network Info
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                  <span className="text-xs text-gray-500">Ping</span>
-                  <span className="text-sm font-bold text-emerald-500">{ping} ms</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b dark:border-slate-800">
-                  <span className="text-xs text-gray-500">Jitter</span>
-                  <span className="text-sm font-bold text-blue-500">{testing ? Math.floor(Math.random() * 5) + 1 : 2} ms</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-xs text-gray-500">Server</span>
-                  <span className="text-sm font-bold">Dhaka, Bangladesh</span>
-                </div>
-              </div>
+          {isTesting && (
+            <div className="w-full max-w-xs bg-gray-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden mb-8 p-0.5">
+              <motion.div 
+                className={cn("h-full rounded-full", isTurbo ? "bg-orange-500" : "bg-blue-600")}
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+              />
             </div>
+          )}
 
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2">
-                <RefreshCcw size={18} className="text-purple-500" /> Recent Tests
-              </h3>
-              <div className="space-y-3">
-                {history.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic text-center py-4">No recent tests</p>
-                ) : (
-                  history.map((h, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-900 rounded-xl">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-gray-500">{h.mode}</p>
-                        <p className="text-[10px] text-gray-400">{h.date}</p>
-                      </div>
-                      <span className="text-sm font-black">{h.speed} <span className="text-[8px]">Mbps</span></span>
-                    </div>
-                  ))
-                )}
-              </div>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <button 
+              onClick={() => runTest(false)}
+              disabled={isTesting}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 active:scale-95 transition-all"
+            >
+              <Zap size={20} /> Start Standard Test
+            </button>
+            <button 
+              onClick={() => runTest(true)}
+              disabled={isTesting}
+              className="w-full py-4 bg-orange-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 disabled:opacity-50 active:scale-95 transition-all"
+            >
+              <Zap size={20} /> Start Turbo Test
+            </button>
+          </div>
+        </div>
+
+        {testHistory.length > 0 && (
+          <div className="glass-card p-6">
+            <h3 className="text-sm font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-gray-500">
+              <RefreshCcw size={14} /> Recent Tests
+            </h3>
+            <div className="space-y-3">
+              {testHistory.map((test, i) => (
+                <div key={i} className="flex justify-between items-center border-b dark:border-slate-800 pb-2 last:border-0">
+                  <div>
+                    <p className="text-xs font-bold">DL: {test.download} / UL: {test.upload}</p>
+                    <p className="text-[10px] text-gray-400">{test.date}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">DL</span>
+                    <span className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded">UL</span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="glass-card p-4">
+            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ping</p>
+            <p className="text-lg font-bold">{ping} ms</p>
+          </div>
+          <div className="glass-card p-4">
+            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Jitter</p>
+            <p className="text-lg font-bold">{jitter} ms</p>
           </div>
         </div>
       </div>
@@ -3564,16 +3614,30 @@ function AppContent() {
     setIsDarkMode, 
     customLogo, 
     setCustomLogo, 
+    customIntroMusic,
+    setCustomIntroMusic,
+    customClickSound,
+    setCustomClickSound,
     onBackup, 
     onOpenCalculator,
+    onLock,
+    adminPassword,
+    setAdminPassword,
     user
   }: { 
     isDarkMode: boolean, 
     setIsDarkMode: (v: boolean) => void, 
     customLogo: string | null, 
     setCustomLogo: (v: string | null) => void, 
+    customIntroMusic: string | null,
+    setCustomIntroMusic: (v: string | null) => void,
+    customClickSound: string | null,
+    setCustomClickSound: (v: string | null) => void,
     onBackup: () => void, 
     onOpenCalculator: () => void,
+    onLock: () => void,
+    adminPassword: string,
+    setAdminPassword: (v: string) => void,
     user: FirebaseUser | null
   }) => {
     const [rules, setRules] = useState<string[]>(() => {
@@ -3585,6 +3649,70 @@ function AppContent() {
       ];
     });
     const [showEditRules, setShowEditRules] = useState(false);
+    const [showChangePassword, setShowChangePassword] = useState(false);
+    const [oldPass, setOldPass] = useState('');
+    const [newPass, setNewPass] = useState('');
+    const [confirmPass, setConfirmPass] = useState('');
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && user) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          setCustomLogo(base64);
+          localStorage.setItem('cctv_custom_logo', base64);
+          addNotification("Logo updated!");
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'intro' | 'click') => {
+      const file = e.target.files?.[0];
+      if (file && user) {
+        // Check file size (limit to 1MB for Firestore/LocalStorage)
+        if (file.size > 1024 * 1024) {
+          addNotification("Audio file too large! Max 1MB.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          if (type === 'intro') {
+            setCustomIntroMusic(base64);
+            localStorage.setItem('cctv_custom_intro_music', base64);
+            addNotification("Intro music updated!");
+          } else {
+            setCustomClickSound(base64);
+            localStorage.setItem('cctv_custom_click_sound', base64);
+            addNotification("Click sound updated!");
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    const handleChangePassword = () => {
+      if (oldPass !== adminPassword) {
+        addNotification("Old password incorrect!");
+        return;
+      }
+      if (newPass !== confirmPass) {
+        addNotification("Passwords do not match!");
+        return;
+      }
+      if (newPass.length < 4) {
+        addNotification("Password too short!");
+        return;
+      }
+      setAdminPassword(newPass);
+      localStorage.setItem('adminPassword', newPass);
+      addNotification("Password changed successfully!");
+      setShowChangePassword(false);
+      setOldPass('');
+      setNewPass('');
+      setConfirmPass('');
+    };
 
     useEffect(() => {
       localStorage.setItem('companyRules', JSON.stringify(rules));
@@ -3602,19 +3730,19 @@ function AppContent() {
           if (data.products) {
             const products = JSON.parse(data.products);
             for (const p of products) {
-              await setDoc(doc(db, 'users', userId, 'products', String(p.id)), p);
+              await setDoc(doc(db, 'products', String(p.id)), p);
             }
           }
           if (data.clients) {
             const clients = JSON.parse(data.clients);
             for (const c of clients) {
-              await setDoc(doc(db, 'users', userId, 'clients', String(c.id)), c);
+              await setDoc(doc(db, 'clients', String(c.id)), c);
             }
           }
           if (data.expenses) {
             const expenses = JSON.parse(data.expenses);
             for (const ex of expenses) {
-              await setDoc(doc(db, 'users', userId, 'expenses', String(ex.id)), ex);
+              await setDoc(doc(db, 'expenses', String(ex.id)), ex);
             }
           }
           if (data.customLogo) setCustomLogo(data.customLogo);
@@ -3628,10 +3756,43 @@ function AppContent() {
       reader.readAsText(file);
     };
 
+    const syncLocalToCloud = async () => {
+      if (!user) {
+        addNotification("Please login first!");
+        return;
+      }
+      addNotification("Syncing local data...");
+      
+      try {
+        const localProducts = localStorage.getItem('cctv_products');
+        if (localProducts) {
+          const items = JSON.parse(localProducts);
+          for (const p of items) await setDoc(doc(db, 'products', String(p.id)), p);
+        }
+        
+        const localClients = localStorage.getItem('cctv_clients');
+        if (localClients) {
+          const items = JSON.parse(localClients);
+          for (const c of items) await setDoc(doc(db, 'clients', String(c.id)), c);
+        }
+        
+        const localExpenses = localStorage.getItem('cctv_expenses');
+        if (localExpenses) {
+          const items = JSON.parse(localExpenses);
+          for (const e of items) await setDoc(doc(db, 'expenses', e.id), e);
+        }
+        
+        addNotification("Sync complete!");
+      } catch (err) {
+        console.error("Sync error:", err);
+        addNotification("Sync failed. Check console.");
+      }
+    };
+
     const shareApp = () => {
-      const url = window.location.href;
-      navigator.clipboard.writeText(url);
-      alert("App link copied to clipboard! You can now share it with others.");
+      const publicUrl = "https://ais-pre-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app";
+      navigator.clipboard.writeText(publicUrl);
+      addNotification("Public App link copied to clipboard!");
     };
 
     return (
@@ -3645,12 +3806,13 @@ function AppContent() {
                 </div>
                 <h3 className="text-xl font-bold">Welcome to CCTV PRO</h3>
                 <p className="text-gray-500 text-sm">Login to sync your data to the cloud.</p>
-                <button 
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
                   onClick={loginWithGoogle}
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 opacity-90 hover:opacity-100"
                 >
                   <Smartphone size={20} /> Login with Google
-                </button>
+                </motion.button>
               </div>
             ) : (
               <>
@@ -3664,7 +3826,7 @@ function AppContent() {
                   </div>
                   <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
                     <Plus size={16} />
-                    <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e)} />
                   </label>
                 </div>
                 <h3 className="text-xl font-bold">{user.displayName || 'Admin Dashboard'}</h3>
@@ -3677,18 +3839,196 @@ function AppContent() {
             )}
             
             <div className="grid grid-cols-2 gap-4 w-full mt-8">
-              <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
-                <ShieldCheck className="text-blue-500" />
-                <span className="text-xs font-bold">Security</span>
+              <button 
+                onClick={() => withPassword(shareApp)}
+                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30"
+              >
+                <Share2 className="text-blue-500" />
+                <span className="text-xs font-bold">Share App</span>
               </button>
-              <button className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors">
-                <FileText className="text-purple-500" />
-                <span className="text-xs font-bold">Reports</span>
+              <button 
+                onClick={() => withPassword(migrateDataToGlobal)}
+                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors border-orange-200 dark:border-orange-900/30"
+              >
+                <RefreshCcw className="text-orange-500" />
+                <span className="text-xs font-bold">Restore Data</span>
+              </button>
+              <button 
+                onClick={() => withPassword(syncLocalToCloud)}
+                className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl text-purple-600 hover:bg-purple-100 transition-colors"
+              >
+                <CloudUpload size={20} />
+                <div className="text-left">
+                  <p className="text-xs font-bold">Sync Cloud</p>
+                  <p className="text-[10px] opacity-70">Force update</p>
+                </div>
+              </button>
+              <button 
+                onClick={onLock}
+                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors border-red-200 dark:border-red-900/30"
+              >
+                <Lock className="text-red-500" />
+                <span className="text-xs font-bold">Lock Admin</span>
+              </button>
+              <button 
+                onClick={() => setShowChangePassword(true)}
+                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30"
+              >
+                <Key className="text-blue-500" />
+                <span className="text-xs font-bold">Change Pass</span>
               </button>
             </div>
+
+            {showChangePassword && (
+              <div className="mt-6 p-6 glass-card w-full text-left space-y-4 border-blue-200 dark:border-blue-900/30">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <Key size={16} className="text-blue-500" /> Change Admin Password
+                </h4>
+                <div className="space-y-3">
+                  <input 
+                    type="password" 
+                    placeholder="Old Password"
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                    value={oldPass}
+                    onChange={e => setOldPass(e.target.value)}
+                  />
+                  <input 
+                    type="password" 
+                    placeholder="New Password"
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                    value={newPass}
+                    onChange={e => setNewPass(e.target.value)}
+                  />
+                  <input 
+                    type="password" 
+                    placeholder="Confirm New Password"
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                    value={confirmPass}
+                    onChange={e => setConfirmPass(e.target.value)}
+                  />
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      onClick={handleChangePassword}
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs"
+                    >
+                      Update Password
+                    </button>
+                    <button 
+                      onClick={() => setShowChangePassword(false)}
+                      className="flex-1 py-2 bg-gray-100 dark:bg-slate-800 text-gray-500 rounded-xl font-bold text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Debug Info */}
+            {user && (
+              <div className="mt-8 p-4 glass-card w-full text-left">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase mb-2">System Debug</h4>
+                <p className="text-[10px] text-gray-500 break-all">UID: {user.uid}</p>
+                <div className="flex gap-4 mt-1">
+                  <p className="text-[10px] text-gray-500">Products: <span className="font-bold text-blue-600">{products.length}</span></p>
+                  <p className="text-[10px] text-gray-500">Clients: <span className="font-bold text-blue-600">{clients.length}</span></p>
+                </div>
+                <button 
+                  onClick={() => {
+                    localStorage.clear();
+                    window.location.reload();
+                  }}
+                  className="mt-3 text-[10px] text-red-500 font-bold underline flex items-center gap-1"
+                >
+                  <RefreshCcw size={10} /> Clear Local Cache & Reload
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">
+            {/* Customization */}
+            <div className="glass-card p-6 space-y-4">
+              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Customization</h4>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
+                      <Image size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Custom Logo</p>
+                      <p className="text-[10px] text-gray-500">Change brand identity</p>
+                    </div>
+                  </div>
+                  <label className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors">
+                    Upload
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600">
+                      <Music size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Intro Music</p>
+                      <p className="text-[10px] text-gray-500">Custom startup sound</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {customIntroMusic && (
+                      <button 
+                        onClick={() => {
+                          setCustomIntroMusic(null);
+                          localStorage.removeItem('cctv_custom_intro_music');
+                          addNotification("Intro music reset!");
+                        }}
+                        className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                    <label className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors">
+                      Upload
+                      <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'intro')} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center text-orange-600">
+                      <Zap size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Click Sound</p>
+                      <p className="text-[10px] text-gray-500">Custom button feedback</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {customClickSound && (
+                      <button 
+                        onClick={() => {
+                          setCustomClickSound(null);
+                          localStorage.removeItem('cctv_custom_click_sound');
+                          addNotification("Click sound reset!");
+                        }}
+                        className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                    <label className="px-4 py-2 bg-orange-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-orange-700 transition-colors">
+                      Upload
+                      <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'click')} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Company Information */}
             <div className="glass-card p-6 space-y-4">
               <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Company Information</h4>
@@ -3714,16 +4054,19 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Network Diagnostics Info */}
+            {/* App Features */}
             <div className="glass-card p-6 space-y-4">
-              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Network Support</h4>
-              <p className="text-xs text-gray-500 mb-2">Use the Bandwidth Test tool to diagnose connection issues for IP cameras and NVR systems.</p>
-              <button 
-                onClick={() => setActiveTab('bandwidth')}
-                className="w-full py-3 bg-blue-600/10 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-600 hover:text-white transition-all"
-              >
-                Open Bandwidth Test
-              </button>
+              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">App Features</h4>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
+                  <Zap size={18} className="text-blue-600" />
+                  <span className="text-xs font-bold">High Speed Bandwidth Test</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
+                  <Zap size={18} className="text-orange-600" />
+                  <span className="text-xs font-bold">Turbo Mode Speed Test</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -3784,7 +4127,7 @@ function AppContent() {
 
             <div className="p-4 grid grid-cols-3 gap-3 glass-card">
               <button 
-                onClick={shareApp}
+                onClick={() => shareApp()}
                 className="flex flex-col items-center gap-1 p-2"
               >
                 <Share2 size={18} className="text-blue-500" />
@@ -3793,10 +4136,10 @@ function AppContent() {
               <label className="flex flex-col items-center gap-1 p-2 cursor-pointer">
                 <RefreshCcw size={18} className="text-amber-500" />
                 <span className="text-[8px] font-bold">Restore</span>
-                <input type="file" className="hidden" accept=".json" onChange={importAppData} />
+                <input type="file" className="hidden" accept=".json" onChange={(e) => withPassword(() => importAppData(e))} />
               </label>
               <button 
-                onClick={onBackup}
+                onClick={() => onBackup()}
                 className="flex flex-col items-center gap-1 p-2"
               >
                 <Database size={18} className="text-slate-500" />
@@ -3823,7 +4166,7 @@ function AppContent() {
         <div className="flex justify-between items-center">
           <h3 className="font-bold">Recent Expenses</h3>
           <button 
-            onClick={() => setShowAdd(true)}
+            onClick={() => withPassword(() => setShowAdd(true))}
             className="p-2 bg-blue-600 text-white rounded-lg"
           >
             <Plus size={20} />
@@ -3864,6 +4207,9 @@ function AppContent() {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
+    const [installationDate, setInstallationDate] = useState(new Date().toISOString().split('T')[0]);
+    const [warrantyExpiry, setWarrantyExpiry] = useState('');
+    const [notes, setNotes] = useState('');
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -3872,6 +4218,9 @@ function AppContent() {
         name,
         phone,
         address,
+        installationDate,
+        warrantyExpiry,
+        notes,
         status: ClientStatus.ACTIVE
       });
       onClose();
@@ -3889,7 +4238,7 @@ function AppContent() {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+          className="w-full max-w-[450px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
           onClick={e => e.stopPropagation()}
         >
           <h2 className="text-2xl font-black mb-6">Add New Client</h2>
@@ -3906,15 +4255,37 @@ function AppContent() {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Phone Number</label>
+                <input 
+                  type="tel" 
+                  placeholder="e.g. 017XXXXXXXX" 
+                  className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Installation Date</label>
+                <input 
+                  type="date" 
+                  className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+                  value={installationDate}
+                  onChange={e => setInstallationDate(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Phone Number</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Warranty Expiry</label>
               <input 
-                type="tel" 
-                placeholder="e.g. 017XXXXXXXX" 
+                type="date" 
                 className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                required
+                value={warrantyExpiry}
+                onChange={e => setWarrantyExpiry(e.target.value)}
               />
             </div>
 
@@ -3922,18 +4293,29 @@ function AppContent() {
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Address</label>
               <textarea 
                 placeholder="Enter client address" 
-                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 min-h-[80px]"
+                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 min-h-[60px]"
                 value={address}
                 onChange={e => setAddress(e.target.value)}
               />
             </div>
 
-            <button 
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Notes</label>
+              <textarea 
+                placeholder="Additional notes about client or installation" 
+                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 min-h-[60px]"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+              />
+            </div>
+
+            <motion.button 
+              whileTap={{ scale: 0.95 }}
               type="submit"
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-500/20 mt-4"
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl opacity-90 hover:opacity-100 mt-4"
             >
               Add Client
-            </button>
+            </motion.button>
           </form>
         </motion.div>
       </motion.div>
@@ -4043,12 +4425,13 @@ function AppContent() {
               )}
             </div>
 
-            <button 
+            <motion.button 
+              whileTap={{ scale: 0.95 }}
               type="submit"
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-500/20 mt-4"
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl opacity-90 hover:opacity-100 mt-4"
             >
               Save Expense
-            </button>
+            </motion.button>
           </form>
         </motion.div>
       </motion.div>
@@ -4109,33 +4492,48 @@ function AppContent() {
             )}
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-none">CCTV Pro</h1>
+            <h1 className="font-bold text-lg leading-none">IT Department Pro</h1>
             <p className="text-[10px] text-gray-500 font-medium">Management System</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'clients', icon: Users, label: 'Clients' },
-            { id: 'products', icon: ShoppingCart, label: 'Products & Orders' },
-            { id: 'expenses', icon: Wallet, label: 'Expenses' },
-            { id: 'bandwidth', icon: Zap, label: 'Bandwidth Test' },
-            { id: 'warranty', icon: ShieldCheck, label: 'Warranty' },
-            { id: 'me', icon: User, label: 'Profile & Settings' },
-          ].map(item => (
-            <button 
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', adminOnly: true },
+            { id: 'clients', icon: Users, label: 'Clients', adminOnly: true },
+            { id: 'products', icon: ShoppingCart, label: 'Products & Orders', adminOnly: false },
+            { id: 'expenses', icon: Wallet, label: 'Expenses', adminOnly: true },
+            { id: 'bandwidth', icon: Zap, label: 'Bandwidth Test', adminOnly: false },
+            { id: 'warranty', icon: ShieldCheck, label: 'Warranty', adminOnly: true },
+            { id: 'me', icon: User, label: 'Profile & Settings', adminOnly: false },
+          ].filter(item => isAdmin || !item.adminOnly).map(item => (
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'products' && isAdmin && publicOrders.length > 0) {
+                  setShowPendingOrders(true);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300",
+                "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300",
                 activeTab === item.id 
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold" 
-                  : "text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:text-gray-900 dark:hover:text-gray-100 font-medium"
+                  ? "bg-green-600 text-white font-bold shadow-lg shadow-green-500/30" 
+                  : "bg-blue-600 text-white hover:bg-blue-700 font-medium shadow-md shadow-blue-500/20"
               )}
             >
-              <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-              <span className="text-sm">{item.label}</span>
-            </button>
+              <div className="flex items-center gap-3">
+                <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                <span className="text-sm">{item.label}</span>
+              </div>
+              {item.id === 'products' && isAdmin && publicOrders.length > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {publicOrders.length}
+                </span>
+              )}
+            </motion.button>
           ))}
         </div>
       </aside>
@@ -4153,7 +4551,7 @@ function AppContent() {
               )}
             </div>
             <div>
-              <h1 className="font-bold text-sm leading-none">CCTV Pro</h1>
+              <h1 className="font-bold text-sm leading-none">IT Department Pro</h1>
               <p className="text-[10px] text-gray-500 font-medium">Management System</p>
             </div>
           </div>
@@ -4165,15 +4563,19 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <button 
+            <motion.button 
+              whileHover={{ scale: 1.1, rotate: 15 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 glass-card rounded-full transition-all duration-300 text-gray-600 dark:text-gray-300"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl transition-all duration-300 text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-lg"
             >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            <button 
+              {isDarkMode ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} className="text-blue-600" />}
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => setShowCart(true)}
-              className="p-2 glass-card rounded-full text-gray-600 dark:text-gray-300 relative"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl text-gray-600 dark:text-gray-300 relative shadow-sm hover:shadow-lg"
             >
               <ShoppingCart size={20} />
               {cart.length > 0 && (
@@ -4181,7 +4583,7 @@ function AppContent() {
                   {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               )}
-            </button>
+            </motion.button>
           </div>
         </header>
 
@@ -4190,10 +4592,10 @@ function AppContent() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="max-w-7xl mx-auto"
             >
               {activeTab === 'dashboard' && (
@@ -4202,27 +4604,32 @@ function AppContent() {
                   clients={clients}
                   expenses={expenses}
                   formatCurrency={formatCurrency}
+                  addToCart={addToCart}
+                  setActiveTab={setActiveTab}
                 />
               )}
               {activeTab === 'clients' && (
                 <ClientList 
                   clients={clients}
-                  setShowClientProfile={setShowClientProfile}
                   formatCurrency={formatCurrency}
+                  setShowClientProfile={setShowClientProfile}
+                  withPassword={withPassword}
+                  setShowAddClient={setShowAddClient}
                 />
               )}
               {activeTab === 'products' && (
                 <ProductList 
                   products={products}
                   inventoryMode={inventoryMode}
-                  setInventoryMode={setInventoryMode}
-                  setShowAddProduct={setShowAddProduct}
-                  setSelectedProduct={setSelectedProduct}
-                  handleDeleteProduct={handleDeleteProduct}
-                  onEditProduct={setShowEditProduct}
+                  setInventoryMode={(v) => v ? withPassword(() => setInventoryMode(v)) : setInventoryMode(v)}
+                  setShowAddProduct={(v) => v ? withPassword(() => setShowAddProduct(v), true) : setShowAddProduct(v)}
+                  setSelectedProduct={(p) => setSelectedProduct(p)}
+                  handleDeleteProduct={(id) => withPassword(() => handleDeleteProduct(id))}
+                  onEditProduct={(p) => withPassword(() => setShowEditProduct(p), true)}
                   addToCart={addToCart}
                   isDarkMode={isDarkMode}
                   formatCurrency={formatCurrency}
+                  productCategories={productCategories}
                 />
               )}
               {activeTab === 'expenses' && (
@@ -4238,8 +4645,15 @@ function AppContent() {
                   setIsDarkMode={setIsDarkMode}
                   customLogo={customLogo}
                   setCustomLogo={setCustomLogo}
+                  customIntroMusic={customIntroMusic}
+                  setCustomIntroMusic={setCustomIntroMusic}
+                  customClickSound={customClickSound}
+                  setCustomClickSound={setCustomClickSound}
                   onBackup={generateInventoryPDF}
                   onOpenCalculator={() => setShowCalculator(true)}
+                  onLock={lockAdmin}
+                  adminPassword={adminPassword}
+                  setAdminPassword={setAdminPassword}
                   user={user}
                 />
               )}
@@ -4250,34 +4664,56 @@ function AppContent() {
         {/* Navigation - Mobile Only */}
         <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[450px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t dark:border-slate-800 px-2 py-3 flex justify-around items-center z-40">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-            { id: 'clients', icon: Users, label: 'Clients' },
-            { id: 'products', icon: ShoppingCart, label: 'Order' },
-            { id: 'expenses', icon: Wallet, label: 'Cash' },
-            { id: 'bandwidth', icon: Zap, label: 'Speed' },
-            { id: 'warranty', icon: ShieldCheck, label: 'Safety' },
-            { id: 'me', icon: User, label: 'Me' },
-          ].map(item => (
-            <button 
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Home', adminOnly: true },
+            { id: 'clients', icon: Users, label: 'Clients', adminOnly: true },
+            { id: 'products', icon: ShoppingCart, label: 'Order', adminOnly: false },
+            { id: 'expenses', icon: Wallet, label: 'Cash', adminOnly: true },
+            { id: 'bandwidth', icon: Zap, label: 'Speed', adminOnly: false },
+            { id: 'warranty', icon: ShieldCheck, label: 'Safety', adminOnly: true },
+            { id: 'me', icon: User, label: 'Me', adminOnly: false },
+          ].filter(item => isAdmin || !item.adminOnly).map(item => (
+            <motion.button 
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.9 }}
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'products' && isAdmin && publicOrders.length > 0) {
+                  setShowPendingOrders(true);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={cn(
-                "flex flex-col items-center gap-1 transition-all duration-300 px-3 py-1 rounded-xl",
-                activeTab === item.id ? "text-blue-600 scale-110" : "text-gray-400"
+                "flex flex-col items-center gap-1 transition-all duration-300 px-3 py-1 rounded-xl relative",
+                activeTab === item.id 
+                  ? "bg-green-600 text-white scale-110 shadow-lg shadow-green-500/30" 
+                  : "bg-blue-600 text-white shadow-md shadow-blue-500/20"
               )}
             >
               <item.icon size={activeTab === item.id ? 24 : 20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
               <span className="text-[10px] font-bold">{item.label}</span>
               {activeTab === item.id && (
-                <motion.div layoutId="nav-indicator" className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="w-1 h-1 bg-white rounded-full mt-0.5" 
+                />
               )}
-            </button>
+              {item.id === 'products' && isAdmin && publicOrders.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-slate-900">
+                  {publicOrders.length}
+                </span>
+              )}
+            </motion.button>
           ))}
         </nav>
       </div>
 
       {/* Modals */}
       <AnimatePresence>
+        {showPendingOrders && (
+          <PendingOrdersModal />
+        )}
         {showCart && (
           <CartModal />
         )}
@@ -4295,7 +4731,20 @@ function AppContent() {
             onClose={() => setShowClientProfile(null)} 
             onUpdateImage={handleUpdateClientImage}
             onSetWarranty={handleSetWarranty}
-            onDeleteClient={handleDeleteClient}
+            onSetInstallationDate={handleSetInstallationDate}
+            onUpdateNotes={handleUpdateNotes}
+            onDeleteClient={(id) => withPassword(() => handleDeleteClient(id))}
+            onUpdateOrderStatus={updateOrderStatus}
+            onUpdateClientDetails={handleUpdateClientDetails}
+            formatCurrency={formatCurrency}
+            generateWhatsAppMessage={generateWhatsAppMessage}
+            generateClientProfilePDF={generateClientProfilePDF}
+            handleDeleteWork={handleDeleteWork}
+            handleDeletePayment={handleDeletePayment}
+            handleDeleteOrder={handleDeleteOrder}
+            handleAddWork={handleAddWork}
+            handleAddPayment={handleAddPayment}
+            clients={clients}
           />
         )}
         {showAddClient && (
@@ -4304,7 +4753,636 @@ function AppContent() {
         {showCalculator && (
           <CalculatorModal onClose={() => setShowCalculator(false)} />
         )}
+        {showPasswordModal && (
+          <PasswordModal />
+        )}
       </AnimatePresence>
     </div>
   );
 }
+
+const AddWorkModal = ({ clientId, onClose, handleAddWork }: { clientId: number, onClose: () => void, handleAddWork: (clientId: number, description: string, amount: number) => void }) => {
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description || !amount) return;
+    handleAddWork(clientId, description, Number(amount));
+    onClose();
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-black mb-6">Add New Work</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Description</label>
+            <input 
+              type="text" 
+              placeholder="e.g. Camera Installation" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Amount</label>
+            <input 
+              type="number" 
+              placeholder="0.00" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              required
+            />
+          </div>
+          <motion.button 
+            whileTap={{ scale: 0.95 }}
+            type="submit"
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl opacity-90 hover:opacity-100 mt-4"
+          >
+            Save Work
+          </motion.button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const AddPaymentModal = ({ clientId, onClose, handleAddPayment }: { clientId: number, onClose: () => void, handleAddPayment: (clientId: number, amount: number, type: 'Cash' | 'Bkash' | 'Bank', purpose: string) => void }) => {
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState<'Cash' | 'Bkash' | 'Bank'>('Cash');
+  const [purpose, setPurpose] = useState('General Payment');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount) return;
+    handleAddPayment(clientId, Number(amount), type, purpose);
+    onClose();
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-black mb-6">Record Payment</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Amount</label>
+            <input 
+              type="number" 
+              placeholder="0.00" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Purpose</label>
+            <select 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none"
+              value={purpose}
+              onChange={e => setPurpose(e.target.value)}
+            >
+              <option value="General Payment">General Payment</option>
+              <option value="Product Payment">Product Payment</option>
+              <option value="Service/Work Payment">Service/Work Payment</option>
+              <option value="Advance Payment">Advance Payment</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</label>
+            <select 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none"
+              value={type}
+              onChange={e => setType(e.target.value as any)}
+            >
+              <option value="Cash">Cash</option>
+              <option value="Bkash">Bkash</option>
+              <option value="Bank">Bank</option>
+            </select>
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-green-500/20 mt-4"
+          >
+            Record Payment
+          </button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const EditClientModal = ({ client, onClose, onUpdate }: { client: Client, onClose: () => void, onUpdate: (id: number, details: { name: string, phone: string, address: string }) => void }) => {
+  const [name, setName] = useState(client.name);
+  const [phone, setPhone] = useState(client.phone);
+  const [address, setAddress] = useState(client.address);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !phone || !address) return;
+    onUpdate(client.id, { name, phone, address });
+    onClose();
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-black mb-6">Edit Client</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Name</label>
+            <input 
+              type="text" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Phone</label>
+            <input 
+              type="text" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Address</label>
+            <input 
+              type="text" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              required
+            />
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-500/20 mt-4"
+          >
+            Update Details
+          </button>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const ClientProfile = ({ 
+  client, 
+  onClose,
+  onUpdateImage,
+  onSetWarranty,
+  onSetInstallationDate,
+  onUpdateNotes,
+  onDeleteClient,
+  onUpdateOrderStatus,
+  onUpdateClientDetails,
+  formatCurrency,
+  generateWhatsAppMessage,
+  generateClientProfilePDF,
+  handleDeleteWork,
+  handleDeletePayment,
+  handleDeleteOrder,
+  handleAddWork,
+  handleAddPayment,
+  clients
+}: { 
+  client: Client, 
+  onClose: () => void,
+  onUpdateImage: (id: number, img: string | null) => void,
+  onSetWarranty: (id: number, date: string) => void,
+  onSetInstallationDate: (id: number, date: string) => void,
+  onUpdateNotes: (id: number, notes: string) => void,
+  onDeleteClient: (id: number) => void,
+  onUpdateOrderStatus: (clientId: number, orderId: string, status: OrderStatus) => void,
+  onUpdateClientDetails: (id: number, details: { name: string, phone: string, address: string }) => void,
+  formatCurrency: (v: number) => string,
+  generateWhatsAppMessage: (c: Client, items: any[], total: number) => void,
+  generateClientProfilePDF: (c: Client) => void,
+  handleDeleteWork: (clientId: number, workId: string) => void,
+  handleDeletePayment: (clientId: number, paymentId: string) => void,
+  handleDeleteOrder: (clientId: number, orderId: string) => void,
+  handleAddWork: (clientId: number, description: string, amount: number) => void,
+  handleAddPayment: (clientId: number, amount: number, type: 'Cash' | 'Bkash' | 'Bank', purpose: string) => void,
+  clients: Client[]
+}) => {
+  const [showAddWork, setShowAddWork] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showEditDetails, setShowEditDetails] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const currentClient = clients.find(c => c.id === client.id) || client;
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIMENSION = 512;
+          
+          if (width > height && width > MAX_DIMENSION) {
+            height = Math.round((height * MAX_DIMENSION) / width);
+            width = MAX_DIMENSION;
+          } else if (height > MAX_DIMENSION) {
+            width = Math.round((width * MAX_DIMENSION) / height);
+            height = MAX_DIMENSION;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            onUpdateImage(currentClient.id, canvas.toDataURL(file.type || 'image/jpeg', 0.7));
+          } else {
+            onUpdateImage(currentClient.id, reader.result as string);
+          }
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getStatusColor = (status: OrderStatus) => {
+    switch (status) {
+      case OrderStatus.PENDING: return 'bg-amber-100 text-amber-600';
+      case OrderStatus.PROCESSING: return 'bg-blue-100 text-blue-600';
+      case OrderStatus.SHIPPED: return 'bg-purple-100 text-purple-600';
+      case OrderStatus.DELIVERED: return 'bg-emerald-100 text-emerald-600';
+      case OrderStatus.CANCELLED: return 'bg-rose-100 text-rose-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      className="fixed inset-0 bg-gray-50 dark:bg-slate-950 z-50 overflow-y-auto"
+    >
+      <div className="p-4 flex items-center gap-4 border-b dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
+        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full">
+          <ArrowLeft size={24} />
+        </button>
+        <h2 className="font-bold text-lg flex-1">Client Profile</h2>
+        <button 
+          onClick={() => setShowEditDetails(true)}
+          className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+        >
+          <Edit2 size={20} />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-6 pb-24">
+        <div className="glass-card p-6 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-20 bg-blue-600/10 -z-10" />
+          
+          <div className="relative group">
+            <div className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold mb-4 shadow-2xl border-4 border-white dark:border-slate-900 overflow-hidden">
+              {currentClient.image ? (
+                <img src={currentClient.image} alt={currentClient.name} className="w-full h-full object-cover" />
+              ) : (
+                currentClient.name[0]
+              )}
+            </div>
+            
+            <div className="absolute bottom-4 right-0 flex gap-1">
+              <label className="w-8 h-8 bg-white dark:bg-slate-800 text-blue-600 rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-blue-50 transition-colors border border-gray-100 dark:border-slate-700">
+                <Plus size={16} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+              </label>
+              {currentClient.image && (
+                <button 
+                  onClick={() => onUpdateImage(currentClient.id, null)}
+                  className="w-8 h-8 bg-white dark:bg-slate-800 text-red-500 rounded-full flex items-center justify-center shadow-lg hover:bg-red-50 transition-colors border border-gray-100 dark:border-slate-700"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <h3 className="text-xl font-bold">{currentClient.name}</h3>
+          <p className="text-gray-500 text-sm">{currentClient.phone}</p>
+          <p className="text-gray-500 text-xs mt-1">{currentClient.address}</p>
+          
+          <div className="grid grid-cols-3 gap-4 w-full mt-6">
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 uppercase font-bold">Due</p>
+              <p className="text-sm font-bold text-red-500">{formatCurrency(currentClient.due)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 uppercase font-bold">Works</p>
+              <p className="text-sm font-bold">{currentClient.works}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 uppercase font-bold">Paid</p>
+              <p className="text-sm font-bold text-green-500">{formatCurrency(currentClient.totalPaid)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowAddWork(true)}
+            className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
+          >
+            <Plus size={16} /> Add Work
+          </button>
+          <button 
+            onClick={() => setShowAddPayment(true)}
+            className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
+          >
+            <Wallet size={16} /> Payment
+          </button>
+        </div>
+
+        <div className="glass-card p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="font-bold text-sm flex items-center gap-2">
+                <Calendar size={16} className="text-blue-600" /> Installation Date
+              </h4>
+              <input 
+                type="date" 
+                className="text-xs bg-gray-50 dark:bg-slate-800 border-none rounded-lg p-1 outline-none font-bold"
+                value={currentClient.installationDate || ''}
+                onChange={(e) => onSetInstallationDate(currentClient.id, e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-between items-center">
+              <h4 className="font-bold text-sm flex items-center gap-2">
+                <ShieldCheck size={16} className="text-blue-600" /> Warranty Expiry
+              </h4>
+              <input 
+                type="date" 
+                className="text-xs bg-gray-50 dark:bg-slate-800 border-none rounded-lg p-1 outline-none font-bold"
+                value={currentClient.warrantyExpiry || ''}
+                onChange={(e) => onSetWarranty(currentClient.id, e.target.value)}
+              />
+            </div>
+
+            {currentClient.warrantyExpiry && (
+              <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/10 p-2 rounded-xl">
+                <p className="text-[10px] text-gray-500">Status: <span className="font-bold text-blue-600">Active</span></p>
+                <span className="text-[10px] text-gray-400 italic">Expires: {currentClient.warrantyExpiry}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-card p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
+          <h4 className="font-bold text-sm flex items-center gap-2 mb-3">
+            <FileText size={16} className="text-blue-600" /> Client Notes
+          </h4>
+          <textarea 
+            className="w-full text-xs bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 outline-none min-h-[80px] font-medium"
+            placeholder="Add notes about this client..."
+            value={currentClient.notes || ''}
+            onChange={(e) => onUpdateNotes(currentClient.id, e.target.value)}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button 
+            onClick={() => generateWhatsAppMessage(currentClient, [], 0)}
+            className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
+          >
+            <MessageSquare size={16} /> WhatsApp
+          </button>
+          <button 
+            onClick={() => generateClientProfilePDF(currentClient)}
+            className="flex-1 py-3 bg-slate-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 btn-ripple"
+          >
+            <Download size={16} /> PDF Profile
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="font-bold text-sm flex items-center gap-2">
+            <Wrench size={18} className="text-blue-500" /> Work History
+          </h4>
+          {currentClient.workHistory.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-4">No work history found</p>
+          ) : (
+            currentClient.workHistory.map(work => (
+              <div key={work.id} className="glass-card p-3 group">
+                <div className="flex justify-between">
+                  <span className="text-xs font-bold">{work.description}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{work.date}</span>
+                    <button 
+                      onClick={() => handleDeleteWork(currentClient.id, work.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-xs">Amount: {formatCurrency(work.amount)}</span>
+                  <span className="text-xs text-green-600 font-bold">Paid: {formatCurrency(work.paid)}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="font-bold text-sm flex items-center gap-2">
+            <Wallet size={18} className="text-green-500" /> Payment History
+          </h4>
+          {currentClient.paymentHistory.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-4">No payments found</p>
+          ) : (
+            currentClient.paymentHistory.map(payment => (
+              <div key={payment.id} className="glass-card p-3 flex justify-between items-center group">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-xs font-bold">{payment.type}</p>
+                    <p className="text-[10px] text-gray-500">{payment.date}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-green-600">+{formatCurrency(payment.amount)}</span>
+                  <button 
+                    onClick={() => handleDeletePayment(currentClient.id, payment.id)}
+                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="font-bold text-sm flex items-center gap-2">
+            <ShoppingCart size={18} className="text-purple-500" /> Order History
+          </h4>
+          {currentClient.orders.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-4">No orders found</p>
+          ) : (
+            currentClient.orders.map(order => (
+              <div key={order.id} className="glass-card p-3 group">
+                <div className="flex justify-between border-b dark:border-slate-800 pb-2 mb-2">
+                  <div>
+                    <span className="text-xs font-bold">{order.id}</span>
+                    {order.dueDate && (
+                      <p className="text-[8px] text-red-500 font-bold">Due Date: {order.dueDate}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
+                      getStatusColor(order.status || OrderStatus.PENDING)
+                    )}>
+                      {order.status || OrderStatus.PENDING}
+                    </span>
+                    <span className="text-xs text-gray-500">{order.date}</span>
+                    <button 
+                      onClick={() => handleDeleteOrder(currentClient.id, order.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="mt-3">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Update Status</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.values(OrderStatus).map((status) => {
+                      const isCurrent = (order.status || OrderStatus.PENDING) === status;
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => onUpdateOrderStatus(currentClient.id, order.id, status)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border",
+                            isCurrent 
+                              ? `${getStatusColor(status)} border-transparent shadow-sm scale-105`
+                              : "bg-white dark:bg-slate-800 text-gray-500 border-gray-100 dark:border-slate-700 hover:border-blue-200"
+                          )}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-1 mt-4 pt-3 border-t dark:border-slate-800">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Items</p>
+                  {order.items.map((item, i) => (
+                    <div key={i} className="flex justify-between text-[10px] font-medium">
+                      <span className="text-gray-600 dark:text-gray-400">{item.name} x {item.quantity}</span>
+                      <span className="font-bold">{formatCurrency(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-right mt-2 pt-2 border-t dark:border-slate-800">
+                  <span className="text-xs font-bold text-blue-600">Total: {formatCurrency(order.total)}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="pt-8 border-t dark:border-slate-800">
+          {showDeleteConfirm ? (
+            <div className="glass-card p-4 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30">
+              <p className="text-xs font-bold text-red-600 mb-3 text-center">Are you sure you want to delete this client? All history will be lost.</p>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => onDeleteClient(currentClient.id)}
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold text-xs"
+                >
+                  Yes, Delete
+                </button>
+                <button 
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2 bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-3 bg-red-50 dark:bg-red-900/10 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-red-100 dark:border-red-900/30"
+            >
+              <Trash2 size={16} /> Delete Client
+            </button>
+          )}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showAddWork && (
+          <AddWorkModal clientId={client.id} onClose={() => setShowAddWork(false)} handleAddWork={handleAddWork} />
+        )}
+        {showAddPayment && (
+          <AddPaymentModal clientId={client.id} onClose={() => setShowAddPayment(false)} handleAddPayment={handleAddPayment} />
+        )}
+        {showEditDetails && (
+          <EditClientModal client={currentClient} onClose={() => setShowEditDetails(false)} onUpdate={onUpdateClientDetails} />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};

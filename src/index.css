@@ -8,19 +8,13 @@
 
 @layer base {
   body {
-    @apply font-sans bg-gray-50 text-gray-900 transition-colors duration-300;
-  }
-  .dark body {
-    @apply bg-slate-950 text-slate-100;
+    @apply font-sans bg-gray-50 text-gray-900 transition-colors duration-300 dark:bg-slate-950 dark:text-white;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl rounded-2xl;
-  }
-  .dark .glass-card {
-    @apply bg-slate-900/80 border-slate-800/50;
+    @apply bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-sm rounded-2xl;
   }
   
   .btn-ripple {
