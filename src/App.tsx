@@ -13,6 +13,7 @@ import {
   Wrench, 
   Settings, 
   User, 
+  Menu,
   Plus, 
   X,
   Search, 
@@ -50,11 +51,23 @@ import {
   Key,
   Edit2,
   Calendar,
-  Image,
+  Image as ImageIcon,
   Music,
-  Wand2
+  Wand2,
+  Ticket,
+  MessageCircle,
+  AlertCircle,
+  CreditCard,
+  History,
+  ArrowUpCircle,
+  Megaphone,
+  Headphones,
+  Bot,
+  LayoutGrid,
+  ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { 
   LineChart, 
   Line, 
@@ -134,9 +147,1077 @@ import {
   handleFirestoreError, 
   OperationType 
 } from './firebase';
-import { GoogleGenAI } from "@google/genai";
+
+interface OfferComment {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhoto?: string;
+  text: string;
+  createdAt: string;
+}
+
+interface Offer {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  createdAt: string;
+  authorName: string;
+  likes?: string[]; // Array of user UIDs
+  comments?: OfferComment[];
+  shares?: number;
+}
+
+interface Alert {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'critical';
+  area?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+// --- Helpers ---
+export const generateOrderPDF = (order: PublicOrder) => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(22);
+  doc.text('Invoice / Receipt', 105, 20, { align: 'center' });
+  
+  doc.setFontSize(12);
+  doc.text(`Order ID: ${order.id}`, 14, 35);
+  doc.text(`Date: ${order.date}`, 14, 42);
+  
+  doc.setFontSize(14);
+  doc.text('Customer Details:', 14, 55);
+  doc.setFontSize(11);
+  doc.text(`Name: ${order.customerName}`, 14, 62);
+  doc.text(`Phone: ${order.customerPhone}`, 14, 69);
+  doc.text(`Address: ${order.customerAddress}`, 14, 76);
+  
+  const tableData = order.items.map(item => [
+    item.name,
+    item.quantity.toString(),
+    formatCurrency(item.price),
+    formatCurrency(item.price * item.quantity)
+  ]);
+  
+  autoTable(doc, {
+    startY: 85,
+    head: [['Item', 'Qty', 'Unit Price', 'Total']],
+    body: tableData,
+    foot: [['', '', 'Grand Total:', formatCurrency(order.total)]],
+    theme: 'striped',
+    headStyles: { fillColor: [34, 197, 94] } // Tailwind green-500
+  });
+  
+  doc.save(`Order_${order.id}.pdf`);
+};
+
+export const generateReceiptPDF = (order: Order) => {
+  const doc = new jsPDF();
+  
+  // Header
+  doc.setFillColor(37, 99, 235);
+  doc.rect(0, 0, 210, 40, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text('IT DEPARTMENT PRO', 20, 25);
+  doc.setFontSize(10);
+  doc.text('DIGITAL MONEY RECEIPT', 20, 32);
+  doc.text('Email: itdepartmentpro33@gmail.com', 20, 37);
+  
+  // Order Info
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(12);
+  doc.text(`Order ID: ${order.id}`, 20, 55);
+  doc.text(`Date: ${new Date(order.date).toLocaleDateString()}`, 20, 62);
+  doc.text(`Status: ${order.status.toUpperCase()}`, 20, 69);
+  
+  // Table
+  autoTable(doc, {
+    startY: 80,
+    head: [['Product', 'Qty', 'Price', 'Total']],
+    body: order.items.map(item => [
+      item.name,
+      item.quantity,
+      formatCurrency(item.price),
+      formatCurrency(item.price * item.quantity)
+    ]),
+    foot: [['', '', 'Grand Total', formatCurrency(order.total)]],
+    theme: 'striped',
+    headStyles: { fillColor: [37, 99, 235] },
+    footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' }
+  });
+  
+  // Footer
+  const finalY = (doc as any).lastAutoTable.finalY + 20;
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Thank you for your business!', 105, finalY, { align: 'center' });
+  doc.text('This is a computer generated receipt.', 105, finalY + 7, { align: 'center' });
+  
+  doc.save(`Receipt-${order.id}.pdf`);
+};
 
 // --- Components ---
+
+const AIHelpDesk = ({ user, isAdmin, businessData, isDarkMode }: { user: FirebaseUser | null, isAdmin?: boolean, businessData?: { products: Product[], clients: Client[], expenses: Expense[] }, isDarkMode: boolean }) => {
+  const [messages, setMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      setMessages(prev => [...prev, { role: 'user', text: input.trim() }]);
+      setMessages(prev => [...prev, { role: 'model', text: "AI is not configured. Please set the GEMINI_API_KEY in the Secrets panel." }]);
+      setInput('');
+      return;
+    }
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setIsLoading(true);
+
+    try {
+      let systemInstruction = "You are the IT Department Pro Assistant. You help users with internet issues, router settings, and billing questions for an ISP in Bangladesh. Be polite, professional, and helpful. You can speak both English and Bengali. If you don't know something, suggest they open a support ticket.";
+      
+      if (isAdmin && businessData) {
+        const stats = {
+          totalClients: businessData.clients.length,
+          totalProducts: businessData.products.length,
+          totalDue: businessData.clients.reduce((sum, c) => sum + c.due, 0),
+          totalPaid: businessData.clients.reduce((sum, c) => sum + c.totalPaid, 0),
+          lowStockItems: businessData.products.filter(p => p.stock < 5).map(p => p.name)
+        };
+        
+        systemInstruction += `\n\nYou are also an Admin Assistant. You have access to the following business data:
+- Total Clients: ${stats.totalClients}
+- Total Products: ${stats.totalProducts}
+- Total Due from Clients: ${stats.totalDue}
+- Total Paid by Clients: ${stats.totalPaid}
+- Low Stock Items: ${stats.lowStockItems.join(', ')}
+
+You can help the admin with business insights, stock alerts, and financial summaries based on this data.`;
+      }
+
+      const genAI = new GoogleGenAI(apiKey);
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        systemInstruction: systemInstruction,
+      });
+
+      const chat = model.startChat({
+        history: messages.map(m => ({ 
+          role: m.role === 'model' ? 'model' : 'user', 
+          parts: [{ text: m.text }] 
+        })),
+      });
+
+      const result = await chat.sendMessage(userMessage);
+      const response = await result.response;
+      const modelResponse = response.text() || "I'm sorry, I couldn't process that. Please try again or contact support.";
+      setMessages(prev => [...prev, { role: 'model', text: modelResponse }]);
+    } catch (error: any) {
+      console.error("AI Error:", error);
+      let errorMessage = "Sorry, I'm having trouble connecting right now. Please try again later.";
+      
+      if (error?.message?.includes("quota")) {
+        errorMessage = "Sorry, I've reached my limit for now. Please try again in a few minutes.";
+      } else if (error?.message?.includes("API key not valid")) {
+        errorMessage = "The API key is invalid. Please check your GEMINI_API_KEY in the Secrets panel.";
+      } else if (error?.message) {
+        // Show a bit more detail if it's not a sensitive error
+        errorMessage = `AI Error: ${error.message.substring(0, 100)}`;
+      }
+      
+      setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[600px] bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl">
+      <div className={cn("p-6 text-white flex items-center gap-3", isDarkMode ? "bg-emerald-600" : "bg-orange-500")}>
+        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+          <Bot size={24} />
+        </div>
+        <div>
+          <h3 className="font-bold">AI Help Desk</h3>
+          <p className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Powered by Gemini</p>
+        </div>
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center py-12">
+            <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4", isDarkMode ? "bg-emerald-900/20 text-emerald-500" : "bg-orange-50/50 text-orange-500")}>
+              <MessageCircle size={32} />
+            </div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2">How can I help you today?</h4>
+            <p className="text-sm text-slate-500 max-w-[200px] mx-auto">Ask me about your internet, router settings, or billing.</p>
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
+              m.role === 'user' 
+                ? (isDarkMode ? "ml-auto bg-emerald-600 text-white rounded-tr-none" : "ml-auto bg-orange-500 text-white rounded-tr-none")
+                : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-none"
+            )}
+          >
+            {m.text}
+          </motion.div>
+        ))}
+        {isLoading && (
+          <div className="flex gap-2 p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-tl-none w-16">
+            <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className={cn("w-1.5 h-1.5 rounded-full", isDarkMode ? "bg-emerald-500" : "bg-orange-500")} />
+            <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className={cn("w-1.5 h-1.5 rounded-full", isDarkMode ? "bg-emerald-500" : "bg-orange-500")} />
+            <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className={cn("w-1.5 h-1.5 rounded-full", isDarkMode ? "bg-emerald-500" : "bg-orange-500")} />
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 border-t dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Type your message..."
+            className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+          />
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !input.trim()}
+            className={cn("p-3 text-white rounded-xl disabled:opacity-50 transition-all shadow-lg", isDarkMode ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20" : "bg-orange-500 hover:bg-orange-600 shadow-orange-500/20")}
+          >
+            <Send size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const OutageAlerts = ({ isAdmin }: { isAdmin: boolean }) => {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [showAddAlert, setShowAddAlert] = useState(false);
+  const [newAlert, setNewAlert] = useState({ title: '', message: '', type: 'info' as Alert['type'], area: '' });
+
+  useEffect(() => {
+    const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
+    getDocs(q).then((snapshot) => {
+      setAlerts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Alert)));
+    }).catch(error => handleFirestoreError(error, OperationType.LIST, 'alerts'));
+    return () => {};
+  }, []);
+
+  const handleAddAlert = async () => {
+    if (!newAlert.title || !newAlert.message) return;
+    try {
+      const id = `ALT-${Date.now()}`;
+      await setDoc(doc(db, 'alerts', id), {
+        ...newAlert,
+        id,
+        active: true,
+        createdAt: new Date().toISOString()
+      });
+      setShowAddAlert(false);
+      setNewAlert({ title: '', message: '', type: 'info', area: '' });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'alerts');
+    }
+  };
+
+  const toggleAlert = async (id: string, active: boolean) => {
+    try {
+      await updateDoc(doc(db, 'alerts', id), { active });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'alerts');
+    }
+  };
+
+  const activeAlerts = alerts.filter(a => a.active);
+
+  if (activeAlerts.length === 0 && !isAdmin) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+          <Megaphone size={20} />
+          <h3 className="font-bold">Maintenance & Alerts</h3>
+        </div>
+        {isAdmin && (
+          <button 
+            onClick={() => setShowAddAlert(true)}
+            className="text-xs font-bold bg-amber-100 text-amber-600 px-3 py-1 rounded-lg hover:bg-amber-200 transition-all"
+          >
+            Add Alert
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showAddAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30 shadow-lg space-y-3"
+          >
+            <input 
+              placeholder="Alert Title"
+              value={newAlert.title}
+              onChange={e => setNewAlert({...newAlert, title: e.target.value})}
+              className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none"
+            />
+            <textarea 
+              placeholder="Message"
+              value={newAlert.message}
+              onChange={e => setNewAlert({...newAlert, message: e.target.value})}
+              className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none"
+            />
+            <div className="flex gap-2">
+              <select 
+                value={newAlert.type}
+                onChange={e => setNewAlert({...newAlert, type: e.target.value as any})}
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none"
+              >
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+              <input 
+                placeholder="Area (Optional)"
+                value={newAlert.area}
+                onChange={e => setNewAlert({...newAlert, area: e.target.value})}
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleAddAlert} className="flex-1 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold">Post Alert</button>
+              <button onClick={() => setShowAddAlert(false)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-xl text-sm font-bold">Cancel</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-3">
+        {(isAdmin ? alerts : activeAlerts).map(alert => (
+          <motion.div
+            key={alert.id}
+            className={cn(
+              "p-4 rounded-2xl border flex items-start gap-3 relative overflow-hidden",
+              alert.type === 'critical' ? "bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30" :
+              alert.type === 'warning' ? "bg-amber-50 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30" :
+              "bg-blue-50 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/30"
+            )}
+          >
+            <div className={cn(
+              "p-2 rounded-xl shrink-0",
+              alert.type === 'critical' ? "bg-red-100 text-red-600" :
+              alert.type === 'warning' ? "bg-amber-100 text-amber-600" :
+              "bg-blue-100 text-blue-600"
+            )}>
+              <AlertCircle size={20} />
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between items-start">
+                <h4 className="font-bold text-sm">{alert.title}</h4>
+                {isAdmin && (
+                  <button 
+                    onClick={() => toggleAlert(alert.id, !alert.active)}
+                    className={cn(
+                      "text-[10px] font-black uppercase px-2 py-0.5 rounded",
+                      alert.active ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"
+                    )}
+                  >
+                    {alert.active ? 'Active' : 'Inactive'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs opacity-80 mt-1">{alert.message}</p>
+              {alert.area && (
+                <span className="inline-block mt-2 text-[10px] font-bold bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded uppercase tracking-wider">
+                  Area: {alert.area}
+                </span>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+const TrackOrderPage = ({ formatCurrency, clients }: { formatCurrency: (v: number) => string, clients: Client[] }) => {
+  const [phone, setPhone] = useState('');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const handleTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone) return;
+    
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      const unifiedOrders: any[] = [];
+      
+      // 1. Search in public_orders collection
+      const q = query(collection(db, 'public_orders'), where('customerPhone', '==', phone));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach(doc => {
+        const data = doc.data() as PublicOrder;
+        unifiedOrders.push({
+          id: doc.id,
+          source: 'public',
+          date: data.date,
+          status: data.status,
+          total: data.total,
+          items: data.items,
+          original: data
+        });
+      });
+
+      // 2. Search in registered clients
+      const matchedClient = clients.find(c => c.phone === phone);
+      if (matchedClient && matchedClient.orders) {
+        matchedClient.orders.forEach(order => {
+          unifiedOrders.push({
+            id: order.id,
+            source: 'client',
+            date: order.date,
+            status: order.status,
+            total: order.total,
+            items: order.items,
+            original: order
+          });
+        });
+      }
+
+      setOrders(unifiedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="text-center space-y-2 mb-8">
+        <h2 className="text-3xl font-black">Track My Order</h2>
+        <p className="text-gray-500 text-sm">Enter your phone number to see the status of your orders</p>
+      </div>
+
+      <form onSubmit={handleTrack} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Phone Number</label>
+          <div className="relative">
+            <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input 
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 01817..." 
+              required
+              className="w-full bg-gray-50 dark:bg-slate-900 rounded-xl pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+        <motion.button 
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          type="submit"
+          disabled={loading || !phone}
+          className="w-full bg-orange-600 text-white font-bold tracking-widest uppercase rounded-xl py-3 shadow-lg shadow-orange-600/30 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {loading ? <RefreshCcw className="animate-spin" size={20} /> : <Search size={20} />}
+          {loading ? 'Tracking...' : 'Track Orders'}
+        </motion.button>
+      </form>
+
+      {hasSearched && !loading && (
+        <div className="space-y-4">
+          {orders.length === 0 ? (
+            <div className="text-center p-8 bg-gray-50 dark:bg-slate-800 rounded-3xl flex flex-col items-center justify-center text-gray-500">
+              <Package size={40} className="mb-4 opacity-50" />
+              <p>No orders found for this number.</p>
+            </div>
+          ) : (
+            orders.map(order => (
+              <div key={order.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
+                <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-3">
+                  <div>
+                    <h4 className="font-black">Order ID: {order.id.slice(-6)}</h4>
+                    <span className="text-[10px] text-gray-400 font-bold">{order.date}</span>
+                  </div>
+                  <div className={cn(
+                    "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest",
+                    (order.status === 'pending' || order.status === 'processing') ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30' :
+                    (order.status === 'accepted' || order.status === 'delivered') ? 'bg-green-100 text-green-700 dark:bg-green-900/30' :
+                    order.status === 'shipped' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30' :
+                    'bg-red-100 text-red-700 dark:bg-red-900/30'
+                  )}>
+                    {order.status}
+                  </div>
+                </div>
+                
+                {/* Visual Status Tracker */}
+                <div className="py-4 border-b border-gray-100 dark:border-slate-700">
+                   <div className="flex items-center justify-between relative">
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 dark:bg-slate-700 z-0 rounded-full" />
+                      <div className={cn(
+                        "absolute left-0 top-1/2 -translate-y-1/2 h-1 z-0 rounded-full transition-all duration-1000",
+                        order.status === 'cancelled' || order.status === 'rejected' ? "bg-red-500 w-full" :
+                        order.status === 'pending' ? "bg-yellow-500 w-[10%]" :
+                        order.status === 'accepted' ? "bg-blue-500 w-[30%]" :
+                        order.status === 'processing' ? "bg-blue-500 w-[50%]" :
+                        order.status === 'shipped' ? "bg-orange-500 w-[75%]" :
+                        order.status === 'delivered' ? "bg-green-500 w-full" : "bg-gray-300 w-0"
+                      )} />
+                      
+                      {['Pending', 'Processing', 'Shipped', 'Delivered'].map((step, stepId) => {
+                         const isActive = 
+                           (step === 'Pending' && ['pending', 'accepted', 'processing', 'shipped', 'delivered'].includes(order.status)) ||
+                           (step === 'Processing' && ['processing', 'shipped', 'delivered'].includes(order.status)) ||
+                           (step === 'Shipped' && ['shipped', 'delivered'].includes(order.status)) ||
+                           (step === 'Delivered' && ['delivered'].includes(order.status));
+                           
+                         const isCancelled = order.status === 'cancelled' || order.status === 'rejected';
+
+                         return (
+                           <div key={step} className="relative z-10 flex flex-col items-center gap-1 bg-white dark:bg-slate-800 px-2">
+                             <div className={cn(
+                               "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                               isCancelled ? "bg-red-500 border-red-500" :
+                               isActive ? "bg-white dark:bg-slate-800 border-green-500" : "bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600"
+                             )}>
+                               {isActive && !isCancelled && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
+                             </div>
+                             <span className={cn(
+                               "text-[9px] font-bold uppercase tracking-tighter absolute -bottom-4 truncate",
+                               isCancelled ? "text-red-500" :
+                               isActive ? "text-slate-800 dark:text-slate-200" : "text-gray-400"
+                             )}>{step}</span>
+                           </div>
+                         );
+                      })}
+                   </div>
+                </div>
+
+                <div className="space-y-2 mt-2">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">{item.name} <span className="text-gray-400">x{item.quantity}</span></span>
+                      <span className="font-bold">{formatCurrency(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-slate-700 mt-2">
+                  <span className="font-bold text-gray-500 uppercase text-xs">Total</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => generateOrderPDF(order.original)}
+                      className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center hover:bg-blue-200 transition-colors"
+                      title="Download Invoice"
+                    >
+                      <Download size={14} />
+                    </button>
+                    <span className="font-black text-orange-600 text-lg">{formatCurrency(order.total)}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OffersPage = ({ isAdmin, offers, user, addNotification, withPassword }: { isAdmin: boolean, offers: Offer[], user: FirebaseUser | null, addNotification: (text: string) => void, withPassword: (action: () => void, strict?: boolean) => void }) => {
+  const [showAddOffer, setShowAddOffer] = useState(false);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const [showComments, setShowComments] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        addNotification('File is too large. Please select an image under 10MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Max dimensions for compression - increased for higher resolution
+          const MAX_WIDTH = 1600;
+          const MAX_HEIGHT = 1600;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 0.8 quality for better resolution
+          let quality = 0.8;
+          let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          
+          // Iteratively reduce quality if still too large for Firestore (1MB limit)
+          while (compressedDataUrl.length > 950000 && quality > 0.1) {
+            quality -= 0.1;
+            compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          
+          if (compressedDataUrl.length > 1000000) {
+            addNotification('Image is still too large. Please try a smaller image or lower resolution.');
+            return;
+          }
+          
+          setImageUrl(compressedDataUrl);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !title.trim() || !content.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const offerId = `OFFER-${Date.now()}`;
+      const newOffer: Offer = {
+        id: offerId,
+        title: title.trim(),
+        content: content.trim(),
+        imageUrl: imageUrl.trim() || undefined,
+        createdAt: new Date().toISOString(),
+        authorName: user?.displayName || 'Admin',
+        likes: [],
+        comments: [],
+        shares: 0
+      };
+      await setDoc(doc(db, 'offers', offerId), newOffer);
+      setShowAddOffer(false);
+      setTitle('');
+      setContent('');
+      setImageUrl('');
+      addNotification("অফার পাবলিশ করা হয়েছে!");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'offers');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleLike = async (offer: Offer) => {
+    if (!user) {
+      addNotification("লাইক দিতে লগইন করুন!");
+      return;
+    }
+    const userId = user.uid;
+    const likes = offer.likes || [];
+    const isLiked = likes.includes(userId);
+    const newLikes = isLiked ? likes.filter(id => id !== userId) : [...likes, userId];
+
+    try {
+      await updateDoc(doc(db, 'offers', offer.id), { likes: newLikes });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `offers/${offer.id}`);
+    }
+  };
+
+  const addComment = async (offerId: string) => {
+    if (!user) {
+      addNotification("কমেন্ট করতে লগইন করুন!");
+      return;
+    }
+    const text = commentText[offerId]?.trim();
+    if (!text) return;
+
+    const newComment: OfferComment = {
+      id: `COM-${Date.now()}`,
+      userId: user.uid,
+      userName: user.displayName || 'User',
+      userPhoto: user.photoURL || undefined,
+      text,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      const offerRef = doc(db, 'offers', offerId);
+      const offerSnap = await getDoc(offerRef);
+      if (offerSnap.exists()) {
+        const currentComments = offerSnap.data().comments || [];
+        await updateDoc(offerRef, { comments: [...currentComments, newComment] });
+        setCommentText(prev => ({ ...prev, [offerId]: '' }));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `offers/${offerId}`);
+    }
+  };
+
+  const shareOffer = async (offer: Offer) => {
+    const shareUrl = `${window.location.origin}?tab=offers&id=${offer.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: offer.title,
+          text: offer.content,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        addNotification("লিঙ্ক কপি করা হয়েছে!");
+      }
+      
+      const offerRef = doc(db, 'offers', offer.id);
+      const offerSnap = await getDoc(offerRef);
+      if (offerSnap.exists()) {
+        const currentShares = offerSnap.data().shares || 0;
+        await updateDoc(offerRef, { shares: currentShares + 1 });
+      }
+    } catch (error) {
+      console.error("Sharing failed", error);
+    }
+  };
+
+  const deleteOffer = (id: string) => {
+    withPassword(async () => {
+      try {
+        await deleteDoc(doc(db, 'offers', id));
+        addNotification("অফার মুছে ফেলা হয়েছে!");
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `offers/${id}`);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-8 pb-20">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">অফার ও আপডেট</h2>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">সর্বশেষ অফার এবং গুরুত্বপূর্ণ ঘোষণা</p>
+        </div>
+        {isAdmin && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAddOffer(!showAddOffer)}
+            className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20"
+          >
+            {showAddOffer ? <X size={20} /> : <Plus size={20} />}
+            {showAddOffer ? 'বন্ধ করুন' : 'নতুন পোস্ট'}
+          </motion.button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showAddOffer && isAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-xl"
+          >
+            <form onSubmit={handleAddOffer} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">পোস্টের শিরোনাম</label>
+                <input
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="অফারের নাম লিখুন..."
+                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">বিস্তারিত বর্ণনা</label>
+                <textarea
+                  required
+                  rows={5}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="অফার সম্পর্কে বিস্তারিত লিখুন..."
+                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">ছবি আপলোড করুন (ঐচ্ছিক)</label>
+                <div className="flex gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    ref={fileInputRef}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-sm font-bold text-slate-500 hover:border-blue-500 hover:text-blue-500 transition-all flex items-center justify-center gap-2"
+                  >
+                    <ImageIcon size={20} />
+                    {imageUrl ? 'ছবি পরিবর্তন করুন' : 'ছবি নির্বাচন করুন'}
+                  </button>
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('')}
+                      className="px-5 bg-red-50 text-red-500 rounded-2xl font-bold"
+                    >
+                      মুছে ফেলুন
+                    </button>
+                  )}
+                </div>
+                {imageUrl && (
+                  <div className="mt-4 relative rounded-2xl overflow-hidden border dark:border-slate-800">
+                    <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover" />
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? <RefreshCcw className="animate-spin" size={20} /> : <Send size={20} />}
+                {isSubmitting ? 'পোস্ট হচ্ছে...' : 'পাবলিশ করুন'}
+              </button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 gap-8">
+        {offers.length === 0 ? (
+          <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-900/50 rounded-[32px] border-2 border-dashed border-slate-200 dark:border-slate-800">
+            <Megaphone size={48} className="mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500 font-medium">এখনও কোনো অফার পোস্ট করা হয়নি।</p>
+          </div>
+        ) : (
+          offers.map((offer) => {
+            const isLiked = user && offer.likes?.includes(user.uid);
+            return (
+              <motion.div
+                key={offer.id}
+                layout
+                className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden"
+              >
+                {/* Post Header */}
+                <div className="p-6 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 overflow-hidden">
+                      {(!offer.authorName || offer.authorName === 'Admin') ? <User size={24} /> : <div className="font-bold">{offer.authorName[0]}</div>}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white">{offer.authorName || 'Admin'}</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        {new Date(offer.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => deleteOffer(offer.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Post Content */}
+                <div className="px-6 pb-4">
+                  <h4 className="text-xl font-black text-slate-900 dark:text-white mb-3">{offer.title}</h4>
+                  <p className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+                    {offer.content}
+                  </p>
+                </div>
+
+                {/* Post Image */}
+                {offer.imageUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={offer.imageUrl} 
+                      alt={offer.title}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-auto max-h-[600px] object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Stats Bar */}
+                {( (offer.likes?.length || 0) > 0 || (offer.comments?.length || 0) > 0 || (offer.shares || 0) > 0 ) && (
+                  <div className="px-6 py-2 flex justify-between items-center text-[10px] font-bold text-slate-400 border-b dark:border-slate-800">
+                    <div className="flex items-center gap-1">
+                      { (offer.likes?.length || 0) > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-[8px] text-white">
+                            <Sparkles size={8} />
+                          </div>
+                          {offer.likes?.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      { (offer.comments?.length || 0) > 0 && <span>{offer.comments?.length} কমেন্ট</span> }
+                      { (offer.shares || 0) > 0 && <span>{offer.shares} শেয়ার</span> }
+                    </div>
+                  </div>
+                )}
+
+                {/* Post Footer (Facebook style) */}
+                <div className="p-2 flex items-center justify-around">
+                  <button 
+                    onClick={() => toggleLike(offer)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm transition-all",
+                      isLiked ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    <Sparkles size={18} className={isLiked ? "fill-current" : ""} />
+                    <span>লাইক</span>
+                  </button>
+                  <button 
+                    onClick={() => setShowComments(prev => ({ ...prev, [offer.id]: !prev[offer.id] }))}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    <MessageCircle size={18} />
+                    <span>কমেন্ট</span>
+                  </button>
+                  <button 
+                    onClick={() => shareOffer(offer)}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    <Share2 size={18} />
+                    <span>শেয়ার</span>
+                  </button>
+                </div>
+
+                {/* Comments Section */}
+                <AnimatePresence>
+                  {showComments[offer.id] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 overflow-hidden"
+                    >
+                      <div className="p-6 space-y-4">
+                        {/* Comment Input */}
+                        <div className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
+                            {user?.photoURL ? <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : user?.displayName?.[0] || '?'}
+                          </div>
+                          <div className="flex-1 flex gap-2">
+                            <input 
+                              type="text"
+                              placeholder="কমেন্ট লিখুন..."
+                              value={commentText[offer.id] || ''}
+                              onChange={(e) => setCommentText(prev => ({ ...prev, [offer.id]: e.target.value }))}
+                              onKeyPress={(e) => e.key === 'Enter' && addComment(offer.id)}
+                              className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                            />
+                            <button 
+                              onClick={() => addComment(offer.id)}
+                              className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all"
+                            >
+                              <Send size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Comments List */}
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                          {offer.comments?.length === 0 ? (
+                            <p className="text-center py-4 text-xs text-slate-400 italic">প্রথম কমেন্টটি আপনি করুন!</p>
+                          ) : (
+                            offer.comments?.slice().reverse().map((comment) => (
+                              <div key={comment.id} className="flex gap-3">
+                                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold shrink-0 overflow-hidden">
+                                  {comment.userPhoto ? <img src={comment.userPhoto} alt={comment.userName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : (comment.userName ? comment.userName[0] : 'U')}
+                                </div>
+                                <div className="flex-1 bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 dark:border-slate-800">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <h5 className="text-xs font-bold text-slate-900 dark:text-white">{comment.userName || 'User'}</h5>
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase">
+                                      {new Date(comment.createdAt).toLocaleDateString('bn-BD')}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{comment.text}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -297,9 +1378,12 @@ const ProductDetailsModal = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{product.description ? 'Description' : 'Specifications'}</h3>
-            <p className="text-xs text-gray-500 leading-relaxed font-medium">
+          <div className="space-y-3 bg-gray-50 dark:bg-slate-800/20 p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+               <FileText size={14} />
+               {product.description ? 'Detailed Description' : 'Specifications'}
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium whitespace-pre-wrap">
               {product.description || `Professional grade ${product.name} with high-definition clarity. Optimized for 24/7 surveillance with smart motion detection and IR night vision.`}
             </p>
           </div>
@@ -314,11 +1398,92 @@ const ProductDetailsModal = ({
               "w-full py-5 rounded-3xl font-black text-sm uppercase tracking-widest transition-all duration-300 shadow-xl",
               product.stock > 0 
                 ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20" 
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-500 cursor-not-allowed"
             )}
           >
             {product.stock > 0 ? 'Add to Order' : 'Out of Stock'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CategoryManager = ({ 
+  productCategories, 
+  setProductCategories,
+  products 
+}: { 
+  productCategories: string[], 
+  setProductCategories: (cats: string[]) => void,
+  products: Product[]
+}) => {
+  const [newCat, setNewCat] = useState('');
+
+  const handleDeleteCategory = (catToDelete: string) => {
+    // Check if category is purely an enum value (base category)
+    const baseCategories = ['CCTV', 'NVR', 'DVR', 'ACCESSORIES'];
+    if (baseCategories.includes(catToDelete.toUpperCase())) {
+      const confirm = window.confirm("This is a base category. Are you sure?");
+      if (!confirm) return;
+    }
+
+    setProductCategories(productCategories.filter(c => c !== catToDelete));
+  };
+
+  const handleAddCategory = () => {
+    if (newCat && !productCategories.includes(newCat)) {
+      setProductCategories([...productCategories, newCat]);
+      setNewCat('');
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-3xl font-black tracking-tight uppercase">Manage Categories</h2>
+        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Global Catalog Taxonomy Control</p>
+      </div>
+
+      <div className="glass-card p-6 space-y-6">
+        <div className="flex gap-3">
+          <input 
+            type="text" 
+            placeholder="New category name..." 
+            className="flex-1 px-5 py-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-800 outline-none font-bold text-sm focus:ring-2 focus:ring-green-500/20"
+            value={newCat}
+            onChange={e => setNewCat(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+          />
+          <button 
+            onClick={handleAddCategory}
+            className="px-6 py-4 bg-green-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-green-500/20"
+          >
+            Add Category
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {productCategories.map(cat => {
+            const productCount = products.filter(p => p.category === cat).length;
+            return (
+              <div 
+                key={cat} 
+                className="p-5 bg-gray-50 dark:bg-slate-800/40 rounded-3xl border border-gray-100 dark:border-slate-800 flex items-center justify-between group"
+              >
+                <div className="flex flex-col">
+                  <span className="font-black text-sm uppercase tracking-tight">{cat}</span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">{productCount} Products Linked</span>
+                </div>
+                <button 
+                  onClick={() => handleDeleteCategory(cat)}
+                  className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -343,7 +1508,7 @@ const ProductList = ({
   setInventoryMode: (v: boolean) => void, 
   setShowAddProduct: (v: boolean) => void, 
   setSelectedProduct: (p: Product) => void, 
-  handleDeleteProduct: (id: number) => void, 
+  handleDeleteProduct: (id: number | string) => void, 
   onEditProduct: (p: Product) => void,
   addToCart: (p: Product) => void,
   isDarkMode: boolean,
@@ -386,68 +1551,69 @@ const ProductList = ({
   const allCategories = ['all', ...productCategories];
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
-      <div className="flex flex-col gap-4">
+    <div className="space-y-8 pb-32 md:pb-0">
+      <div className="flex flex-col gap-6">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">{inventoryMode ? 'Inventory' : 'Premium Gear'}</h2>
-            <p className="text-xs text-gray-500 font-medium">
-              {inventoryMode ? 'Manage your product stock' : 'Select items to build your order'}
+            <h2 className="text-3xl font-black tracking-tighter leading-none">{inventoryMode ? 'MASTER INVENTORY' : 'PREMIUM HARDWARE'}</h2>
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-2">
+              {inventoryMode ? 'Node Control & Management' : 'High-End Enterprise Solutions'}
             </p>
           </div>
-          <div className="relative flex gap-2">
+          <div className="relative flex gap-3">
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setInventoryMode(!inventoryMode)}
               className={cn(
-                "p-2 rounded-xl transition-all duration-300",
+                "h-12 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-500 font-bold text-sm",
                 inventoryMode 
-                  ? "bg-green-600 text-white shadow-lg shadow-green-500/30" 
-                  : "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                  ? "bg-green-600/90 text-white shadow-xl shadow-green-500/30 backdrop-blur-md" 
+                  : "bg-blue-600/90 text-white shadow-xl shadow-blue-500/30 backdrop-blur-md"
               )}
             >
-              <Settings size={20} />
+              <Edit2 size={18} strokeWidth={2.5} />
+              <span className="hidden sm:inline">{inventoryMode ? 'Exit Edit Mode' : 'Edit Mode'}</span>
             </motion.button>
             <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.1, rotate: -5 }}
+              whileTap={{ scale: 0.9 }}
               onClick={(e) => {
                 e.preventDefault();
                 setShowAddProduct(true);
               }}
-              className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+              className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-blue-600/30 hover:bg-blue-700 transition-all backdrop-blur-md"
             >
-              <Plus size={20} />
+              <Plus size={24} strokeWidth={3} />
             </motion.button>
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto hide-scrollbar py-1">
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar py-2">
           {allCategories.map(cat => (
             <motion.button 
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ y: -2 }}
               whileTap={{ scale: 0.95 }}
               key={cat}
               onClick={() => setFilter(cat)}
               className={cn(
-                "px-5 py-2.5 rounded-2xl text-[11px] font-bold whitespace-nowrap transition-all duration-300 border",
+                "px-6 py-3 rounded-[20px] text-[10px] font-black tracking-[0.1em] whitespace-nowrap transition-all duration-500 uppercase ring-1",
                 filter === cat 
-                  ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
-                  : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                  ? "bg-blue-600 text-white ring-blue-500 shadow-2xl shadow-blue-600/40" 
+                  : "bg-white/10 text-gray-400 ring-white/10 hover:bg-white/20 hover:text-white"
               )}
             >
-              {cat.toUpperCase()}
+              {cat}
             </motion.button>
           ))}
         </div>
 
-        <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+        <div className="relative group overflow-hidden rounded-2xl border border-white/10 shadow-inner">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
             type="text" 
-            placeholder="Search premium products..." 
-            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+            placeholder="Query infrastructure nodes..."
+            className="w-full bg-white/5 dark:bg-slate-900/50 backdrop-blur-xl border-none pl-14 pr-6 py-5 text-sm font-medium focus:ring-2 focus:ring-orange-500/50 dark:focus:ring-emerald-500/50 transition-all placeholder:text-gray-500"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -483,84 +1649,93 @@ const ProductList = ({
             whileTap={{ scale: 0.98 }}
             transition={{ delay: idx * 0.05 }}
             onClick={() => setSelectedProduct(product)}
-            className="group relative bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 cursor-pointer"
+            className="group relative glass-card overflow-hidden hover:translate-y-[-8px] transition-all duration-700 cursor-pointer"
           >
-            <div className="aspect-square bg-gray-50 dark:bg-slate-800/50 flex items-center justify-center relative overflow-hidden">
+            <div className="aspect-[4/5] bg-slate-950/20 dark:bg-slate-900/50 flex items-center justify-center relative overflow-hidden">
               {product.image ? (
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
               ) : (
                 <motion.div 
                   whileHover={{ scale: 1.1, rotate: 5 }}
-                  className="text-gray-300 dark:text-slate-700"
+                  className="text-gray-300 dark:text-slate-700 opacity-20"
                 >
-                  <Package size={56} strokeWidth={1} />
+                  <Package size={80} strokeWidth={1} />
                 </motion.div>
               )}
               
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
               {product.badge && (
-                <div className="absolute top-3 left-3 z-10">
+                <div className="absolute top-4 left-4 z-10">
                   <span className={cn(
-                    "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm",
-                    product.badge === 'new' ? "bg-blue-600 text-white" : 
-                    product.badge === 'hot' ? "bg-rose-500 text-white" : "bg-amber-500 text-white"
+                    "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-md ring-1 ring-white/20",
+                    product.badge === 'new' ? "bg-blue-600/90 text-white" : 
+                    product.badge === 'hot' ? "bg-rose-500/90 text-white" : "bg-amber-500/90 text-white"
                   )}>
                     {product.badge}
                   </span>
                 </div>
               )}
 
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-4 right-4 bg-black/20 backdrop-blur-md rounded-full p-1.5 px-3 flex items-center gap-2 border border-white/10">
                 <div className={cn(
                   "w-2 h-2 rounded-full",
-                  product.stock > 5 ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
+                  product.stock > 5 ? "bg-emerald-500 shadow-[0_0_10px_#10b981]" : "bg-amber-500 animate-pulse shadow-[0_0_10px_#f59e0b]"
                 )} />
+                <span className="text-[10px] font-black text-white">
+                  {product.stock > 999 ? '999+' : product.stock} IN STOCK
+                </span>
               </div>
             </div>
 
-            <div className="p-4">
-              <div className="mb-1">
-                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">{product.category}</span>
+            <div className="p-5 relative">
+              <div className="mb-2">
+                <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em]">{product.category}</span>
               </div>
-              <h4 className="font-bold text-xs text-gray-800 dark:text-gray-100 line-clamp-1 group-hover:text-blue-600 transition-colors">{product.name}</h4>
+              <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight line-clamp-2 tracking-tighter group-hover:text-blue-500 transition-colors uppercase">{product.name}</h4>
               
-              <div className="mt-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-gray-400 font-medium">Price</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{formatCurrency(product.price)}</p>
+              <div className="mt-8 flex items-end justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1 truncate">Exchange Value</p>
+                  <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter truncate">{formatCurrency(product.price)}</p>
                 </div>
                 {inventoryMode ? (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-shrink-0">
                     <motion.button 
+                      whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditProduct(product);
                       }}
-                      className="w-8 h-8 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all"
+                      className="w-10 h-10 bg-blue-600/10 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20 shadow-lg"
                     >
-                      <Settings size={14} />
+                      <Edit2 size={18} />
                     </motion.button>
                     <motion.button 
+                      whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteProduct(product.id);
                       }}
-                      className="w-8 h-8 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-600 hover:text-white transition-all"
+                      className="w-10 h-10 bg-rose-600/10 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all border border-rose-600/20 shadow-lg"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={18} />
                     </motion.button>
                   </div>
                 ) : (
                   <motion.button 
-                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05, backgroundColor: '#2563eb' }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       addToCart(product);
                     }}
-                    className="w-10 h-10 bg-slate-900 dark:bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors"
+                    className="h-12 px-6 bg-blue-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-2xl shadow-blue-600/30 flex-shrink-0 whitespace-nowrap"
                   >
-                    <Plus size={20} />
+                    <Plus size={18} strokeWidth={3} />
+                    ORDER NOW
                   </motion.button>
                 )}
               </div>
@@ -572,156 +1747,574 @@ const ProductList = ({
   );
 };
 
-const Dashboard = ({ 
+const AdminDashboard = ({ 
   products, 
   clients, 
-  expenses, 
   formatCurrency,
-  addToCart,
-  setActiveTab
+  setActiveTab,
+  expenses,
+  isAdmin,
+  isDarkMode,
+  setShowAddProduct,
+  onEditProduct
 }: { 
   products: Product[], 
   clients: Client[], 
-  expenses: Expense[], 
   formatCurrency: (v: number) => string,
-  addToCart: (p: Product) => void,
-  setActiveTab: (t: string) => void
+  setActiveTab: (t: string) => void,
+  expenses: Expense[],
+  isAdmin: boolean,
+  isDarkMode: boolean,
+  setShowAddProduct?: (v: boolean) => void,
+  onEditProduct?: (p: Product) => void
 }) => {
   const totalClients = clients.length;
   const totalProducts = products.length;
   const totalDue = clients.reduce((sum, c) => sum + c.due, 0);
   const monthlyIncome = clients.reduce((sum, c) => sum + c.totalPaid, 0);
   
-  const chartData = [
-    { name: 'Jan', profit: 4000, expense: 2400 },
-    { name: 'Feb', profit: 3000, expense: 1398 },
-    { name: 'Mar', profit: 2000, expense: 9800 },
-    { name: 'Apr', profit: 2780, expense: 3908 },
-    { name: 'May', profit: 1890, expense: 4800 },
-    { name: 'Jun', profit: 2390, expense: 3800 },
-  ];
+  const chartData = useMemo(() => [
+    { name: 'Jan', profit: 4000 },
+    { name: 'Feb', profit: 3000 },
+    { name: 'Mar', profit: 5000 },
+    { name: 'Apr', profit: 2780 },
+    { name: 'May', profit: 1890 },
+    { name: 'Jun', profit: 2390 },
+  ], []);
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="grid grid-cols-2 gap-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
-              <Users size={20} />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Clients</span>
-          </div>
-          <h3 className="text-xl font-bold">{totalClients}</h3>
-        </motion.div>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600">
-              <Package size={20} />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Products</span>
-          </div>
-          <h3 className="text-xl font-bold">{totalProducts}</h3>
-        </motion.div>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-600">
-              <DollarSign size={20} />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Income</span>
-          </div>
-          <h3 className="text-xl font-bold">{formatCurrency(monthlyIncome)}</h3>
-        </motion.div>
-        
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg text-red-600">
-              <AlertTriangle size={20} />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Total Due</span>
-          </div>
-          <h3 className="text-xl font-bold text-red-500">{formatCurrency(totalDue)}</h3>
-        </motion.div>
-      </div>
+    <div className="space-y-12 pb-32">
+      {/* Maintenance Alerts for Admin */}
+      <OutageAlerts isAdmin={isAdmin} />
 
-      <div className="glass-card p-4">
-        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-          <Package size={18} className="text-blue-500" />
-          Quick Products
-        </h3>
-        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-          {products.slice(0, 5).map(product => (
-            <div key={product.id} className="min-w-[140px] glass-card p-3 flex flex-col items-center text-center">
-              <div className="w-12 h-12 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                ) : (
-                  <Package size={24} className="text-gray-400" />
-                )}
-              </div>
-              <h4 className="text-[10px] font-bold line-clamp-1">{product.name}</h4>
-              <p className="text-blue-600 text-[10px] font-bold">{formatCurrency(product.price)}</p>
-              <button 
-                onClick={() => addToCart(product)}
-                className="mt-2 w-full py-1 bg-blue-600 text-white rounded text-[10px] font-bold"
-              >
-                Add
-              </button>
-            </div>
-          ))}
-          <button 
+      {/* Premium Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+        <div>
+          <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
+            Elite <span className="text-orange-500 dark:text-emerald-500 transition-colors">Enterprise</span> Access
+          </h2>
+          <p className="text-slate-500 font-medium mt-2 text-sm uppercase tracking-widest">Global Infrastructure Monitoring</p>
+        </div>
+        <div className="flex gap-4">
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setActiveTab('products')}
-            className="min-w-[100px] glass-card p-3 flex flex-col items-center justify-center text-center text-blue-600"
+            className="px-8 py-3 bg-white/5 dark:bg-slate-900/40 backdrop-blur-xl border border-white/20 dark:border-slate-800/20 text-slate-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl transition-all hover:bg-white/10"
           >
-            <ChevronRight size={24} />
-            <span className="text-[10px] font-bold">View All</span>
-          </button>
+            <ShoppingCart size={18} strokeWidth={3} className="text-orange-500 dark:text-emerald-500" />
+            Manage Products
+          </motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveTab('support')}
+            className="px-8 py-3 bg-white/5 dark:bg-slate-900/40 backdrop-blur-xl border border-white/20 dark:border-slate-800/20 text-slate-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl transition-all hover:bg-white/10"
+          >
+            <Headphones size={18} strokeWidth={3} className="text-orange-500 dark:text-emerald-500" />
+            Satellite Support
+          </motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveTab('ai-assistant')}
+            className="px-8 py-3 bg-orange-600 dark:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl shadow-orange-600/30 dark:shadow-emerald-600/30 ring-1 ring-white/20 transition-all active:scale-95"
+          >
+            <Bot size={18} strokeWidth={3} />
+            AI Nexus
+          </motion.button>
         </div>
       </div>
 
-      <div className="glass-card p-4">
-        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-          <BarChart3 size={18} className="text-blue-500" />
-          Financial Overview
-        </h3>
-        <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="profit" stroke="#3b82f6" fillOpacity={1} fill="url(#colorProfit)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="glass-card p-4">
-        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-          <AlertTriangle size={18} className="text-orange-500" />
-          Stock Alerts
-        </h3>
-        <div className="space-y-3">
-          {products.filter(p => p.stock < 5).map(p => (
-            <div key={p.id} className="flex justify-between items-center p-2 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/20">
-              <span className="text-sm font-medium">{p.name}</span>
-              <span className={cn("text-xs font-bold px-2 py-1 rounded-full", p.stock <= 3 ? "bg-red-100 text-red-600 animate-blink" : "bg-orange-100 text-orange-600")}>
-                {p.stock} left
-              </span>
+      {/* Metrics Matrix */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { icon: Users, label: 'Client Database', value: totalClients, color: 'text-orange-500 dark:text-emerald-500', bg: 'bg-orange-500/10 dark:bg-emerald-500/10' },
+          { icon: Package, label: 'Global Assets', value: totalProducts, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { icon: Wallet, label: 'Total Equity', value: formatCurrency(monthlyIncome), color: 'text-orange-600 dark:text-emerald-400', bg: 'bg-orange-600/10 dark:bg-emerald-400/10' },
+          { icon: Zap, label: 'Risk Exposure', value: formatCurrency(totalDue), color: 'text-rose-500', bg: 'bg-rose-500/10' },
+        ].map((stat, i) => (
+          <motion.div 
+            key={i}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="glass-card p-8 group hover:translate-y-[-8px]"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div className={cn("p-4 rounded-2xl shadow-inner", stat.bg, stat.color)}>
+                <stat.icon size={24} strokeWidth={2.5} />
+              </div>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
             </div>
-          ))}
+            <p className={cn("text-3xl font-black tracking-tighter mb-1", stat.color)}>{stat.value}</p>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Graphs & Fast Access */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <motion.div className="lg:col-span-2 glass-card p-10 overflow-hidden relative">
+          <h3 className="text-2xl font-black tracking-tighter uppercase mb-2">Revenue Analytics</h3>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-8">6-Month Fiscal Trajectory</p>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={isDarkMode ? "#10b981" : "#f97316"} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={isDarkMode ? "#10b981" : "#f97316"} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
+                <YAxis hide />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: isDarkMode ? '#0f172a' : '#fff', border: 'none', borderRadius: '16px', color: isDarkMode ? '#fff' : '#1e293b' }}
+                />
+                <Area type="monotone" dataKey="profit" stroke={isDarkMode ? "#10b981" : "#f97316"} strokeWidth={3} fillOpacity={1} fill="url(#revenueGradient)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        <motion.div className="glass-card p-10">
+          <h3 className="text-2xl font-black tracking-tighter uppercase mb-2">Product Management</h3>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-8">Add, Edit & Monitor Products</p>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <button onClick={() => setActiveTab('products')} className="flex-1 p-6 rounded-3xl flex flex-col items-center justify-center text-white shadow-2xl transition-all hover:scale-[1.02] bg-orange-500 dark:bg-emerald-600 gap-2">
+                <Package size={24} />
+                <span className="font-black text-[10px] uppercase tracking-widest">Product List</span>
+              </button>
+              {setShowAddProduct && (
+                <button onClick={() => setShowAddProduct(true)} className="flex-1 p-6 rounded-3xl flex flex-col items-center justify-center text-white shadow-2xl transition-all hover:scale-[1.02] bg-blue-500 dark:bg-blue-600 gap-2">
+                  <Plus size={24} />
+                  <span className="font-black text-[10px] uppercase tracking-widest">Add Product</span>
+                </button>
+              )}
+            </div>
+            {[
+              { label: 'Client Log', icon: Users, action: () => setActiveTab('clients'), color: 'bg-emerald-500 dark:bg-emerald-700' },
+              { label: 'Fiscal Ledger', icon: Wallet, action: () => setActiveTab('expenses'), color: 'bg-slate-900 dark:bg-slate-800 border border-green-500/20' },
+            ].map((node, i) => (
+              <button key={i} onClick={node.action} className={cn("w-full p-6 rounded-3xl flex items-center justify-between text-white shadow-2xl transition-all hover:scale-[1.02]", node.color)}>
+                <span className="font-black text-xs uppercase tracking-widest">{node.label}</span>
+                <node.icon size={20} />
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+const PublicStore = ({
+  products,
+  sliderImages,
+  offers = [],
+  formatCurrency,
+  addToCart,
+  setActiveTab,
+  setSelectedProduct
+}: {
+  products: Product[],
+  sliderImages: string[],
+  offers?: Offer[],
+  formatCurrency: (v: number) => string,
+  addToCart: (p: Product) => void,
+  setActiveTab: (t: string) => void,
+  setSelectedProduct: (p: Product) => void
+}) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [search, setSearch] = useState('');
+
+  const fuse = useMemo(() => new Fuse(products, {
+    keys: ['name', 'category', 'description'],
+    threshold: 0.4,
+    includeScore: true
+  }), [products]);
+
+  const filteredProducts = useMemo(() => {
+    if (!search) return products;
+    return fuse.search(search).map(r => r.item);
+  }, [search, products, fuse]);
+
+  useEffect(() => {
+    if (!sliderImages || sliderImages.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % sliderImages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [sliderImages]);
+
+  return (
+    <div className="space-y-6 pb-32 -mt-4">
+      {/* Daraz-Style Search Header */}
+      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl -mx-4 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 flex items-center gap-3 bg-gray-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-transparent focus-within:border-orange-500 transition-all">
+            <Search size={18} className="text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search cameras, NVR, DVR..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm w-full font-medium"
+            />
+          </div>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setActiveTab('me')}
+            className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 border border-orange-200 dark:border-orange-800/50"
+          >
+            <User size={20} />
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Promo Banner Slider - Hide when searching */}
+      {!search && (
+        <>
+          <div className="relative overflow-hidden rounded-3xl h-44 group shadow-2xl bg-slate-900">
+            <AnimatePresence mode="wait">
+              {sliderImages && sliderImages.length > 0 ? (
+                <motion.div
+                  key={currentSlide}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="w-full h-full relative"
+                >
+                  <img src={sliderImages[currentSlide]} alt={`Slide ${currentSlide}`} className="w-full h-full object-cover" />
+                </motion.div>
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-red-500 to-pink-500 flex items-center px-8">
+                  <div className="flex-1 space-y-2">
+                    <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-widest">Flash Sale Now Live</span>
+                    <h3 className="text-3xl font-black text-white tracking-tighter leading-none">UP TO 80% OFF<br/><span className="text-orange-200">SUPER DEALS</span></h3>
+                    <button className="mt-2 bg-white text-orange-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-xl">Shop Now</button>
+                  </div>
+                  <div className="hidden sm:block w-32 h-32 bg-white/20 rounded-full blur-3xl" />
+                </div>
+              )}
+            </AnimatePresence>
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+              {sliderImages && sliderImages.length > 0 ? (
+                sliderImages.map((_, i) => (
+                  <div key={i} className={cn("w-1.5 h-1.5 rounded-full transition-all duration-300", i === currentSlide ? "bg-white w-4" : "bg-white/40")} />
+                ))
+              ) : (
+                [1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i === 1 ? "bg-white w-4" : "bg-white/40")} />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Category Icon Grid */}
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-4 py-2">
+            {[
+              { label: 'Track Order', icon: Package, color: 'bg-blue-500', action: () => setActiveTab('track-order') },
+              { label: 'Hot Deals', icon: Sparkles, color: 'bg-orange-500', action: () => setActiveTab('offers') },
+              { label: 'Free Delivery', icon: CloudUpload, color: 'bg-teal-500', action: () => setActiveTab('products') },
+              { label: 'Support', icon: Headphones, color: 'bg-indigo-500', action: () => window.open('https://wa.me/8801817681233', '_blank') },
+              { label: 'Market', icon: ShoppingCart, color: 'bg-pink-500', action: () => setActiveTab('products') },
+            ].map((cat, i) => (
+              <motion.button 
+                key={i}
+                animate={{ y: [0, -12, 0], opacity: [1, 0.5, 1] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.2 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={cat.action}
+                className="flex flex-col items-center gap-2 group"
+              >
+                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-active:scale-90", cat.color)}>
+                  <cat.icon size={20} strokeWidth={2.5} />
+                </div>
+                <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 text-center uppercase tracking-tighter line-clamp-1">{cat.label}</span>
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Latest Marketing Offers */}
+          {offers && offers.length > 0 && (
+            <div className="py-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-black tracking-tighter text-slate-900 dark:text-white uppercase flex items-center gap-2">
+                  <Megaphone size={18} className="text-orange-500" />
+                  সাম্প্রতিক অফার
+                </h3>
+                <button onClick={() => setActiveTab('offers')} className="text-orange-600 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+                  সব দেখুন <ChevronRight size={14} />
+                </button>
+              </div>
+              <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4 -mx-4 px-4 snap-x">
+                {offers.slice(0, 5).map((offer, i) => (
+                  <motion.div 
+                    key={offer.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    onClick={() => setActiveTab('offers')}
+                    className="min-w-[280px] w-[85vw] max-w-[350px] bg-white dark:bg-slate-800 rounded-[24px] shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden cursor-pointer snap-center group relative"
+                  >
+                    {offer.imageUrl ? (
+                      <div className="h-40 w-full overflow-hidden relative">
+                        <img src={offer.imageUrl} alt={offer.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        <div className="absolute bottom-3 left-4 right-4">
+                          <h4 className="text-white font-bold text-lg line-clamp-1 drop-shadow-md">{offer.title}</h4>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-40 w-full bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center p-6 relative">
+                         <Megaphone size={40} className="text-white/20 absolute -right-2 -bottom-2" />
+                         <h4 className="text-white font-bold text-xl line-clamp-2 drop-shadow-md z-10">{offer.title}</h4>
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <p className="text-slate-500 dark:text-slate-400 text-xs line-clamp-2 leading-relaxed">
+                        {offer.content}
+                      </p>
+                      <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400">
+                        <span className="bg-orange-100 text-orange-600 dark:bg-orange-600/20 px-2 py-1 rounded-md">
+                          {new Date(offer.createdAt).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric' })}
+                        </span>
+                        <div className="flex items-center gap-1 text-blue-500">
+                           <Sparkles size={12} /> {offer.likes?.length || 0}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Flash Sale Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl font-black tracking-tighter text-orange-600 italic">FLASH SALE</h3>
+              <div className="flex gap-1">
+                <span className="bg-orange-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">02</span>
+                <span className="text-orange-600 font-bold">:</span>
+                <span className="bg-orange-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">45</span>
+                <span className="text-orange-600 font-bold">:</span>
+                <span className="bg-orange-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">12</span>
+              </div>
+            </div>
+            <button onClick={() => setActiveTab('products')} className="text-orange-600 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+              View More <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* Horizontal Flash Sale Products */}
+          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4 -mx-4 px-4">
+            {products.slice(0, 6).map((product, i) => (
+              <motion.div 
+                key={product.id}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                onClick={() => setSelectedProduct(product)}
+                className="min-w-[150px] bg-white dark:bg-slate-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-slate-700/50 cursor-pointer"
+              >
+                <div className="h-28 bg-gray-50 dark:bg-slate-900 rounded-xl mb-3 overflow-hidden relative">
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={32} /></div>
+                  )}
+                  <div className="absolute top-2 left-2 bg-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Save 15%</div>
+                </div>
+                <h4 className="text-[10px] font-bold line-clamp-1 mb-1">{product.name}</h4>
+                <div className="flex flex-col gap-1">
+                  <span className="text-orange-600 font-black text-sm">{formatCurrency(product.price)}</span>
+                  <span className="text-gray-400 text-[8px] line-through">{formatCurrency(product.price * 1.15)}</span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Main Product Feed Header */}
+      <div className="flex items-center justify-between pt-4">
+        <h3 className="text-xl font-black tracking-tighter">{search ? 'SEARCH RESULTS' : 'RECOMMENDED FOR YOU'}</h3>
+        <Filter size={18} className="text-gray-400" />
+      </div>
+
+      {/* Daraz-Style Main Product Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {filteredProducts.map((product, i) => (
+          <motion.div 
+            key={product.id}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            onClick={() => setSelectedProduct(product)}
+            className="group bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-700/50 flex flex-col cursor-pointer"
+          >
+            <div className="aspect-square bg-gray-50 dark:bg-slate-900 relative">
+              {product.image ? (
+                <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={48} /></div>
+              )}
+              {product.badge && (
+                <div className={cn(
+                  "absolute top-3 left-3 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white shadow-xl",
+                  product.badge === 'hot' ? 'bg-red-500' : product.badge === 'new' ? 'bg-blue-500' : 'bg-orange-500'
+                )}>
+                  {product.badge}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-3 flex flex-col flex-1">
+              <h4 className="text-xs font-bold line-clamp-2 min-h-[32px] mb-2 group-hover:text-orange-600 transition-colors uppercase tracking-tight">{product.name}</h4>
+              
+              <div className="mt-auto space-y-3">
+                <div className="flex flex-col">
+                  <span className="text-orange-600 font-black text-lg leading-none">{formatCurrency(product.price)}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-gray-400 text-[10px] line-through">{formatCurrency(product.price * 1.2)}</span>
+                    <span className="text-emerald-500 text-[10px] font-bold">-20%</span>
+                  </div>
+                </div>
+
+                <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addToCart(product);
+                  }}
+                  className="w-full py-2.5 bg-orange-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-orange-500/20 active:bg-orange-600 transition-colors border border-white/10"
+                >
+                  ORDER NOW
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Support Contact Section for Clients */}
+      <div className="pt-8 pb-4">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl" />
+          
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 backdrop-blur-md">
+                <Headphones size={24} className="text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg">Need Assistance?</h3>
+                <p className="text-xs text-slate-400">Our support team is ready to help</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <a 
+                href="https://wa.me/8801817681233"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-2xl p-3 transition-colors group"
+              >
+                <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest">WhatsApp Us</p>
+                  <p className="font-bold text-emerald-300">01817681233</p>
+                </div>
+              </a>
+              
+              <a 
+                href="tel:01410381233"
+                className="flex items-center gap-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-2xl p-3 transition-colors group"
+              >
+                <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                  <Smartphone size={18} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-400/80 font-bold uppercase tracking-widest">Call Now</p>
+                  <p className="font-bold text-blue-300">01410381233</p>
+                </div>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+const Dashboard = ({ 
+  products, 
+  clients, 
+  expenses, 
+  sliderImages,
+  offers = [],
+  formatCurrency,
+  addToCart,
+  setActiveTab,
+  setSelectedProduct,
+  setShowAddProduct,
+  onEditProduct,
+  isAdmin,
+  isDarkMode
+}: { 
+  products: Product[], 
+  clients: Client[], 
+  expenses: Expense[], 
+  sliderImages: string[],
+  offers?: Offer[],
+  formatCurrency: (v: number) => string,
+  addToCart: (p: Product) => void,
+  setActiveTab: (t: string) => void,
+  setSelectedProduct: (p: Product) => void,
+  setShowAddProduct: (v: boolean) => void,
+  onEditProduct: (p: Product) => void,
+  isAdmin: boolean,
+  isDarkMode: boolean
+}) => {
+  if (!isAdmin) {
+    return (
+      <PublicStore 
+        products={products} 
+        sliderImages={sliderImages}
+        offers={offers}
+        formatCurrency={formatCurrency} 
+        addToCart={addToCart} 
+        setActiveTab={setActiveTab}
+        setSelectedProduct={setSelectedProduct}
+      />
+    );
+  }
+
+  return (
+    <AdminDashboard 
+      products={products} 
+      clients={clients} 
+      formatCurrency={formatCurrency} 
+      setActiveTab={setActiveTab} 
+      expenses={expenses}
+      isAdmin={isAdmin}
+      isDarkMode={isDarkMode}
+      setShowAddProduct={setShowAddProduct}
+      onEditProduct={onEditProduct}
+    />
+  );
+};
+
 
 const ClientList = ({ 
   clients, 
@@ -737,7 +2330,10 @@ const ClientList = ({
   setShowAddClient: (v: boolean) => void 
 }) => {
   const [search, setSearch] = useState('');
-  const filteredClients = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
+  const filteredClients = clients.filter(c => 
+    (c.name && c.name.toLowerCase().includes(search.toLowerCase())) || 
+    (c.phone && c.phone.includes(search))
+  );
 
   return (
     <div className="space-y-4 pb-20">
@@ -786,10 +2382,73 @@ const ClientList = ({
       <motion.button 
         whileTap={{ scale: 0.95 }}
         onClick={() => withPassword(() => setShowAddClient(true), true)}
+        aria-label="Add new client"
         className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center btn-ripple z-40 opacity-90 hover:opacity-100"
       >
         <Plus size={28} />
       </motion.button>
+    </div>
+  );
+};
+
+const SupportPage = () => {
+  return (
+    <div className="space-y-6 pb-24">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Support</h2>
+          <p className="text-xs text-gray-500 font-medium">Get help and open tickets</p>
+        </div>
+        <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg">
+          <Headphones size={20} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="glass-card p-6 space-y-4">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600">
+            <Bot size={24} />
+          </div>
+          <h3 className="font-bold">AI Assistant</h3>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Our AI assistant can help you with common internet issues, router settings, and billing questions instantly.
+          </p>
+          <button 
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('changeTab', { detail: 'ai-assistant' }));
+            }}
+            className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm"
+          >
+            Chat with AI
+          </button>
+        </div>
+
+        <div className="glass-card p-6 space-y-4">
+          <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center text-green-600">
+            <MessageSquare size={24} />
+          </div>
+          <h3 className="font-bold">Live Support</h3>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Reach out to our team directly via WhatsApp or Phone Call for immediate assistance.
+          </p>
+          <div className="flex flex-col gap-2">
+            <a 
+              href="https://wa.me/8801817681233"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors"
+            >
+              <MessageSquare size={16} /> WhatsApp Us
+            </a>
+            <a 
+              href="tel:01410381233"
+              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2 transition-colors"
+            >
+              <Smartphone size={16} /> Call Now
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1357,29 +3016,47 @@ const CalculatorModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-const SplashScreen = ({ customLogo }: { customLogo: string | null }) => {
+const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic }: { customLogo: string | null, onEnter: () => void, onPlay: () => void, hasMusic: boolean }) => {
   const [progress, setProgress] = useState(0);
+  const [started, setStarted] = useState(!hasMusic);
+
+  const startIntro = () => {
+    if (!started && hasMusic) {
+      setStarted(true);
+      onPlay();
+    }
+  };
 
   useEffect(() => {
+    if (!started) return;
+
     const interval = setInterval(() => {
       setProgress(prev => {
-        if (prev >= 100) return 100;
-        return prev + Math.random() * 15;
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(onEnter, 300);
+          return 100;
+        }
+        return prev + Math.random() * 20;
       });
-    }, 200);
+    }, 150);
     return () => clearInterval(interval);
-  }, []);
+  }, [started, onEnter]);
 
   return (
     <motion.div 
       initial={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 1.05 }}
       transition={{ duration: 0.8, ease: "easeInOut" }}
-      className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center justify-center overflow-hidden"
+      onClick={startIntro}
+      className={cn(
+        "fixed inset-0 splash-bg z-[200] flex flex-col items-center justify-center overflow-hidden bg-slate-950 transition-colors duration-500",
+        !started && hasMusic && "cursor-pointer hover:bg-slate-900"
+      )}
     >
       {/* Premium Background Effect */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 blur-[120px] rounded-full" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none bg-black/40 backdrop-blur-sm">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/30 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 blur-[120px] rounded-full" />
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5" />
       </div>
@@ -1402,55 +3079,94 @@ const SplashScreen = ({ customLogo }: { customLogo: string | null }) => {
           initial={{ y: 20 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-40 h-40 bg-gradient-to-br from-blue-600 to-blue-800 rounded-[40px] flex items-center justify-center shadow-[0_20px_50px_rgba(37,99,235,0.4)] mb-10 overflow-hidden border border-white/20 relative z-20"
+          className="w-36 h-36 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[48px] flex items-center justify-center shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] mb-10 overflow-hidden border border-white/20 relative z-20 backdrop-blur-xl"
         >
           {customLogo ? (
-            <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+            <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           ) : (
-            <ShieldCheck size={80} className="text-white" />
+            <ShieldCheck size={70} className="text-white" />
           )}
         </motion.div>
 
         {/* Text Content */}
-        <div className="text-center relative z-20">
+        <div className="text-center relative z-20 px-6">
           <motion.h1 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-4xl font-black text-white mb-1 tracking-tight"
+            className="text-5xl font-black text-white mb-2 tracking-tighter"
           >
-            IT DEPARTMENT PRO
+            IT DEPARTMENT <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">PRO</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
+            animate={{ opacity: 0.8 }}
             transition={{ delay: 0.6 }}
-            className="text-blue-400 text-xs font-bold uppercase tracking-[0.3em] mb-8"
+            className="text-white/40 text-[10px] font-bold uppercase tracking-[0.4em] mb-12"
           >
-            Security & Management Systems
+            Security & Management Infrastructure
           </motion.p>
-
-          {/* Premium Loading Bar */}
-          <div className="w-64 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10 relative">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600"
-            />
-            {/* Shimmer effect on loading bar */}
-            <motion.div 
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-1/2"
-            />
+          
+          <div className="h-16 flex flex-col items-center justify-center relative w-72 mx-auto">
+            <AnimatePresence mode="wait">
+              {started ? (
+                <motion.div 
+                   key="loading"
+                   initial={{ opacity: 1 }}
+                   exit={{ opacity: 0 }}
+                   className="w-full flex justify-center"
+                >
+                  <div className="w-72 h-1 bg-white/5 rounded-full overflow-hidden border border-white/10 relative">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-600 via-emerald-400 to-green-600"
+                    />
+                    <motion.div 
+                      animate={{ x: ['-100%', '200%'] }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-1/2"
+                    />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="enter-btn"
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                     e.stopPropagation();
+                     startIntro();
+                  }}
+                  className="px-8 py-3 bg-white/10 border border-white/20 text-white rounded-[20px] text-xs font-black uppercase tracking-widest backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:bg-white/20 hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] hover:border-white/40 transition-all flex items-center justify-center gap-2 relative overflow-hidden"
+                >
+                  <Zap size={14} className="text-emerald-400" /> TAP TO START
+                  <motion.div 
+                    animate={{ x: ['-200%', '200%'] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.5 }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent w-1/2 -skew-x-12"
+                  />
+                </motion.button>
+              )}
+            </AnimatePresence>
+            
+            <AnimatePresence>
+              {started && (
+                <motion.p 
+                  key="init-text"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  exit={{ opacity: 0 }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="text-[10px] text-gray-400 font-bold mt-4 uppercase tracking-widest absolute bottom-0 translate-y-full"
+                >
+                  {progress < 100 ? 'System Initializing...' : 'Ready to Launch'}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
-          <motion.p 
-            animate={{ opacity: [0.4, 1, 0.4] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="text-[10px] text-gray-500 font-bold mt-3 uppercase tracking-widest"
-          >
-            {progress < 100 ? 'System Initializing...' : 'Ready to Launch'}
-          </motion.p>
         </div>
       </motion.div>
 
@@ -1480,17 +3196,34 @@ function AppContent() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('cctv_theme_preference');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [showSplash, setShowSplash] = useState(true);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showEditProduct, setShowEditProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [inventoryMode, setInventoryMode] = useState(false);
   const [customLogo, setCustomLogo] = useState<string | null>(() => localStorage.getItem('cctv_custom_logo'));
+  const [sliderImages, setSliderImages] = useState<string[]>(() => {
+    const saved = localStorage.getItem('cctv_slider_images');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [customIntroMusic, setCustomIntroMusic] = useState<string | null>(() => localStorage.getItem('cctv_custom_intro_music'));
   const [customClickSound, setCustomClickSound] = useState<string | null>(() => localStorage.getItem('cctv_custom_click_sound'));
+  const [offersMusic, setOffersMusic] = useState<string | null>(() => localStorage.getItem('cctv_offers_music'));
+  const offersAudioRef = useRef<HTMLAudioElement | null>(null);
   
-  const isAdmin = user?.email === 'djbmremix87@gmail.com';
+  const adminEmails = ['itdepartmentpro33@gmail.com', 'djbmremix87@gmail.com'];
+  const isAdmin = user?.email && adminEmails.includes(user.email);
+
+  useEffect(() => {
+    if (isAuthReady && isAdmin) {
+      setActiveTab('shop-view');
+    }
+  }, [isAuthReady, isAdmin]);
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('cctv_products');
@@ -1505,6 +3238,7 @@ function AppContent() {
     return saved ? JSON.parse(saved) : [];
   });
   const [publicOrders, setPublicOrders] = useState<PublicOrder[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [showPendingOrders, setShowPendingOrders] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -1522,8 +3256,8 @@ function AppContent() {
 
   useEffect(() => {
     if (isAuthReady && !isAdmin) {
-      if (['dashboard', 'clients', 'expenses', 'warranty'].includes(activeTab)) {
-        setActiveTab('products');
+      if (['categories', 'clients', 'expenses', 'warranty'].includes(activeTab)) {
+        setActiveTab('dashboard');
       }
     }
   }, [isAdmin, isAuthReady, activeTab]);
@@ -1567,10 +3301,40 @@ function AppContent() {
     customLogo: customLogo,
     customIntroMusic: customIntroMusic,
     customClickSound: customClickSound,
+    offersMusic: offersMusic,
     expenseCategories: JSON.stringify(expenseCategories),
-    productCategories: JSON.stringify(productCategories)
+    productCategories: JSON.stringify(productCategories),
+    sliderImages: JSON.stringify(sliderImages)
   });
   const isSeeding = useRef(false);
+
+  // Bill Reminder for Clients
+  useEffect(() => {
+    if (isAuthReady && user && !isAdmin && clients.length > 0) {
+      const clientData = clients.find(c => c.phone === user.phoneNumber || c.name === user.displayName);
+      if (clientData && clientData.due > 0) {
+        setTimeout(() => {
+          addNotification(`Reminder: You have a pending bill of ${formatCurrency(clientData.due)}. Please pay to avoid service interruption.`);
+        }, 3000);
+      }
+    }
+  }, [isAuthReady, user, isAdmin, clients]);
+
+  useEffect(() => {
+    const handleChangeTab = (e: any) => setActiveTab(e.detail);
+    window.addEventListener('changeTab', handleChangeTab);
+    return () => window.removeEventListener('changeTab', handleChangeTab);
+  }, []);
+
+  // Admin Notification for new public orders
+  useEffect(() => {
+    if (isAdmin && publicOrders.length > 0) {
+      const pendingCount = publicOrders.filter(o => o.status === 'pending').length;
+      if (pendingCount > 0) {
+        addNotification(`Admin Alert: ${pendingCount} new order(s) waiting for confirmation!`);
+      }
+    }
+  }, [publicOrders.length, isAdmin]);
 
   // Auth Listener
   useEffect(() => {
@@ -1588,13 +3352,13 @@ function AppContent() {
     
     // Global Settings
     const userDocRef = doc(db, 'settings', 'global');
-    const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+    getDoc(userDocRef).then((snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         
         // Update local state and ref to prevent redundant sync back
         if (data.darkMode !== undefined) {
-          setIsDarkMode(data.darkMode);
+          // Device preference from localStorage always wins for dark mode to prevent reload flash
           lastSyncedSettings.current.darkMode = data.darkMode;
         }
         if (data.customLogo !== undefined) {
@@ -1602,6 +3366,11 @@ function AppContent() {
           lastSyncedSettings.current.customLogo = data.customLogo;
           if (data.customLogo) localStorage.setItem('cctv_custom_logo', data.customLogo);
           else localStorage.removeItem('cctv_custom_logo');
+        }
+        if (data.sliderImages !== undefined) {
+          setSliderImages(data.sliderImages);
+          lastSyncedSettings.current.sliderImages = JSON.stringify(data.sliderImages);
+          localStorage.setItem('cctv_slider_images', JSON.stringify(data.sliderImages));
         }
         if (data.expenseCategories !== undefined) {
           setExpenseCategories(data.expenseCategories);
@@ -1625,6 +3394,12 @@ function AppContent() {
           if (data.customClickSound) localStorage.setItem('cctv_custom_click_sound', data.customClickSound);
           else localStorage.removeItem('cctv_custom_click_sound');
         }
+        if (data.offersMusic !== undefined) {
+          setOffersMusic(data.offersMusic);
+          lastSyncedSettings.current.offersMusic = data.offersMusic;
+          if (data.offersMusic) localStorage.setItem('cctv_offers_music', data.offersMusic);
+          else localStorage.removeItem('cctv_offers_music');
+        }
         
         // Seed if not already seeded and user is logged in
         if (!data.seeded && user && !isSeeding.current) {
@@ -1646,44 +3421,23 @@ function AppContent() {
         });
       }
       setIsInitialLoad(false);
-    }, (error) => {
+    }).catch((error) => {
       handleFirestoreError(error, OperationType.GET, `settings/global`);
       setIsInitialLoad(false);
     });
 
     // Products
     const productsRef = collection(db, 'products');
-    const unsubProducts = onSnapshot(query(productsRef, orderBy('name')), (snapshot) => {
+    getDocs(query(productsRef, orderBy('name'))).then((snapshot) => {
       const items = snapshot.docs.map(doc => ({ ...doc.data() } as Product));
-      
-      // If Firestore has data, it's the source of truth
-      if (items.length > 0) {
-        setProducts(items);
-        localStorage.setItem('cctv_products', JSON.stringify(items));
-      } else if (isInitialLoad === false) {
-        // If Firestore is empty and we've finished initial load, 
-        // check if we have local data to sync up
-        const localData = localStorage.getItem('cctv_products');
-        if (localData && user) {
-          const parsed = JSON.parse(localData);
-          if (parsed.length > 0) {
-            console.log("Syncing local products to Firestore...");
-            parsed.forEach((p: Product) => {
-              setDoc(doc(db, 'products', String(p.id)), p);
-            });
-          }
-        } else {
-          setProducts([]);
-          localStorage.setItem('cctv_products', '[]');
-        }
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `products`));
+      setProducts(items);
+      localStorage.setItem('cctv_products', JSON.stringify(items));
+    }).catch(e => handleFirestoreError(e, OperationType.LIST, 'products'));
 
-    // Clients (Only for admin)
-    let unsubClients = () => {};
+    // Clients
     if (isAdmin) {
       const clientsRef = collection(db, 'clients');
-      unsubClients = onSnapshot(query(clientsRef, orderBy('name')), (snapshot) => {
+      getDocs(query(clientsRef, orderBy('name'))).then((snapshot) => {
         const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
         
         if (items.length > 0) {
@@ -1705,16 +3459,33 @@ function AppContent() {
             localStorage.setItem('cctv_clients', '[]');
           }
         }
-      }, (error) => handleFirestoreError(error, OperationType.LIST, `clients`));
-    } else {
-      setClients([]);
+      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `clients`));
+    } else if (user) {
+      // For non-admins, try to fetch their own client record
+      const clientsRef = collection(db, 'clients');
+      const q = query(clientsRef, where('email', '==', user.email || ''));
+      getDocs(q).then((snapshot) => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
+        if (items.length > 0) {
+          setClients(items);
+        } else {
+          // Try by name if email fails
+          const q2 = query(clientsRef, where('name', '==', user.displayName || ''));
+          getDocs(q2).then((snap2) => {
+            const items2 = snap2.docs.map(doc => ({ ...doc.data() } as Client));
+            if (items2.length > 0) setClients(items2);
+          });
+        }
+      }).catch((error) => {
+        // Silent error for non-admins if they don't have a record yet
+        console.log("Non-admin client record fetch error or not found");
+      });
     }
 
     // Expenses (Only for admin)
-    let unsubExpenses = () => {};
     if (isAdmin) {
       const expensesRef = collection(db, 'expenses');
-      unsubExpenses = onSnapshot(query(expensesRef, orderBy('date', 'desc')), (snapshot) => {
+      getDocs(query(expensesRef, orderBy('date', 'desc'))).then((snapshot) => {
         const items = snapshot.docs.map(doc => ({ ...doc.data() } as Expense));
         
         if (items.length > 0) {
@@ -1736,48 +3507,59 @@ function AppContent() {
             localStorage.setItem('cctv_expenses', '[]');
           }
         }
-      }, (error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
+      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
     } else {
       setExpenses([]);
     }
 
     // Public Orders (Only for admin)
-    let unsubPublicOrders = () => {};
-    let isInitialOrdersLoad = true;
     if (isAdmin) {
       const poRef = collection(db, 'public_orders');
-      unsubPublicOrders = onSnapshot(query(poRef, where('status', '==', 'pending')), (snapshot) => {
+      getDocs(query(poRef, where('status', '==', 'pending'))).then((snapshot) => {
         const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PublicOrder));
-        
-        if (!isInitialOrdersLoad) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-              audio.play().catch(() => {}); // Silence autoplay block errors
-            }
-          });
-        }
-        isInitialOrdersLoad = false;
         setPublicOrders(items);
-      }, (error) => handleFirestoreError(error, OperationType.LIST, `public_orders`));
+      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `public_orders`));
     } else {
       setPublicOrders([]);
     }
 
+    // Offers
+    const offersRef = collection(db, 'offers');
+    getDocs(query(offersRef, orderBy('createdAt', 'desc'))).then((snapshot) => {
+      setOffers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Offer)));
+    }).catch((error) => handleFirestoreError(error, OperationType.LIST, `offers`));
+
+    return () => {};
+  }, [isAdmin]);
+
+  // Offers Music Playback
+  useEffect(() => {
+    if (activeTab === 'offers' && offersMusic) {
+      if (!offersAudioRef.current) {
+        offersAudioRef.current = new Audio(offersMusic);
+        offersAudioRef.current.loop = true;
+      } else if (offersAudioRef.current.src !== offersMusic) {
+        offersAudioRef.current.src = offersMusic;
+      }
+      offersAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
+    } else {
+      if (offersAudioRef.current) {
+        offersAudioRef.current.pause();
+      }
+    }
     return () => {
-      unsubUser();
-      unsubProducts();
-      unsubClients();
-      unsubExpenses();
-      unsubPublicOrders();
+      if (offersAudioRef.current) {
+        offersAudioRef.current.pause();
+      }
     };
-  }, [user, isAdmin]);
+  }, [activeTab, offersMusic]);
 
   // Sync Settings to Firestore (Only if changed by user)
   useEffect(() => {
     if (user && !isInitialLoad) {
       const categoriesJson = JSON.stringify(expenseCategories);
       const productCategoriesJson = JSON.stringify(productCategories);
+      const sliderImagesJson = JSON.stringify(sliderImages);
       
       // Only sync if values actually differ from what's in Firestore
       if (
@@ -1785,8 +3567,10 @@ function AppContent() {
         customLogo !== lastSyncedSettings.current.customLogo ||
         customIntroMusic !== lastSyncedSettings.current.customIntroMusic ||
         customClickSound !== lastSyncedSettings.current.customClickSound ||
+        offersMusic !== lastSyncedSettings.current.offersMusic ||
         categoriesJson !== lastSyncedSettings.current.expenseCategories ||
-        productCategoriesJson !== lastSyncedSettings.current.productCategories
+        productCategoriesJson !== lastSyncedSettings.current.productCategories ||
+        sliderImagesJson !== lastSyncedSettings.current.sliderImages
       ) {
         const userDocRef = doc(db, 'settings', 'global');
         
@@ -1796,18 +3580,20 @@ function AppContent() {
           customLogo: customLogo,
           customIntroMusic: customIntroMusic,
           customClickSound: customClickSound,
+          offersMusic: offersMusic,
           expenseCategories: categoriesJson,
-          productCategories: productCategoriesJson
+          productCategories: productCategoriesJson,
+          sliderImages: sliderImagesJson
         };
 
-        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, customIntroMusic, customClickSound, expenseCategories, productCategories }, { merge: true })
+        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages }, { merge: true })
           .catch(error => {
             // If it fails, we might want to revert the ref, but usually quota errors are persistent
             handleFirestoreError(error, OperationType.WRITE, `settings/global`);
           });
       }
     }
-  }, [isDarkMode, customLogo, customIntroMusic, customClickSound, expenseCategories, productCategories, user, isInitialLoad]);
+  }, [isDarkMode, customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages, user, isInitialLoad]);
 
   // Dynamic Title for SEO
   useEffect(() => {
@@ -1818,14 +3604,16 @@ function AppContent() {
       expenses: 'Expense Tracker',
       bandwidth: 'Bandwidth Test',
       warranty: 'Warranty Status',
-      me: 'Profile & Settings'
+      me: 'Profile & Settings',
+      'track-order': 'Track Order'
     };
     const currentTab = tabNames[activeTab] || activeTab;
     document.title = `${currentTab} | IT Department Pro`;
   }, [activeTab]);
 
-  // Dark Mode Class
+  // Dark Mode Class & Persist
   useEffect(() => {
+    localStorage.setItem('cctv_theme_preference', String(isDarkMode));
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -1853,39 +3641,28 @@ function AppContent() {
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
-  // Splash Screen Timer & Music
+  // Splash Screen Timer
   useEffect(() => {
-    const audio = new Audio(customIntroMusic || 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
-    audio.volume = 1.0;
-    
-    const playIntro = () => {
-      audio.play().catch(() => {});
-    };
-
-    // Try to play immediately
-    playIntro();
-
-    // Unlock audio and play if blocked
-    const unlockAndPlay = () => {
-      playIntro();
-      window.removeEventListener('click', unlockAndPlay);
-      window.removeEventListener('touchstart', unlockAndPlay);
-    };
-    window.addEventListener('click', unlockAndPlay);
-    window.addEventListener('touchstart', unlockAndPlay);
-
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 2000); // Faster splash for better UX
-
-    return () => {
-      clearTimeout(timer);
-      audio.pause();
-      audio.currentTime = 0;
-      window.removeEventListener('click', unlockAndPlay);
-      window.removeEventListener('touchstart', unlockAndPlay);
-    };
+    // We now always require a tap to enter for iOS/browser audio policies
+    // The timer logic is handled entirely inside the SplashScreen component
   }, []);
+
+  const handlePlayIntro = () => {
+    if (customIntroMusic) {
+      const audio = new Audio(customIntroMusic);
+      audio.volume = 1.0;
+      audio.play().catch(e => console.error("Audio block:", e));
+    } else {
+      // Default intro sound
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.error(e));
+    }
+  };
+
+  const handleSplashEnter = () => {
+    setShowSplash(false);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1944,18 +3721,17 @@ function AppContent() {
     }
   };
 
-  const handleAddPayment = async (clientId: number, amount: number, type: 'Cash' | 'Bkash' | 'Bank', purpose: string = 'General Payment') => {
+  const handleAddPayment = async (clientId: number, amount: number, type: 'Cash' | 'Bkash' | 'Bank' | 'Nagad', purpose: string = 'General Payment') => {
     if (!user) {
       addNotification("Please login to record payment.");
       return;
     }
-    const userId = user.uid;
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
     const newPayment: PaymentHistory = {
       id: `PAY-${Date.now()}`,
-      date: new Date().toLocaleDateString(),
+      date: new Date().toISOString(),
       amount,
       type,
       purpose
@@ -1963,10 +3739,12 @@ function AppContent() {
 
     const updatedClient = {
       ...client,
-      due: client.due - amount,
+      due: Math.max(0, client.due - amount),
       totalPaid: client.totalPaid + amount,
-      paymentHistory: [newPayment, ...client.paymentHistory]
+      paymentHistory: [newPayment, ...(client.paymentHistory || [])]
     };
+
+    setClients(prev => prev.map(c => c.id === clientId ? updatedClient : c));
 
     try {
       await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
@@ -2035,9 +3813,15 @@ function AppContent() {
       addNotification("Please login to update status.");
       return;
     }
-    const userId = user.uid;
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
+
+    // Update local state first to make it snappy
+    setClients(prev => prev.map(c => 
+      c.id === clientId 
+        ? { ...c, orders: c.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o) } 
+        : c
+    ));
 
     const updatedClient = {
       ...client,
@@ -2045,7 +3829,21 @@ function AppContent() {
     };
 
     try {
+      // 1. Update in clients collection
       await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
+      
+      // 2. Try to update in public_orders collection if it exists there too
+      // The orderId might match a document in 'public_orders' if the admin moved it from public_orders to clients.
+      try {
+         const publicOrderRef = doc(db, 'public_orders', orderId);
+         const publicOrderSnap = await getDoc(publicOrderRef);
+         if (publicOrderSnap.exists()) {
+           await updateDoc(publicOrderRef, { status: newStatus });
+         }
+      } catch (err) {
+         console.error("No public order found with this id, which is fine.", err);
+      }
+      
       addNotification(`Order status updated to ${newStatus}`);
     } catch (err) {
       console.error("Update status error:", err);
@@ -2101,7 +3899,7 @@ function AppContent() {
     addNotification("Item removed from cart");
   };
 
-  const updateCartQuantity = (productId: number, delta: number) => {
+  const updateCartQuantity = (productId: number | string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.productId === productId) {
         const newQty = Math.max(0, item.quantity + delta);
@@ -2111,7 +3909,11 @@ function AppContent() {
     }).filter(item => item.quantity > 0));
   };
 
-  const placePublicOrder = async (customerDetails: {name: string, phone: string, address: string}) => {
+  const placePublicOrder = async (
+    customerDetails: {name: string, phone: string, address: string},
+    isPaid: boolean = false,
+    paymentType: string = 'Cash'
+  ) => {
     if (cart.length === 0) return;
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -2125,7 +3927,7 @@ function AppContent() {
       items: cart,
       total,
       date: new Date().toISOString().split('T')[0],
-      status: 'pending'
+      status: isPaid ? 'accepted' : 'pending'
     };
 
     try {
@@ -2145,7 +3947,10 @@ function AppContent() {
 
       setCart([]);
       setShowCart(false);
-      addNotification("Order placed successfully! We will contact you soon.");
+      addNotification(isPaid ? `Order placed and paid via ${paymentType}!` : "Order placed successfully! We will contact you soon.");
+      
+      // Generate PDF for the client
+      generateOrderPDF(publicOrder);
     } catch (error) {
       console.error("Error placing order:", error);
       addNotification("Failed to place order. Please try again.");
@@ -2331,7 +4136,7 @@ function AppContent() {
 
     // --- Header ---
     // Blue background for header
-    doc.setFillColor(37, 99, 235); // blue-600
+    doc.setFillColor(255, 140, 0); // orange-500
     doc.rect(0, 0, pageWidth, 50, 'F');
 
     // Logo if available
@@ -2342,35 +4147,35 @@ function AppContent() {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('CCTV PRO SOLUTIONS', margin + 35, 25);
+        doc.text('IT DEPARTMENT PRO', margin + 35, 25);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text('Your Security, Our Priority', margin + 35, 32);
-        doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin + 35, 38);
+        doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin + 35, 38);
       } catch (e) {
         // Fallback if logo fails
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('CCTV PRO SOLUTIONS', margin, 25);
+        doc.text('IT DEPARTMENT PRO', margin, 25);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text('Your Security, Our Priority', margin, 32);
-        doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin, 38);
+        doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin, 38);
       }
     } else {
       // Company Name
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
-      doc.text('CCTV PRO SOLUTIONS', margin, 25);
+      doc.text('IT DEPARTMENT PRO', margin, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text('Your Security, Our Priority', margin, 32);
-      doc.text('Phone: 01817681233 | Email: worldexplorer233@gmail.com', margin, 38);
+      doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin, 38);
     }
 
     // --- Invoice Info ---
@@ -2759,7 +4564,7 @@ function AppContent() {
     }
   };
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleDeleteProduct = async (id: number | string) => {
     // Update local state immediately
     setProducts(prev => {
       const updated = prev.filter(p => p.id !== id);
@@ -2858,7 +4663,7 @@ function AppContent() {
     }
   };
 
-  const handleUpdateClientDetails = async (clientId: number, details: { name: string, phone: string, address: string }) => {
+  const handleUpdateClientDetails = async (clientId: number, details: { name: string, phone: string, email?: string, address: string }) => {
     setClients(prev => {
       const updated = prev.map(c => c.id === clientId ? { ...c, ...details } : c);
       localStorage.setItem('cctv_clients', JSON.stringify(updated));
@@ -2893,6 +4698,9 @@ function AppContent() {
   };
 
   const handleDeleteClient = async (clientId: number) => {
+    // Save client info before deleting so we can use phone to clean up public_orders
+    const clientToDelete = clients.find(c => c.id === clientId);
+    
     // Update local state immediately
     setClients(prev => {
       const updated = prev.filter(c => c.id !== clientId);
@@ -2904,9 +4712,16 @@ function AppContent() {
 
     if (!user) return;
     
-    const userId = user.uid;
     try {
       await deleteDoc(doc(db, 'clients', String(clientId)));
+      
+      // Also delete any public_orders associated with this client's phone number
+      if (clientToDelete?.phone) {
+        const q = query(collection(db, 'public_orders'), where('customerPhone', '==', clientToDelete.phone));
+        const snapshot = await getDocs(q);
+        const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, 'public_orders', docSnap.id)));
+        await Promise.all(deletePromises);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `clients/${clientId}`);
     }
@@ -3036,7 +4851,7 @@ function AppContent() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Enter Password"
                   className={cn(
-                    "w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-600 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-center tracking-[0.5em]",
+                    "w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 dark:focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-center tracking-[0.5em]",
                     error ? "border-red-500 text-red-500" : "text-slate-900 dark:text-white"
                   )}
                 />
@@ -3067,6 +4882,133 @@ function AppContent() {
     );
   };
 
+const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onComplete: (type: 'Bkash' | 'Nagad') => void, onClose: () => void }) => {
+  const [step, setStep] = useState<'select' | 'process'>('select');
+  const [method, setMethod] = useState<'Bkash' | 'Nagad' | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pin, setPin] = useState('');
+  const [otp, setOtp] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handlePayment = () => {
+    setIsProcessing(true);
+    // Simulate payment processing
+    setTimeout(() => {
+      setIsProcessing(false);
+      if (method) onComplete(method);
+    }, 2000);
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl"
+      >
+        <div className="p-8">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-black">Digital Payment</h3>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full">
+              <X size={20} />
+            </button>
+          </div>
+
+          {step === 'select' ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500 mb-4 text-center">Select your preferred payment method to pay <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(amount)}</span></p>
+              <button 
+                onClick={() => { setMethod('Bkash'); setStep('process'); }}
+                className="w-full p-4 bg-[#D12053] text-white rounded-2xl flex items-center justify-between group hover:scale-[1.02] transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Bkash_logo.png/640px-Bkash_logo.png" alt="Bkash" className="w-full h-full object-contain" />
+                  </div>
+                  <span className="font-bold">bKash</span>
+                </div>
+                <ChevronRight size={20} />
+              </button>
+              <button 
+                onClick={() => { setMethod('Nagad'); setStep('process'); }}
+                className="w-full p-4 bg-[#F7941D] text-white rounded-2xl flex items-center justify-between group hover:scale-[1.02] transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Nagad_logo.png/640px-Nagad_logo.png" alt="Nagad" className="w-full h-full object-contain" />
+                  </div>
+                  <span className="font-bold">Nagad</span>
+                </div>
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className={cn(
+                "p-4 rounded-2xl flex items-center gap-3 mb-4",
+                method === 'Bkash' ? "bg-[#D12053]/10 text-[#D12053]" : "bg-[#F7941D]/10 text-[#F7941D]"
+              )}>
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1">
+                  <img src={method === 'Bkash' ? "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Bkash_logo.png/640px-Bkash_logo.png" : "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Nagad_logo.png/640px-Nagad_logo.png"} alt={method || ''} className="w-full h-full object-contain" />
+                </div>
+                <span className="font-black">{method} Payment</span>
+              </div>
+
+              <div className="space-y-3">
+                <input 
+                  type="tel" 
+                  placeholder="Your Account Number" 
+                  className="w-full p-4 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold"
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                />
+                <input 
+                  type="password" 
+                  placeholder="Enter PIN" 
+                  className="w-full p-4 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold"
+                  value={pin}
+                  onChange={e => setPin(e.target.value)}
+                />
+                <input 
+                  type="text" 
+                  placeholder="Enter OTP" 
+                  className="w-full p-4 bg-gray-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value)}
+                />
+              </div>
+
+              <button 
+                onClick={handlePayment}
+                disabled={isProcessing || !phoneNumber || !pin || !otp}
+                className={cn(
+                  "w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all flex items-center justify-center gap-2",
+                  method === 'Bkash' ? "bg-[#D12053]" : "bg-[#F7941D]",
+                  (isProcessing || !phoneNumber || !pin || !otp) && "opacity-50"
+                )}
+              >
+                {isProcessing ? <RefreshCcw className="animate-spin" /> : <ShieldCheck size={20} />}
+                {isProcessing ? 'Processing...' : `Pay ${formatCurrency(amount)}`}
+              </button>
+              <button 
+                onClick={() => setStep('select')}
+                className="w-full py-2 text-xs font-bold text-gray-500"
+              >
+                Change Payment Method
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
   const CartModal = () => {
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const [orderClientId, setOrderClientId] = useState<number | null>(null);
@@ -3075,12 +5017,31 @@ function AppContent() {
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
+    const [showGateway, setShowGateway] = useState(false);
+
+    const handleDigitalPayment = (type: 'Bkash' | 'Nagad') => {
+      setShowGateway(false);
+      if (isAdmin && orderClientId) {
+        placeOrder(orderClientId, true, type as any);
+      } else {
+        placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, true, type as any);
+      }
+    };
 
     return (
       <div 
         className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-end justify-center"
         onClick={() => setShowCart(false)}
       >
+        <AnimatePresence>
+          {showGateway && (
+            <PaymentGateway 
+              amount={total} 
+              onClose={() => setShowGateway(false)} 
+              onComplete={handleDigitalPayment} 
+            />
+          )}
+        </AnimatePresence>
         <div 
           className="w-full max-w-[450px] md:max-w-xl max-h-[90vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-[40px] md:rounded-[40px] md:mb-8 shadow-2xl overflow-hidden flex flex-col"
           onClick={e => e.stopPropagation()}
@@ -3278,42 +5239,64 @@ function AppContent() {
                 </div>
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
                 {isAdmin ? (
                   <>
-                    <motion.button 
-                      whileTap={{ scale: 0.98 }}
-                      disabled={!orderClientId}
-                      onClick={() => {
-                        const client = clients.find(c => c.id === orderClientId);
-                        if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
-                      }}
-                      className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                    >
-                      <MessageSquare size={20} />
-                      WhatsApp Quote
-                    </motion.button>
+                    <div className="flex gap-3">
+                      <motion.button 
+                        whileTap={{ scale: 0.98 }}
+                        disabled={!orderClientId}
+                        onClick={() => {
+                          const client = clients.find(c => c.id === orderClientId);
+                          if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
+                        }}
+                        className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                      >
+                        <MessageSquare size={20} />
+                        WhatsApp Quote
+                      </motion.button>
 
+                      <motion.button 
+                        whileTap={{ scale: 0.98 }}
+                        disabled={!orderClientId}
+                        onClick={() => orderClientId && placeOrder(orderClientId, isPaid, paymentType)}
+                        className="flex-[1.5] py-5 bg-green-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-green-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                      >
+                        <Save size={20} />
+                        Confirm & Order
+                      </motion.button>
+                    </div>
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
                       disabled={!orderClientId}
-                      onClick={() => orderClientId && placeOrder(orderClientId, isPaid, paymentType)}
-                      className="flex-[1.5] py-5 bg-green-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-green-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                      onClick={() => setShowGateway(true)}
+                      className="w-full py-4 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2"
                     >
-                      <Save size={20} />
-                      Confirm & Order
+                      <CreditCard size={20} />
+                      Digital Payment (Bkash/Nagad)
                     </motion.button>
                   </>
                 ) : (
-                  <motion.button 
-                    whileTap={{ scale: 0.98 }}
-                    disabled={!customerName || !customerPhone || !customerAddress}
-                    onClick={() => placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress})}
-                    className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                  >
-                    <Save size={20} />
-                    Place Order
-                  </motion.button>
+                  <div className="space-y-3">
+                    <motion.button 
+                      whileTap={{ scale: 0.98 }}
+                      disabled={!customerName || !customerPhone || !customerAddress}
+                      onClick={() => placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress})}
+                      className="w-full py-5 bg-emerald-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    >
+                      <Save size={20} />
+                      Place Order (Cash on Delivery)
+                    </motion.button>
+                    <motion.button 
+                      whileTap={{ scale: 0.98 }}
+                      disabled={!customerName || !customerPhone || !customerAddress}
+                      onClick={() => setShowGateway(true)}
+                      className="w-full py-5 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2"
+                    >
+                      <CreditCard size={20} />
+                      Pay Now (Bkash/Nagad)
+                    </motion.button>
+                  </div>
                 )}
               </div>
             </div>
@@ -3375,10 +5358,17 @@ function AppContent() {
 
                   <div className="flex gap-2">
                     <button
+                      onClick={() => generateOrderPDF(order)}
+                      className="w-10 h-10 shrink-0 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      title="Download PDF"
+                    >
+                      <Download size={18} />
+                    </button>
+                    <button
                       onClick={() => acceptPublicOrder(order)}
                       className="flex-1 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
                     >
-                      Accept Order
+                      Accept
                     </button>
                     <button
                       onClick={async () => {
@@ -3399,7 +5389,7 @@ function AppContent() {
     );
   };
 
-  const BandwidthTestPage = () => {
+const BandwidthTestPage = () => {
     const [isTesting, setIsTesting] = useState(false);
     const [testPhase, setTestPhase] = useState<'idle' | 'ping' | 'download' | 'upload'>('idle');
     const [downloadSpeed, setDownloadSpeed] = useState<number | null>(null);
@@ -3618,12 +5608,19 @@ function AppContent() {
     setCustomIntroMusic,
     customClickSound,
     setCustomClickSound,
+    offersMusic,
+    setOffersMusic,
+    sliderImages,
+    setSliderImages,
     onBackup, 
     onOpenCalculator,
     onLock,
     adminPassword,
     setAdminPassword,
-    user
+    user,
+    onRecordPayment,
+    clients,
+    withPassword
   }: { 
     isDarkMode: boolean, 
     setIsDarkMode: (v: boolean) => void, 
@@ -3633,13 +5630,21 @@ function AppContent() {
     setCustomIntroMusic: (v: string | null) => void,
     customClickSound: string | null,
     setCustomClickSound: (v: string | null) => void,
+    offersMusic: string | null,
+    setOffersMusic: (v: string | null) => void,
+    sliderImages: string[],
+    setSliderImages: (v: string[]) => void,
     onBackup: () => void, 
     onOpenCalculator: () => void,
     onLock: () => void,
     adminPassword: string,
     setAdminPassword: (v: string) => void,
-    user: FirebaseUser | null
+    user: FirebaseUser | null,
+    onRecordPayment: (clientId: number, amount: number, type: 'Cash' | 'Bkash' | 'Bank' | 'Nagad', purpose: string) => void,
+    clients: Client[],
+    withPassword: (action: () => void, strict?: boolean) => void
   }) => {
+    const [showGateway, setShowGateway] = useState(false);
     const [rules, setRules] = useState<string[]>(() => {
       const saved = localStorage.getItem('companyRules');
       return saved ? JSON.parse(saved) : [
@@ -3657,14 +5662,35 @@ function AppContent() {
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file && user) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
-          setCustomLogo(base64);
-          localStorage.setItem('cctv_custom_logo', base64);
-          addNotification("Logo updated!");
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          // Optimize logo slightly, usually logos are tiny but just in case
+          const MAX_SIZE = 500;
+          if (width > height && width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // we should probably keep png transparency if possible or webp.
+            ctx.drawImage(img, 0, 0, width, height);
+            const base64 = canvas.toDataURL('image/webp', 0.8);
+            setCustomLogo(base64);
+            localStorage.setItem('cctv_custom_logo', base64);
+            addNotification("Logo updated and optimized!");
+          }
+          URL.revokeObjectURL(url);
         };
-        reader.readAsDataURL(file);
+        img.src = url;
       }
     };
 
@@ -3673,25 +5699,79 @@ function AppContent() {
       if (file && user) {
         // Check file size (limit to 1MB for Firestore/LocalStorage)
         if (file.size > 1024 * 1024) {
-          addNotification("Audio file too large! Max 1MB.");
+          addNotification("Audio file too large! Max 1MB limit for smooth loading.");
           return;
         }
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = reader.result as string;
+          
+          // Test the audio playback immediately
+          const audio = new Audio(base64);
+          audio.volume = 1.0;
+          audio.play().catch(err => {
+            console.error("Audio playback test failed:", err);
+            addNotification("Audio format issue. Please try a different mp3.");
+          });
+
           if (type === 'intro') {
             setCustomIntroMusic(base64);
             localStorage.setItem('cctv_custom_intro_music', base64);
-            addNotification("Intro music updated!");
+            addNotification("Intro music updated! Playing preview...");
           } else {
             setCustomClickSound(base64);
             localStorage.setItem('cctv_custom_click_sound', base64);
-            addNotification("Click sound updated!");
+            addNotification("Click sound updated! Playing preview...");
           }
         };
         reader.readAsDataURL(file);
       }
     };
+
+    const handleOffersMusicUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && user) {
+        // Check file size (limit to 300MB as requested)
+        if (file.size > 300 * 1024 * 1024) {
+          addNotification("File too large! Max 300MB.");
+          return;
+        }
+        
+        // Password protection for upload
+        withPassword(() => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            // Warn if over 1MB for Firestore
+            if (base64.length > 1000000) {
+              addNotification("Warning: Large files may fail to sync to cloud. Recommended < 1MB.");
+            }
+            setOffersMusic(base64);
+            localStorage.setItem('cctv_offers_music', base64);
+            addNotification("Offers background music updated!");
+          };
+          reader.readAsDataURL(file);
+        }, true); // strict = true for admin only
+      }
+    };
+
+    const removeOffersMusic = () => {
+      withPassword(() => {
+        setOffersMusic(null);
+        localStorage.removeItem('cctv_offers_music');
+        addNotification("Offers background music removed.");
+      }, true);
+    };
+
+    const clientData = useMemo(() => {
+      if (!user) return null;
+      return clients.find(c => 
+        (user.email && c.email === user.email) || 
+        c.phone === user.phoneNumber || 
+        c.name === user.displayName
+      );
+    }, [user, clients]);
+
     const handleChangePassword = () => {
       if (oldPass !== adminPassword) {
         addNotification("Old password incorrect!");
@@ -3796,7 +5876,155 @@ function AppContent() {
     };
 
     return (
-      <div className="space-y-6 pb-20 md:pb-0">
+      <div className="space-y-6 pb-24">
+        {/* Profile Header */}
+        {isAdmin && (
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16" />
+            <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-black shadow-2xl shadow-blue-500/40 overflow-hidden border-4 border-white dark:border-slate-800">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    user?.displayName?.[0] || 'U'
+                  )}
+                </div>
+              </div>
+              <div className="text-center md:text-left">
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user?.displayName || 'User'}</h2>
+                <p className="text-sm text-slate-500 font-medium">{user?.email}</p>
+                <div className="flex gap-2 mt-3 justify-center md:justify-start">
+                  <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    {isAdmin ? 'Administrator' : 'Client'}
+                  </span>
+                  {clientData && (
+                    <span className="px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      Active Connection
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isAdmin && clientData && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Paid</p>
+                <h4 className="text-xl font-black text-green-600">{formatCurrency(clientData.totalPaid)}</h4>
+              </div>
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Current Due</p>
+                <h4 className="text-xl font-black text-red-600">{formatCurrency(clientData.due)}</h4>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              {clientData.due > 0 && (
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowGateway(true)}
+                  className="flex-1 py-4 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-2xl font-black text-sm shadow-xl flex items-center justify-center gap-2"
+                >
+                  <CreditCard size={18} />
+                  Pay Due Bill
+                </motion.button>
+              )}
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setActiveTab('support');
+                  // We could auto-fill the ticket form here if we had a way to pass state
+                }}
+                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl flex items-center justify-center gap-2"
+              >
+                <ArrowUpCircle size={18} />
+                Upgrade Plan
+              </motion.button>
+            </div>
+          </div>
+        )}
+
+        {/* Payment History */}
+        {isAdmin && clientData && (
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-green-600">
+                <CreditCard size={20} />
+              </div>
+              <h3 className="font-bold text-lg">Payment History</h3>
+            </div>
+            <div className="space-y-4">
+              {clientData.paymentHistory && clientData.paymentHistory.length > 0 ? (
+                clientData.paymentHistory.map((payment: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{payment.type}</p>
+                      <h4 className="font-bold text-green-600">+{formatCurrency(payment.amount)}</h4>
+                      <p className="text-[10px] text-slate-500">{new Date(payment.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-lg text-[8px] font-black uppercase">Success</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center py-8 text-slate-400 text-sm italic">No payments recorded yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Order History */}
+        {isAdmin && (
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
+                <History size={20} />
+              </div>
+              <h3 className="font-bold text-lg">Order History</h3>
+            </div>
+            <div className="space-y-4">
+              {clientData?.orders && clientData.orders.length > 0 ? (
+                clientData.orders.map((order: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-between group">
+                    <div>
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Order #{order.id}</p>
+                      <h4 className="font-bold text-slate-900 dark:text-white">{formatCurrency(order.total)}</h4>
+                      <p className="text-[10px] text-slate-500">{new Date(order.date).toLocaleDateString()}</p>
+                    </div>
+                    <button 
+                      onClick={() => generateReceiptPDF(order)}
+                      className="p-3 bg-white dark:bg-slate-800 text-blue-600 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Download size={18} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center py-8 text-slate-400 text-sm italic">No orders found yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {isAdmin && showGateway && clientData && (
+            <PaymentGateway 
+              amount={clientData.due} 
+              onClose={() => setShowGateway(false)} 
+              onComplete={(type) => {
+                setShowGateway(false);
+                onRecordPayment(clientData.id, clientData.due, type as any, 'Bill Payment');
+                addNotification(`Payment of ${formatCurrency(clientData.due)} successful via ${type}!`);
+              }} 
+            />
+          )}
+        </AnimatePresence>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="glass-card p-6 flex flex-col items-center text-center h-fit">
             {!user ? (
@@ -3818,68 +6046,74 @@ function AppContent() {
               <>
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-4xl font-bold mb-4 border-4 border-white shadow-2xl overflow-hidden">
-                    {customLogo ? (
-                      <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      user.photoURL ? <img src={user.photoURL} alt="User" className="w-full h-full object-cover" /> : "AD"
+                      customLogo ? <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : "AD"
                     )}
                   </div>
-                  <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
-                    <Plus size={16} />
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e)} />
-                  </label>
+                  {isAdmin && (
+                    <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
+                      <Plus size={16} />
+                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e)} />
+                    </label>
+                  )}
                 </div>
-                <h3 className="text-xl font-bold">{user.displayName || 'Admin Dashboard'}</h3>
+                <h3 className="text-xl font-bold">{user.displayName || 'User Profile'}</h3>
                 <p className="text-gray-500 text-sm">{user.email}</p>
                 <div className="flex gap-4 mt-2">
-                  <p className="text-[10px] text-blue-600 cursor-pointer" onClick={() => setCustomLogo(null)}>Reset Logo</p>
+                  {isAdmin && <p className="text-[10px] text-blue-600 cursor-pointer" onClick={() => setCustomLogo(null)}>Reset Logo</p>}
                   <p className="text-[10px] text-red-600 cursor-pointer font-bold" onClick={logout}>Logout</p>
                 </div>
               </>
             )}
-            
-            <div className="grid grid-cols-2 gap-4 w-full mt-8">
-              <button 
-                onClick={() => withPassword(shareApp)}
-                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30"
-              >
-                <Share2 className="text-blue-500" />
-                <span className="text-xs font-bold">Share App</span>
-              </button>
-              <button 
-                onClick={() => withPassword(migrateDataToGlobal)}
-                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors border-orange-200 dark:border-orange-900/30"
-              >
-                <RefreshCcw className="text-orange-500" />
-                <span className="text-xs font-bold">Restore Data</span>
-              </button>
-              <button 
-                onClick={() => withPassword(syncLocalToCloud)}
-                className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl text-purple-600 hover:bg-purple-100 transition-colors"
-              >
-                <CloudUpload size={20} />
-                <div className="text-left">
-                  <p className="text-xs font-bold">Sync Cloud</p>
-                  <p className="text-[10px] opacity-70">Force update</p>
-                </div>
-              </button>
-              <button 
-                onClick={onLock}
-                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors border-red-200 dark:border-red-900/30"
-              >
-                <Lock className="text-red-500" />
-                <span className="text-xs font-bold">Lock Admin</span>
-              </button>
-              <button 
-                onClick={() => setShowChangePassword(true)}
-                className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30"
-              >
-                <Key className="text-blue-500" />
-                <span className="text-xs font-bold">Change Pass</span>
-              </button>
-            </div>
+          </div>
 
-            {showChangePassword && (
+          {isAdmin && (
+            <div className="space-y-6">
+                <button 
+                  onClick={() => withPassword(shareApp)}
+                  className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30 w-full"
+                >
+                  <Share2 className="text-blue-500" />
+                  <span className="text-xs font-bold">লিংক শেয়ার</span>
+                </button>
+                <button 
+                  onClick={() => withPassword(migrateDataToGlobal)}
+                  className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors border-orange-200 dark:border-orange-900/30"
+                >
+                  <RefreshCcw className="text-orange-500" />
+                  <span className="text-xs font-bold">Restore Data</span>
+                </button>
+                <button 
+                  onClick={() => withPassword(syncLocalToCloud)}
+                  className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl text-purple-600 hover:bg-purple-100 transition-colors"
+                >
+                  <CloudUpload size={20} />
+                  <div className="text-left">
+                    <p className="text-xs font-bold">Sync Cloud</p>
+                    <p className="text-[10px] opacity-70">Force update</p>
+                  </div>
+                </button>
+                <button 
+                  onClick={onLock}
+                  className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors border-red-200 dark:border-red-900/30"
+                >
+                  <Lock className="text-red-500" />
+                  <span className="text-xs font-bold">Lock Admin</span>
+                </button>
+                <button 
+                  onClick={() => setShowChangePassword(true)}
+                  className="p-4 glass-card flex flex-col items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-blue-200 dark:border-blue-900/30"
+                >
+                  <Key className="text-blue-500" />
+                  <span className="text-xs font-bold">Change Pass</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+            {isAdmin && showChangePassword && (
               <div className="mt-6 p-6 glass-card w-full text-left space-y-4 border-blue-200 dark:border-blue-900/30">
                 <h4 className="text-sm font-bold flex items-center gap-2">
                   <Key size={16} className="text-blue-500" /> Change Admin Password
@@ -3925,7 +6159,7 @@ function AppContent() {
             )}
 
             {/* Debug Info */}
-            {user && (
+            {isAdmin && user && (
               <div className="mt-8 p-4 glass-card w-full text-left">
                 <h4 className="text-[10px] font-black text-gray-400 uppercase mb-2">System Debug</h4>
                 <p className="text-[10px] text-gray-500 break-all">UID: {user.uid}</p>
@@ -3944,213 +6178,334 @@ function AppContent() {
                 </button>
               </div>
             )}
-          </div>
 
+        {isAdmin && (
           <div className="space-y-6">
-            {/* Customization */}
-            <div className="glass-card p-6 space-y-4">
-              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Customization</h4>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
-                      <Image size={20} />
+              {/* Customization */}
+              <div className="glass-card p-6 space-y-4">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Customization</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
+                        <ImageIcon size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">Custom Logo</p>
+                        <p className="text-[10px] text-gray-500">Change brand identity</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold">Custom Logo</p>
-                      <p className="text-[10px] text-gray-500">Change brand identity</p>
-                    </div>
-                  </div>
-                  <label className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors">
-                    Upload
-                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600">
-                      <Music size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Intro Music</p>
-                      <p className="text-[10px] text-gray-500">Custom startup sound</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {customIntroMusic && (
-                      <button 
-                        onClick={() => {
-                          setCustomIntroMusic(null);
-                          localStorage.removeItem('cctv_custom_intro_music');
-                          addNotification("Intro music reset!");
-                        }}
-                        className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                    <label className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors">
+                    <label className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors">
                       Upload
-                      <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'intro')} />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                     </label>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center text-orange-600">
-                      <Zap size={20} />
+                  <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600">
+                        <Music size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">Intro Music</p>
+                        <p className="text-[10px] text-gray-500">Custom startup sound</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold">Click Sound</p>
-                      <p className="text-[10px] text-gray-500">Custom button feedback</p>
+                    <div className="flex gap-2">
+                       {customIntroMusic && (
+                         <>
+                           <button 
+                             onClick={() => {
+                               const audio = new Audio(customIntroMusic);
+                               audio.volume = 1.0;
+                               audio.play().catch(() => addNotification("Error playing audio"));
+                             }}
+                             className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-lg"
+                           >
+                             <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center pl-0.5">
+                                 <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-emerald-600 border-b-[3px] border-b-transparent" />
+                             </div>
+                           </button>
+                           <button 
+                             onClick={() => {
+                               setCustomIntroMusic(null);
+                               localStorage.removeItem('cctv_custom_intro_music');
+                               addNotification("Intro music reset!");
+                             }}
+                             className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
+                           >
+                             <Trash2 size={16} />
+                           </button>
+                         </>
+                       )}
+                       <label className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors">
+                         Upload
+                         <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'intro')} />
+                       </label>
+                     </div>
+                   </div>
+
+                   <div className="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
+                     <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center text-orange-600">
+                         <Zap size={20} />
+                       </div>
+                       <div>
+                         <p className="text-sm font-bold">Click Sound</p>
+                         <p className="text-[10px] text-gray-500">Custom button feedback</p>
+                       </div>
+                     </div>
+                     <div className="flex gap-2">
+                       {customClickSound && (
+                         <>
+                           <button 
+                             onClick={() => {
+                               const audio = new Audio(customClickSound);
+                               audio.volume = 1.0;
+                               audio.play().catch(() => addNotification("Error playing audio"));
+                             }}
+                             className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-lg"
+                           >
+                             <div className="w-4 h-4 rounded-full border-2 border-emerald-600 flex items-center justify-center pl-0.5">
+                                 <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-emerald-600 border-b-[3px] border-b-transparent" />
+                             </div>
+                           </button>
+                           <button 
+                             onClick={() => {
+                               setCustomClickSound(null);
+                               localStorage.removeItem('cctv_custom_click_sound');
+                               addNotification("Click sound reset!");
+                             }}
+                             className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
+                           >
+                             <Trash2 size={16} />
+                           </button>
+                         </>
+                       )}
+                      <label className="px-4 py-2 bg-orange-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-orange-700 transition-colors">
+                        Upload
+                        <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'click')} />
+                      </label>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {customClickSound && (
-                      <button 
-                        onClick={() => {
-                          setCustomClickSound(null);
-                          localStorage.removeItem('cctv_custom_click_sound');
-                          addNotification("Click sound reset!");
-                        }}
-                        className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                    <label className="px-4 py-2 bg-orange-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-orange-700 transition-colors">
-                      Upload
-                      <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleAudioUpload(e, 'click')} />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Company Information */}
-            <div className="glass-card p-6 space-y-4">
-              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Company Information</h4>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-lg">
-                    <Construction size={18} />
+                  <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600">
+                        <ImageIcon size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">Promo Slider Images</p>
+                        <p className="text-[10px] text-gray-500">Add banner images ({sliderImages.length} saved)</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {sliderImages.length > 0 && (
+                        <button 
+                          onClick={() => {
+                            setSliderImages([]);
+                            localStorage.removeItem('cctv_slider_images');
+                            addNotification("Promo sliders cleared!");
+                          }}
+                          className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                      <label className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors">
+                        Add Image
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (sliderImages.length >= 5) {
+                              addNotification("Maximum 5 banner images allowed.");
+                              return;
+                            }
+                            
+                            const img = new Image();
+                            const url = URL.createObjectURL(file);
+                            
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              let width = img.width;
+                              let height = img.height;
+                              
+                              // Compress and resize image to fit in Firestore (1MB limit for document)
+                              const MAX_WIDTH = 1200;
+                              const MAX_HEIGHT = 800;
+                              
+                              if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                  height = Math.round((height * MAX_WIDTH) / width);
+                                  width = MAX_WIDTH;
+                                }
+                              } else {
+                                if (height > MAX_HEIGHT) {
+                                  width = Math.round((width * MAX_HEIGHT) / height);
+                                  height = MAX_HEIGHT;
+                                }
+                              }
+                              
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              if (ctx) {
+                                ctx.drawImage(img, 0, 0, width, height);
+                                // Compress as JPEG at 60% quality -> usually ~50-150KB
+                                const base64 = canvas.toDataURL('image/jpeg', 0.6);
+                                const newImages = [...sliderImages, base64];
+                                setSliderImages(newImages);
+                                localStorage.setItem('cctv_slider_images', JSON.stringify(newImages));
+                                addNotification("Slider image added and optimized!");
+                              }
+                              URL.revokeObjectURL(url);
+                            };
+                            
+                            img.src = url;
+                          }
+                        }} />
+                      </label>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-gray-900 dark:text-white">Address</p>
-                    <p className="text-xs text-gray-500">Jatrabari Sohid Faruk road Dhaka 1204</p>
-                  </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-lg">
-                    <Smartphone size={18} />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-gray-900 dark:text-white">Phone</p>
-                    <p className="text-xs text-gray-500">01817681233</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* App Features */}
-            <div className="glass-card p-6 space-y-4">
-              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">App Features</h4>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
-                  <Zap size={18} className="text-blue-600" />
-                  <span className="text-xs font-bold">High Speed Bandwidth Test</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
-                  <Zap size={18} className="text-orange-600" />
-                  <span className="text-xs font-bold">Turbo Mode Speed Test</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="glass-card overflow-hidden h-fit">
-            <div className="p-4 border-b dark:border-slate-800 font-bold text-sm flex justify-between items-center">
-              Company Rules
-              <button onClick={() => setShowEditRules(true)} className="text-blue-600"><Plus size={16} /></button>
-            </div>
-            <div className="p-4 space-y-3">
-              {rules.map((rule, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">{index + 1}</div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">{rule}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {showEditRules && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowEditRules(false)}>
-              <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-4">Edit Company Rules</h3>
-                <textarea 
-                  className="w-full h-40 p-4 rounded-xl bg-gray-50 dark:bg-slate-800 border-none text-sm"
-                  value={rules.join('\n')}
-                  onChange={(e) => setRules(e.target.value.split('\n'))}
-                />
-                <button 
-                  onClick={() => setShowEditRules(false)}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mt-4"
-                >
-                  Save
-                </button>
               </div>
             </div>
           )}
 
+          {/* Regular non-admin visible sections in the right column */}
           <div className="space-y-6">
-            <div className="glass-card p-4 space-y-4">
-              <h4 className="font-bold text-sm">System Tools</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <button 
-                  onClick={onOpenCalculator}
-                  className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
-                >
-                  <Calculator size={16} /> Calculator
-                </button>
-                <button 
-                  onClick={onBackup}
-                  className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
-                >
-                  <RefreshCcw size={16} /> Backup
-                </button>
+            {/* Company Information */}
+            <div className="glass-card p-6 space-y-4">
+              <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Company Information</h4>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-lg">
+                      <Construction size={18} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">Address</p>
+                      <p className="text-xs text-gray-500">Jatrabari Sohid Faruk road Dhaka 1204</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-lg">
+                      <MessageSquare size={18} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">WhatsApp</p>
+                      <a href="https://wa.me/8801817681233" className="text-xs text-blue-600 font-medium hover:underline">01817681233</a>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900/20 text-orange-600 rounded-lg">
+                      <Smartphone size={18} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">Call</p>
+                      <a href="tel:01410381233" className="text-xs text-blue-600 font-medium hover:underline">01410381233</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* App Features */}
+              <div className="glass-card p-6 space-y-4">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">App Features</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
+                    <Zap size={18} className="text-blue-600" />
+                    <span className="text-xs font-bold">High Speed Bandwidth Test</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl">
+                    <Zap size={18} className="text-orange-600" />
+                    <span className="text-xs font-bold">Turbo Mode Speed Test</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="p-4 grid grid-cols-3 gap-3 glass-card">
-              <button 
-                onClick={() => shareApp()}
-                className="flex flex-col items-center gap-1 p-2"
-              >
-                <Share2 size={18} className="text-blue-500" />
-                <span className="text-[8px] font-bold">Share Link</span>
-              </button>
-              <label className="flex flex-col items-center gap-1 p-2 cursor-pointer">
-                <RefreshCcw size={18} className="text-amber-500" />
-                <span className="text-[8px] font-bold">Restore</span>
-                <input type="file" className="hidden" accept=".json" onChange={(e) => withPassword(() => importAppData(e))} />
-              </label>
-              <button 
-                onClick={() => onBackup()}
-                className="flex flex-col items-center gap-1 p-2"
-              >
-                <Database size={18} className="text-slate-500" />
-                <span className="text-[8px] font-bold">Inventory</span>
-              </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="glass-card overflow-hidden h-fit">
+              <div className="p-4 border-b dark:border-slate-800 font-bold text-sm flex justify-between items-center">
+                Company Rules
+                {isAdmin && <button onClick={() => setShowEditRules(true)} className="text-blue-600"><Plus size={16} /></button>}
+              </div>
+              <div className="p-4 space-y-3">
+                {rules.map((rule, index) => (
+                  <div key={index} className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">{index + 1}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{rule}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {isAdmin && showEditRules && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowEditRules(false)}>
+                <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-xl font-bold mb-4">Edit Company Rules</h3>
+                  <textarea 
+                    className="w-full h-40 p-4 rounded-xl bg-gray-50 dark:bg-slate-800 border-none text-sm"
+                    value={rules.join('\n')}
+                    onChange={(e) => setRules(e.target.value.split('\n'))}
+                  />
+                  <button 
+                    onClick={() => setShowEditRules(false)}
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mt-4"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="space-y-6">
+                <div className="glass-card p-4 space-y-4">
+                  <h4 className="font-bold text-sm">System Tools</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={onOpenCalculator}
+                      className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
+                    >
+                      <Calculator size={16} /> Calculator
+                    </button>
+                    <button 
+                      onClick={onBackup}
+                      className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2 text-xs font-bold"
+                    >
+                      <RefreshCcw size={16} /> Backup
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 grid grid-cols-3 gap-3 glass-card">
+                  <button 
+                    onClick={() => shareApp()}
+                    className="flex flex-col items-center gap-1 p-2"
+                  >
+                    <Share2 size={18} className="text-blue-500" />
+                    <span className="text-[8px] font-bold">Share Link</span>
+                  </button>
+                  <label className="flex flex-col items-center gap-1 p-2 cursor-pointer">
+                    <RefreshCcw size={18} className="text-amber-500" />
+                    <span className="text-[8px] font-bold">Restore</span>
+                    <input type="file" className="hidden" accept=".json" onChange={(e) => withPassword(() => importAppData(e))} />
+                  </label>
+                  <button 
+                    onClick={() => onBackup()}
+                    className="flex flex-col items-center gap-1 p-2"
+                  >
+                    <Database size={18} className="text-slate-500" />
+                    <span className="text-[8px] font-bold">Inventory</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   const ExpensePage = () => {
     const [showAdd, setShowAdd] = useState(false);
@@ -4167,6 +6522,7 @@ function AppContent() {
           <h3 className="font-bold">Recent Expenses</h3>
           <button 
             onClick={() => withPassword(() => setShowAdd(true))}
+            aria-label="Add new expense"
             className="p-2 bg-blue-600 text-white rounded-lg"
           >
             <Plus size={20} />
@@ -4203,9 +6559,10 @@ function AppContent() {
     );
   };
 
-  const AddClientModal = ({ onClose }: { onClose: () => void }) => {
+    const AddClientModal = ({ onClose }: { onClose: () => void }) => {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    const [email, setEmail] = useState('');
     const [address, setAddress] = useState('');
     const [installationDate, setInstallationDate] = useState(new Date().toISOString().split('T')[0]);
     const [warrantyExpiry, setWarrantyExpiry] = useState('');
@@ -4217,6 +6574,7 @@ function AppContent() {
       handleAddClient({
         name,
         phone,
+        email,
         address,
         installationDate,
         warrantyExpiry,
@@ -4252,6 +6610,17 @@ function AppContent() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email Address (Optional)</label>
+              <input 
+                type="email" 
+                placeholder="client@example.com" 
+                className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
 
@@ -4441,9 +6810,12 @@ function AppContent() {
   // --- Main Render ---
 
   return (
-    <div className="w-full max-w-[450px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden bg-gray-50 dark:bg-slate-950 flex flex-col md:flex-row">
+    <div className="w-full max-w-[450px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden flex flex-col md:flex-row">
+      {/* Dynamic Background Layer */}
+      <div className={cn("app-bg", isDarkMode ? "app-bg-dark" : "app-bg-light")} />
+      
       <AnimatePresence>
-        {showSplash && <SplashScreen customLogo={customLogo} />}
+        {showSplash && <SplashScreen customLogo={customLogo} onEnter={handleSplashEnter} onPlay={handlePlayIntro} hasMusic={true} />}
         {showAddProduct && (
           <AddProductModal 
             onClose={() => setShowAddProduct(false)} 
@@ -4482,54 +6854,62 @@ function AppContent() {
       </div>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r dark:border-slate-800 h-screen sticky top-0 z-40 shrink-0">
-        <div className="p-6 flex items-center gap-3 border-b dark:border-slate-800">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden shrink-0">
+      <aside className="hidden md:flex flex-col w-72 bg-white/5 dark:bg-slate-900/10 backdrop-blur-3xl border-r border-white/10 dark:border-slate-800/20 h-screen sticky top-0 z-40 shrink-0">
+        <div className="p-8 flex items-center gap-4 border-b border-white/5 dark:border-slate-800/20">
+          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-2xl overflow-hidden shrink-0 border border-white/20 bg-gradient-to-br", isDarkMode ? "from-emerald-600 to-green-700" : "from-orange-500 to-red-600")}>
             {customLogo ? (
-              <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+              <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <ShieldCheck size={24} />
+              <ShieldCheck size={28} />
             )}
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-none">IT Department Pro</h1>
-            <p className="text-[10px] text-gray-500 font-medium">Management System</p>
+            <p className="font-black text-xl leading-none tracking-tight">IT Department <span className="text-orange-500 dark:text-emerald-500 transition-colors">Pro</span></p>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+        <div className="flex-1 overflow-y-auto py-8 px-6 space-y-3">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', adminOnly: true },
-            { id: 'clients', icon: Users, label: 'Clients', adminOnly: true },
-            { id: 'products', icon: ShoppingCart, label: 'Products & Orders', adminOnly: false },
-            { id: 'expenses', icon: Wallet, label: 'Expenses', adminOnly: true },
-            { id: 'bandwidth', icon: Zap, label: 'Bandwidth Test', adminOnly: false },
-            { id: 'warranty', icon: ShieldCheck, label: 'Warranty', adminOnly: true },
-            { id: 'me', icon: User, label: 'Profile & Settings', adminOnly: false },
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
+            { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
+            { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
+            { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
+            { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: true },
+            { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
+            { id: 'my-orders', icon: ShoppingBag, label: 'My Orders', adminOnly: false },
+            { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
+            { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
+            { id: 'me', icon: User, label: 'Account', adminOnly: false },
           ].filter(item => isAdmin || !item.adminOnly).map(item => (
             <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ x: 5, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              animate={activeTab === item.id ? { scale: [1, 1.01, 1] } : { scale: 1 }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
               key={item.id}
               onClick={() => {
-                if (item.id === 'products' && isAdmin && publicOrders.length > 0) {
-                  setShowPendingOrders(true);
-                } else {
-                  setActiveTab(item.id);
-                }
+                setActiveTab(item.id);
               }}
               className={cn(
-                "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300",
+                "w-full flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-500 group",
                 activeTab === item.id 
-                  ? "bg-green-600 text-white font-bold shadow-lg shadow-green-500/30" 
-                  : "bg-blue-600 text-white hover:bg-blue-700 font-medium shadow-md shadow-blue-500/20"
+                  ? "bg-orange-600 dark:bg-emerald-600 text-white font-bold shadow-2xl ring-1 ring-white/20" 
+                  : "text-gray-500 hover:text-orange-600 dark:text-gray-400 hover:bg-white/10 dark:hover:bg-slate-800/40 dark:hover:text-emerald-500"
               )}
             >
-              <div className="flex items-center gap-3">
-                <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                <span className="text-sm">{item.label}</span>
+              <div className="flex items-center gap-4">
+                <motion.div
+                  animate={activeTab === item.id ? { 
+                    y: [0, -3, 0], 
+                    opacity: [0.5, 1, 0.5] 
+                  } : { y: 0, opacity: 1 }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                >
+                  <item.icon size={22} className={cn("transition-colors", activeTab === item.id ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "group-hover:text-orange-600 dark:group-hover:text-emerald-500")} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                </motion.div>
+                <span className="text-sm tracking-tight">{item.label}</span>
               </div>
               {item.id === 'products' && isAdmin && publicOrders.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ring-2 ring-white/10">
                   {publicOrders.length}
                 </span>
               )}
@@ -4541,20 +6921,54 @@ function AppContent() {
       {/* Main Content Wrapper */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
         {/* Header */}
-        <header className="p-4 flex justify-between items-center sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-30 border-b dark:border-slate-800 md:px-8">
+        <header className="p-4 flex justify-between items-center sticky top-0 bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl z-30 border-b border-white/10 dark:border-slate-800/30 md:px-8 shadow-sm">
           <div className="flex items-center gap-2 md:hidden">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden">
+            <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 text-slate-500">
+               <Menu size={24} />
+            </button>
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden", isDarkMode ? "bg-emerald-600" : "bg-orange-500")}>
               {customLogo ? (
-                <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+                <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <ShieldCheck size={24} />
               )}
             </div>
             <div>
-              <h1 className="font-bold text-sm leading-none">IT Department Pro</h1>
-              <p className="text-[10px] text-gray-500 font-medium">Management System</p>
+              <p className="font-bold text-sm leading-none">IT Department Pro</p>
             </div>
           </div>
+          
+          {/* Mobile Menu Dropdown */}
+          {showMobileMenu && (
+            <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 p-4 z-50 md:hidden shadow-xl">
+                {[
+                    { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
+                    { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
+                    { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
+                    { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
+                    { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: true },
+                    { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
+                    { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
+                    { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
+                    { id: 'ai-assistant', icon: Bot, label: 'AI Intelligence', adminOnly: false },
+                    { id: 'offers', icon: Megaphone, label: 'Marketing', adminOnly: false },
+                    { id: 'alerts', icon: Bell, label: 'Alerts', adminOnly: false },
+                    { id: 'me', icon: User, label: 'Account', adminOnly: false },
+                ].filter(item => isAdmin || !item.adminOnly).map(item => (
+                    <button 
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); setShowMobileMenu(false); }}
+                        className={cn("w-full text-left p-3 text-sm font-medium hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-3 transition-all", activeTab === item.id ? "text-orange-600 dark:text-emerald-500 bg-orange-50 dark:bg-emerald-900/40 shadow-inner" : "")}
+                    >
+                        <motion.div animate={activeTab === item.id ? { y: [0, -3, 0], opacity: [0.5, 1, 0.5] } : { y: 0, opacity: 1 }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
+                          <item.icon size={18} className={activeTab === item.id ? "drop-shadow-md" : ""} />
+                        </motion.div>
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+          )}
+
           
           <div className="hidden md:block">
             <h2 className="text-xl font-bold capitalize">
@@ -4567,14 +6981,16 @@ function AppContent() {
               whileHover={{ scale: 1.1, rotate: 15 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setIsDarkMode(!isDarkMode)}
+              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
               className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl transition-all duration-300 text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-lg"
             >
-              {isDarkMode ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} className="text-blue-600" />}
+              {isDarkMode ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} className="text-orange-600" />}
             </motion.button>
             <motion.button 
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setShowCart(true)}
+              aria-label="View shopping cart"
               className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl text-gray-600 dark:text-gray-300 relative shadow-sm hover:shadow-lg"
             >
               <ShoppingCart size={20} />
@@ -4589,6 +7005,24 @@ function AppContent() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+          {/* Admin Notification Header */}
+          {isAdmin && publicOrders.filter(o => o.status === 'pending').length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => setShowPendingOrders(true)}
+              className="mb-6 bg-orange-500 text-white p-4 rounded-2xl flex items-center justify-between cursor-pointer shadow-xl shadow-orange-500/20 animate-pulse"
+            >
+              <div className="flex items-center gap-3">
+                <Bell size={20} className="shake-animation" />
+                <span className="text-sm font-black uppercase tracking-tight">
+                  You have {publicOrders.filter(o => o.status === 'pending').length} new pending orders!
+                </span>
+              </div>
+              <ChevronRight size={20} />
+            </motion.div>
+          )}
+
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -4603,12 +7037,42 @@ function AppContent() {
                   products={products}
                   clients={clients}
                   expenses={expenses}
+                  sliderImages={sliderImages}
+                  offers={offers}
                   formatCurrency={formatCurrency}
                   addToCart={addToCart}
                   setActiveTab={setActiveTab}
+                  setSelectedProduct={setSelectedProduct}
+                  setShowAddProduct={(v) => v ? withPassword(() => setShowAddProduct(v), true) : setShowAddProduct(v)}
+                  onEditProduct={(p) => withPassword(() => setShowEditProduct(p), true)}
+                  isAdmin={isAdmin}
+                  isDarkMode={isDarkMode}
                 />
               )}
-              {activeTab === 'clients' && (
+              {activeTab === 'shop-view' && (
+                <PublicStore 
+                  products={products} 
+                  sliderImages={sliderImages}
+                  offers={offers}
+                  formatCurrency={formatCurrency} 
+                  addToCart={addToCart} 
+                  setActiveTab={setActiveTab}
+                  setSelectedProduct={setSelectedProduct}
+                />
+              )}
+              {activeTab === 'offers' && (
+                <OffersPage 
+                  isAdmin={isAdmin}
+                  offers={offers}
+                  user={user}
+                  addNotification={addNotification}
+                  withPassword={withPassword}
+                />
+              )}
+              {activeTab === 'my-orders' && (
+                <MyOrdersPage user={user} clients={clients} formatCurrency={formatCurrency} />
+              )}
+              {activeTab === 'clients' && isAdmin && (
                 <ClientList 
                   clients={clients}
                   formatCurrency={formatCurrency}
@@ -4616,6 +7080,16 @@ function AppContent() {
                   withPassword={withPassword}
                   setShowAddClient={setShowAddClient}
                 />
+              )}
+              {activeTab === 'categories' && isAdmin && (
+                <CategoryManager 
+                  productCategories={productCategories}
+                  setProductCategories={setProductCategories}
+                  products={products}
+                />
+              )}
+              {activeTab === 'track-order' && (
+                <TrackOrderPage formatCurrency={formatCurrency} clients={clients} />
               )}
               {activeTab === 'products' && (
                 <ProductList 
@@ -4632,13 +7106,16 @@ function AppContent() {
                   productCategories={productCategories}
                 />
               )}
-              {activeTab === 'expenses' && (
+              {activeTab === 'expenses' && isAdmin && (
                 <ExpensePage />
               )}
               {activeTab === 'bandwidth' && (
                 <BandwidthTestPage />
               )}
-              {activeTab === 'warranty' && <WarrantyPage clients={clients} />}
+              {activeTab === 'warranty' && isAdmin && <WarrantyPage clients={clients} />}
+              {activeTab === 'support' && (
+                <SupportPage />
+              )}
               {activeTab === 'me' && (
                 <MePage 
                   isDarkMode={isDarkMode}
@@ -4649,12 +7126,19 @@ function AppContent() {
                   setCustomIntroMusic={setCustomIntroMusic}
                   customClickSound={customClickSound}
                   setCustomClickSound={setCustomClickSound}
+                  offersMusic={offersMusic}
+                  setOffersMusic={setOffersMusic}
+                  sliderImages={sliderImages}
+                  setSliderImages={setSliderImages}
                   onBackup={generateInventoryPDF}
                   onOpenCalculator={() => setShowCalculator(true)}
                   onLock={lockAdmin}
                   adminPassword={adminPassword}
                   setAdminPassword={setAdminPassword}
                   user={user}
+                  onRecordPayment={handleAddPayment}
+                  clients={clients}
+                  withPassword={withPassword}
                 />
               )}
             </motion.div>
@@ -4662,46 +7146,51 @@ function AppContent() {
         </main>
 
         {/* Navigation - Mobile Only */}
-        <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[450px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t dark:border-slate-800 px-2 py-3 flex justify-around items-center z-40">
+        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 px-2 py-2 flex justify-around items-center z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Home', adminOnly: true },
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Home', adminOnly: false },
+            { id: 'categories', icon: LayoutGrid, label: 'Groups', adminOnly: true },
+            { id: 'products', icon: Package, label: 'Stock', adminOnly: true },
             { id: 'clients', icon: Users, label: 'Clients', adminOnly: true },
-            { id: 'products', icon: ShoppingCart, label: 'Order', adminOnly: false },
-            { id: 'expenses', icon: Wallet, label: 'Cash', adminOnly: true },
-            { id: 'bandwidth', icon: Zap, label: 'Speed', adminOnly: false },
-            { id: 'warranty', icon: ShieldCheck, label: 'Safety', adminOnly: true },
-            { id: 'me', icon: User, label: 'Me', adminOnly: false },
+            { id: 'cart', icon: ShoppingCart, label: 'Cart', adminOnly: false },
+            { id: 'me', icon: User, label: 'Account', adminOnly: false },
           ].filter(item => isAdmin || !item.adminOnly).map(item => (
             <motion.button 
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.9 }}
               key={item.id}
+              whileTap={{ scale: 0.9 }}
               onClick={() => {
-                if (item.id === 'products' && isAdmin && publicOrders.length > 0) {
-                  setShowPendingOrders(true);
+                if (item.id === 'cart') {
+                  setShowCart(true);
                 } else {
-                  setActiveTab(item.id);
+                  setActiveTab(item.id as any);
                 }
               }}
               className={cn(
-                "flex flex-col items-center gap-1 transition-all duration-300 px-3 py-1 rounded-xl relative",
-                activeTab === item.id 
-                  ? "bg-green-600 text-white scale-110 shadow-lg shadow-green-500/30" 
-                  : "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                "flex flex-col items-center gap-1 transition-all duration-300 px-4 py-1 rounded-xl relative",
+                activeTab === item.id || (item.id === 'cart' && showCart)
+                  ? "text-orange-500 dark:text-emerald-500"
+                  : "text-gray-400 dark:text-gray-500"
               )}
             >
-              <item.icon size={activeTab === item.id ? 24 : 20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-              <span className="text-[10px] font-bold">{item.label}</span>
-              {activeTab === item.id && (
+              <motion.div
+                animate={activeTab === item.id || (item.id === 'cart' && showCart) ? {
+                  y: [0, -3, 0],
+                  opacity: [0.5, 1, 0.5]
+                } : { y: 0, opacity: 1 }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              >
+                <item.icon size={20} className={activeTab === item.id || (item.id === 'cart' && showCart) ? "drop-shadow-md" : ""} strokeWidth={activeTab === item.id || (item.id === 'cart' && showCart) ? 3 : 2} />
+              </motion.div>
+              <span className="text-[10px] font-bold tracking-tighter uppercase">{item.label}</span>
+              {(activeTab === item.id || (item.id === 'cart' && showCart)) && (
                 <motion.div 
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="w-1 h-1 bg-white rounded-full mt-0.5" 
+                  layoutId="activeTabDot"
+                  className="absolute -top-1 w-1 h-1 rounded-full bg-orange-500 dark:bg-emerald-500"
                 />
               )}
-              {item.id === 'products' && isAdmin && publicOrders.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-slate-900">
-                  {publicOrders.length}
+              {item.id === 'cart' && cart.length > 0 && (
+                <span className="absolute top-0 right-3 bg-orange-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
+                  {cart.reduce((sum, i) => sum + i.quantity, 0)}
                 </span>
               )}
             </motion.button>
@@ -4760,6 +7249,48 @@ function AppContent() {
     </div>
   );
 }
+
+const getStatusColor = (status: OrderStatus) => {
+  switch (status) {
+    case OrderStatus.PENDING: return 'bg-amber-100 text-amber-600';
+    case OrderStatus.PROCESSING: return 'bg-blue-100 text-blue-600';
+    case OrderStatus.SHIPPED: return 'bg-purple-100 text-purple-600';
+    case OrderStatus.DELIVERED: return 'bg-emerald-100 text-emerald-600';
+    case OrderStatus.CANCELLED: return 'bg-rose-100 text-rose-600';
+    default: return 'bg-gray-100 text-gray-600';
+  }
+};
+
+const MyOrdersPage = ({ user, clients, formatCurrency }: { user: any | null, clients: Client[], formatCurrency: (amount: number) => string }) => {
+  const client = useMemo(() => clients.find(c => c.email === user?.email || c.phone === user?.phoneNumber), [clients, user]);
+  
+  if (!client) return <div className="p-4 text-center">No orders found. Please log in or contact support.</div>;
+  
+  return (
+    <div className="space-y-4 p-4">
+      <h2 className="text-xl font-black mb-4">My Orders</h2>
+      {client.orders.map(order => (
+        <div key={order.id} className="glass-card p-4">
+          <div className="flex justify-between items-center mb-2 border-b dark:border-slate-800 pb-2">
+            <span className="font-bold text-sm">Order ID: {order.id}</span>
+            <span className={cn("px-2 py-1 rounded text-[10px] font-black uppercase", getStatusColor(order.status))}>
+              {order.status}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {order.items.map((item, i) => (
+              <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                <span>{item.name} x {item.quantity}</span>
+                <span>{formatCurrency(item.price * item.quantity)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-right mt-2 text-sm font-bold text-blue-600">Total: {formatCurrency(order.total)}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const AddWorkModal = ({ clientId, onClose, handleAddWork }: { clientId: number, onClose: () => void, handleAddWork: (clientId: number, description: string, amount: number) => void }) => {
   const [description, setDescription] = useState('');
@@ -4901,15 +7432,16 @@ const AddPaymentModal = ({ clientId, onClose, handleAddPayment }: { clientId: nu
   );
 };
 
-const EditClientModal = ({ client, onClose, onUpdate }: { client: Client, onClose: () => void, onUpdate: (id: number, details: { name: string, phone: string, address: string }) => void }) => {
+const EditClientModal = ({ client, onClose, onUpdate }: { client: Client, onClose: () => void, onUpdate: (id: number, details: { name: string, phone: string, email?: string, address: string }) => void }) => {
   const [name, setName] = useState(client.name);
   const [phone, setPhone] = useState(client.phone);
+  const [email, setEmail] = useState(client.email || '');
   const [address, setAddress] = useState(client.address);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone || !address) return;
-    onUpdate(client.id, { name, phone, address });
+    onUpdate(client.id, { name, phone, email, address });
     onClose();
   };
 
@@ -4948,6 +7480,15 @@ const EditClientModal = ({ client, onClose, onUpdate }: { client: Client, onClos
               value={phone}
               onChange={e => setPhone(e.target.value)}
               required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email</label>
+            <input 
+              type="email" 
+              className="w-full px-5 py-3.5 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-blue-500/20"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
             />
           </div>
           <div className="space-y-1">
@@ -5092,7 +7633,7 @@ const ClientProfile = ({
           <div className="relative group">
             <div className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold mb-4 shadow-2xl border-4 border-white dark:border-slate-900 overflow-hidden">
               {currentClient.image ? (
-                <img src={currentClient.image} alt={currentClient.name} className="w-full h-full object-cover" />
+                <img src={currentClient.image} alt={currentClient.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 currentClient.name[0]
               )}
@@ -5287,13 +7828,26 @@ const ClientProfile = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
-                      getStatusColor(order.status || OrderStatus.PENDING)
-                    )}>
-                      {order.status || OrderStatus.PENDING}
-                    </span>
+                    <select 
+                      value={order.status || OrderStatus.PENDING}
+                      onChange={(e) => onUpdateOrderStatus(currentClient.id, order.id, e.target.value as OrderStatus)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-transparent border-none outline-none cursor-pointer",
+                        getStatusColor(order.status || OrderStatus.PENDING)
+                      )}
+                    >
+                      {Object.values(OrderStatus).map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
                     <span className="text-xs text-gray-500">{order.date}</span>
+                    <button 
+                      onClick={() => generateReceiptPDF(order)}
+                      className="p-1 text-blue-500 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Download Invoice"
+                    >
+                      <Download size={14} />
+                    </button>
                     <button 
                       onClick={() => handleDeleteOrder(currentClient.id, order.id)}
                       className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"

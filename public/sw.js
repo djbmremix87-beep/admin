@@ -1,9 +1,8 @@
-// Basic Service Worker for PWA
+// Service Worker disabled to prevent stale caching of Firebase configuration
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installed');
+  self.skipWaiting();
 });
 
-self.addEventListener('fetch', (event) => {
-  // Pass through all requests
-  event.respondWith(fetch(event.request));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
 });

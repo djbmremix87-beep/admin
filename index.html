@@ -3,26 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IT Department Pro - Enterprise Management</title>
-    <meta name="description" content="A comprehensive CCTV business management system with client profiles, order tracking, WhatsApp integration, and PDF invoicing. Manage your security business efficiently." />
-    <meta name="keywords" content="CCTV management, inventory system, warranty tracking, IT department, business management, PDF invoicing, WhatsApp integration" />
-    <meta name="robots" content="index, follow" />
+    <title>IT Department Pro - Advanced CCTV & IT Business Management System</title>
+    <meta name="description" content="IT Department Pro is a professional CCTV business management software. Features include client profiles, order tracking, WhatsApp integration, PDF invoicing, and inventory management. Optimize your security business today." />
+    <meta name="keywords" content="CCTV management software, IT business management, inventory tracking system, professional PDF invoicing, WhatsApp business integration, client relationship management, security system business tools, IT Department Pro" />
+    <meta name="author" content="IT Department Pro" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://ais-dev-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
-    <meta property="og:title" content="IT Department Pro - CCTV Business Management System" />
-    <meta property="og:description" content="Manage your CCTV business with ease. Client profiles, order tracking, and professional PDF invoicing." />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:site_name" content="IT Department Pro" />
+    <meta property="og:url" content="https://ais-pre-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
+    <meta property="og:title" content="IT Department Pro - The Ultimate CCTV Business Management Solution" />
+    <meta property="og:description" content="Streamline your CCTV and IT business with IT Department Pro. Manage clients, track orders, and generate professional invoices instantly." />
     <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/3208/3208726.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
 
     <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://ais-dev-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
-    <meta property="twitter:title" content="IT Department Pro - CCTV Business Management System" />
-    <meta property="twitter:description" content="Manage your CCTV business with ease. Client profiles, order tracking, and professional PDF invoicing." />
-    <meta property="twitter:image" content="https://cdn-icons-png.flaticon.com/512/3208/3208726.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@itdeptpro" />
+    <meta name="twitter:url" content="https://ais-pre-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
+    <meta name="twitter:title" content="IT Department Pro - CCTV Business Management System" />
+    <meta name="twitter:description" content="Professional tools for CCTV and IT businesses. Client tracking, invoicing, and WhatsApp integration in one place." />
+    <meta name="twitter:image" content="https://cdn-icons-png.flaticon.com/512/3208/3208726.png" />
 
-    <link rel="canonical" href="https://ais-dev-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
+    <link rel="canonical" href="https://ais-pre-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app" />
     <link rel="manifest" href="/manifest.json" />
     
     <!-- Structured Data (JSON-LD) -->
@@ -31,22 +37,54 @@
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "IT Department Pro",
+      "alternateName": "IT Dept Pro",
       "operatingSystem": "Web",
       "applicationCategory": "BusinessApplication",
       "description": "A comprehensive CCTV business management system with client profiles, order tracking, WhatsApp integration, and PDF invoicing.",
+      "url": "https://ais-pre-niyxx6qax65fz4eyeiue32-100814937973.asia-southeast1.run.app",
+      "image": "https://cdn-icons-png.flaticon.com/512/3208/3208726.png",
       "offers": {
         "@type": "Offer",
         "price": "0",
-        "priceCurrency": "USD"
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "IT Department Pro"
       }
     }
     </script>
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#081229" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3208/3208726.png" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <script>
+      // Force unregister all service workers and clear cache to fix stale Firebase config
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+            console.log('Force unregistering Service Worker to fix cache issues...');
+          }
+        });
+      }
+      
+      // Optionally clear storage if issues persist (Be careful as this logs out users)
+      // window.localStorage.clear(); 
+      // window.sessionStorage.clear();
+      
+      setTimeout(() => {
+         if (window.location.search.indexOf('v=') === -1) {
+            // window.location.href = window.location.href + (window.location.search ? '&' : '?') + 'v=' + Date.now();
+         }
+      }, 1000);
+    </script>
   </head>
-  <body>
+  <body class="bg-[#081229] text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>

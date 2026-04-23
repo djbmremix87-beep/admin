@@ -1,87 +1,84 @@
 {
   "entities": {
-    "User": {
-      "title": "User Profile",
-      "description": "User specific settings and profile data",
-      "type": "object",
-      "properties": {
-        "customLogo": { "type": "string", "description": "Base64 encoded logo image" },
-        "darkMode": { "type": "boolean", "description": "User's dark mode preference" },
-        "expenseCategories": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Custom expense categories"
-        },
-        "seeded": { "type": "boolean", "description": "Whether default data has been seeded" }
-      }
-    },
     "Product": {
       "title": "Product",
-      "description": "Inventory product details",
+      "description": "Inventory item",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "category": { "type": "string" },
         "price": { "type": "number" },
         "stock": { "type": "number" },
-        "image": { "type": "string" },
-        "description": { "type": "string" }
-      },
-      "required": ["id", "name", "price", "stock"]
+        "category": { "type": "string" },
+        "badge": { "type": "string" }
+      }
     },
     "Client": {
       "title": "Client",
-      "description": "Client and warranty details",
+      "description": "ISP or CCTV Customer",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "id": { "type": "number" },
         "name": { "type": "string" },
         "phone": { "type": "string" },
         "address": { "type": "string" },
-        "installationDate": { "type": "string" },
-        "warrantyExpiry": { "type": "string" },
-        "notes": { "type": "string" },
-        "works": { "type": "number" },
-        "totalPaid": { "type": "number" },
-        "due": { "type": "number" },
         "status": { "type": "string" },
-        "workHistory": { "type": "array", "items": { "type": "object" } },
-        "paymentHistory": { "type": "array", "items": { "type": "object" } },
-        "orders": { "type": "array", "items": { "type": "object" } }
-      },
-      "required": ["id", "name", "phone"]
+        "due": { "type": "number" },
+        "totalPaid": { "type": "number" }
+      }
     },
-    "Expense": {
-      "title": "Expense",
-      "description": "Business expense record",
+    "Order": {
+      "title": "Order",
+      "description": "Sales order",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "total": { "type": "number" },
+        "status": { "type": "string" }
+      }
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Business expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
         "amount": { "type": "number" },
         "date": { "type": "string" },
-        "description": { "type": "string" }
-      },
-      "required": ["id", "category", "amount", "date"]
+        "category": { "type": "string" }
+      }
+    },
+    "Offer": {
+      "title": "Offer",
+      "description": "Promotional offer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" }
+      }
+    },
+    "Alert": {
+      "title": "Alert",
+      "description": "Maintenance or outage alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" }
+      }
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "User profile and settings"
-    },
-    "/users/{userId}/products/{productId}": {
-      "schema": "Product",
-      "description": "User's inventory products"
-    },
-    "/users/{userId}/clients/{clientId}": {
-      "schema": "Client",
-      "description": "User's client database"
-    },
-    "/users/{userId}/expenses/{expenseId}": {
-      "schema": "Expense",
-      "description": "User's expense records"
-    }
+    "/products/{productId}": { "schema": "Product", "description": "Inventory" },
+    "/clients/{clientId}": { "schema": "Client", "description": "Customer base" },
+    "/expenses/{expenseId}": { "schema": "Expense", "description": "Spending" },
+    "/offers/{offerId}": { "schema": "Offer", "description": "Marketing" },
+    "/alerts/{alertId}": { "schema": "Alert", "description": "Network status" },
+    "/public_orders/{orderId}": { "schema": "Order", "description": "Incoming sales" },
+    "/settings/global": { "schema": "object", "description": "Global config" },
+    "/users/{userId}": { "schema": "object", "description": "Legacy user data" }
   }
 }

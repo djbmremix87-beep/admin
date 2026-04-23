@@ -1,79 +1,79 @@
+export enum ClientStatus {
+  ACTIVE = 'Active',
+  DUE = 'Due',
+  INACTIVE = 'Inactive'
+}
+
 export enum Category {
   INDOOR = 'indoor',
   OUTDOOR = 'outdoor',
-  NVR = 'nvr',
-  ACCESSORIES = 'accessories'
-}
-
-export enum ClientStatus {
-  ACTIVE = 'active',
-  DUE = 'due',
-  INACTIVE = 'inactive'
+  NVR = 'nvr'
 }
 
 export enum ExpenseCategory {
-  SALARY = 'Salary',
-  RENT = 'Rent',
-  ELECTRICITY = 'Electricity',
-  TRANSPORT = 'Transport',
-  OTHER = 'Other'
+  MAINTENANCE = 'maintenance',
+  EQUIPMENT = 'equipment',
+  SALARY = 'salary',
+  OTHER = 'other'
+}
+
+export enum OrderStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  PROCESSING = 'processing',
+  SHIPPED = 'shipped',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled'
 }
 
 export interface Product {
-  id: number;
+  id: number | string;
   name: string;
   price: number;
   stock: number;
   category: string;
-  image?: string; // base64 or URL
+  image?: string;
   badge?: 'new' | 'hot' | 'lowstock';
   description?: string;
 }
 
 export interface WorkHistory {
   id: string;
-  date: string;
   description: string;
   amount: number;
   paid: number;
+  date: string;
 }
 
 export interface PaymentHistory {
   id: string;
-  date: string;
   amount: number;
-  type: 'Cash' | 'Bkash' | 'Bank';
-  purpose?: string;
+  type: 'Cash' | 'Bkash' | 'Bank' | 'Nagad';
+  date: string;
+  purpose: string;
 }
 
-export enum OrderStatus {
-  PENDING = 'Pending',
-  PROCESSING = 'Processing',
-  SHIPPED = 'Shipped',
-  DELIVERED = 'Delivered',
-  CANCELLED = 'Cancelled'
+export interface CartItem {
+  productId: number | string;
+  name: string;
+  quantity: number;
+  price: number;
 }
 
 export interface Order {
   id: string;
   date: string;
-  items: CartItem[];
   total: number;
-  dueDate?: string | null;
   status: OrderStatus;
-}
-
-export interface CartItem {
-  productId: number;
-  name: string;
-  price: number;
-  quantity: number;
+  dueDate: string | null;
+  items: CartItem[];
 }
 
 export interface Client {
   id: number;
   name: string;
   phone: string;
+  email?: string;
   address: string;
   status: ClientStatus;
   due: number;
@@ -85,14 +85,14 @@ export interface Client {
   warrantyExpiry?: string;
   installationDate?: string;
   notes?: string;
-  image?: string; // base64 or URL
+  image?: string | null;
 }
 
 export interface Expense {
   id: string;
-  date: string;
-  category: string;
   amount: number;
+  category: string;
+  date: string;
   description: string;
 }
 
@@ -100,8 +100,8 @@ export interface PublicOrder {
   id: string;
   customerName: string;
   customerPhone: string;
-  customerAddress: string;
-  items: CartItem[];
+  customerAddress?: string;
+  items: { productId: number | string; name: string; quantity: number; price: number }[];
   total: number;
   date: string;
   status: 'pending' | 'accepted' | 'rejected';

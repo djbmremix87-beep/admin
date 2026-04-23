@@ -1,5 +1,6 @@
 {
   "name": "IT Department Pro ",
-  "description": "A comprehensive CCTV business management system with client profiles, order tracking, WhatsApp integration, and PDF invoicing.",
-  "requestFramePermissions": []
+  "description": "Comprehensive ISP and CCTV Management system for tracking clients, inventory, and network performance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }
