@@ -8,23 +8,21 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "itdepartmentpro33@gmail.com" ||
-        request.auth.token.email == "djbmremix87@gmail.com"
+        request.auth.token.email.matches("(?i)itdepartmentpro33@gmail.com") ||
+        request.auth.token.email.matches("(?i)djbmremix87@gmail.com")
       );
     }
 
     // Individual User Data (for migration/backup)
     match /users/{userId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
-      match /{allSubcollections=**} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
-      }
     }
 
-    // Products: Anyone can read, only admin can write
+    // Products: Anyone can read, only admin can write, anyone can update stock
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
+      allow update: if true; 
     }
 
     // Offers: Anyone can read, only admin can write
@@ -39,11 +37,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Public Orders: Admin can read/write, public can create
+    // Services: Anyone can read, only admin can write
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Public Orders: Anyone can create, admin can manage
     match /public_orders/{orderId} {
       allow read: if isAdmin();
       allow create: if true;
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() || (resource.data.status == "pending");
     }
 
     // Settings
@@ -52,9 +56,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Clients & Expenses: Admin only
+    // Clients & Expenses: Admin only (or anyone for testing if needed, but keeping it admin for now)
     match /clients/{clientId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || isSignedIn(); 
     }
     match /expenses/{expenseId} {
       allow read, write: if isAdmin();

@@ -64,10 +64,13 @@ import {
   Headphones,
   Bot,
   LayoutGrid,
-  ShoppingBag
+  ShoppingBag,
+  Video,
+  Plane
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
+import gsap from 'gsap';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   LineChart, 
   Line, 
@@ -128,6 +131,7 @@ import {
 import { 
   collection, 
   onSnapshot, 
+  addDoc,
   doc, 
   setDoc, 
   deleteDoc, 
@@ -142,11 +146,17 @@ import {
 import { 
   auth, 
   db, 
+  storage,
   loginWithGoogle, 
   logout, 
   handleFirestoreError, 
   OperationType 
 } from './firebase';
+import { 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from 'firebase/storage';
 
 interface OfferComment {
   id: string;
@@ -167,6 +177,7 @@ interface Offer {
   likes?: string[]; // Array of user UIDs
   comments?: OfferComment[];
   shares?: number;
+  expiryDate?: string;
 }
 
 interface Alert {
@@ -315,7 +326,7 @@ const AIHelpDesk = ({ user, isAdmin, businessData, isDarkMode }: { user: Firebas
 You can help the admin with business insights, stock alerts, and financial summaries based on this data.`;
       }
 
-      const genAI = new GoogleGenAI(apiKey);
+      const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-flash",
         systemInstruction: systemInstruction,
@@ -1026,8 +1037,8 @@ const OffersPage = ({ isAdmin, offers, user, addNotification, withPassword }: { 
                   )}
                 </div>
                 {imageUrl && (
-                  <div className="mt-4 relative rounded-2xl overflow-hidden border dark:border-slate-800">
-                    <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover" />
+                  <div className="mt-4 relative rounded-[24px] overflow-hidden border dark:border-slate-800">
+                    <img src={imageUrl} alt="Preview" className="w-full h-[400px] object-cover" />
                   </div>
                 )}
               </div>
@@ -1092,12 +1103,12 @@ const OffersPage = ({ isAdmin, offers, user, addNotification, withPassword }: { 
 
                 {/* Post Image */}
                 {offer.imageUrl && (
-                  <div className="mt-2">
+                  <div className="mt-2 overflow-hidden">
                     <img 
                       src={offer.imageUrl} 
                       alt={offer.title}
                       referrerPolicy="no-referrer"
-                      className="w-full h-auto max-h-[600px] object-cover"
+                      className="w-full aspect-[2/1] object-cover bg-slate-100 dark:bg-slate-800"
                     />
                   </div>
                 )}
@@ -1297,6 +1308,8 @@ const ProductDetailsModal = ({
   addToCart: (p: Product) => void,
   formatCurrency: (v: number) => string
 }) => {
+  const [showVideo, setShowVideo] = useState(false);
+
   return (
     <div 
       className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[110] flex items-center justify-center p-4"
@@ -1333,10 +1346,27 @@ const ProductDetailsModal = ({
           <div 
             className="relative w-48 h-48 rounded-3xl border-4 border-white dark:border-slate-900 shadow-2xl overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center z-10"
           >
-            {product.image ? (
+            {showVideo && product.videoUrl ? (
+              <video 
+                src={product.videoUrl} 
+                className="w-full h-full object-cover" 
+                controls 
+                autoPlay
+              />
+            ) : product.image ? (
               <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
             ) : (
               <Package size={80} className="text-gray-300" strokeWidth={1} />
+            )}
+
+            {product.videoUrl && (
+              <button 
+                onClick={() => setShowVideo(!showVideo)}
+                className="absolute bottom-2 right-2 bg-blue-600 text-white rounded-xl px-3 py-1.5 text-[10px] font-bold shadow-lg flex items-center gap-1.5"
+              >
+                {showVideo ? <ImageIcon size={12} /> : <Video size={12} />}
+                {showVideo ? 'View Image' : 'Play Video'}
+              </button>
             )}
           </div>
 
@@ -2052,7 +2082,7 @@ const PublicStore = ({
                   সব দেখুন <ChevronRight size={14} />
                 </button>
               </div>
-              <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4 -mx-4 px-4 snap-x">
+              <div className="flex gap-6 overflow-x-auto no-scrollbar pb-8 -mx-6 px-6 snap-x">
                 {offers.slice(0, 5).map((offer, i) => (
                   <motion.div 
                     key={offer.id}
@@ -2060,33 +2090,36 @@ const PublicStore = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
                     onClick={() => setActiveTab('offers')}
-                    className="min-w-[280px] w-[85vw] max-w-[350px] bg-white dark:bg-slate-800 rounded-[24px] shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden cursor-pointer snap-center group relative"
+                    className="min-w-[280px] w-[280px] bg-white dark:bg-slate-800 rounded-[20px] shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden cursor-pointer snap-center group relative"
                   >
                     {offer.imageUrl ? (
-                      <div className="h-40 w-full overflow-hidden relative">
-                        <img src={offer.imageUrl} alt={offer.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+                      <div className="h-[150px] w-full overflow-hidden relative bg-slate-100 dark:bg-slate-900">
+                        <img 
+                          src={offer.imageUrl} 
+                          alt={offer.title} 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                          referrerPolicy="no-referrer" 
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                         <div className="absolute bottom-3 left-4 right-4">
-                          <h4 className="text-white font-bold text-lg line-clamp-1 drop-shadow-md">{offer.title}</h4>
+                          <h4 className="text-white font-bold text-base line-clamp-1 drop-shadow-md tracking-tight">{offer.title}</h4>
                         </div>
                       </div>
                     ) : (
-                      <div className="h-40 w-full bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center p-6 relative">
-                         <Megaphone size={40} className="text-white/20 absolute -right-2 -bottom-2" />
-                         <h4 className="text-white font-bold text-xl line-clamp-2 drop-shadow-md z-10">{offer.title}</h4>
+                      <div className="h-[150px] w-full bg-gradient-to-br from-indigo-500 to-pink-600 flex items-center justify-center p-4 relative">
+                         <Megaphone size={40} className="text-white/10 absolute -right-2 -bottom-2 rotate-12" />
+                         <h4 className="text-white font-black text-lg line-clamp-2 drop-shadow-lg z-10 text-center uppercase tracking-tighter">{offer.title}</h4>
                       </div>
                     )}
-                    <div className="p-4">
-                      <p className="text-slate-500 dark:text-slate-400 text-xs line-clamp-2 leading-relaxed">
-                        {offer.content}
-                      </p>
-                      <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400">
-                        <span className="bg-orange-100 text-orange-600 dark:bg-orange-600/20 px-2 py-1 rounded-md">
-                          {new Date(offer.createdAt).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric' })}
+                    <div className="p-3 bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-md flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg font-bold text-[8px] uppercase tracking-wider">
+                          {offer.expiryDate || 'Active'}
                         </span>
-                        <div className="flex items-center gap-1 text-blue-500">
-                           <Sparkles size={12} /> {offer.likes?.length || 0}
-                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-bold group-hover:translate-x-1 transition-transform">
+                        <Sparkles size={10} />
+                        <span className="text-[9px] uppercase">View</span>
                       </div>
                     </div>
                   </motion.div>
@@ -2391,6 +2424,239 @@ const ClientList = ({
   );
 };
 
+const ServicesPage = ({ isAdmin }: { isAdmin: boolean }) => {
+  const [services, setServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'services'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setServices(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching services:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const defaultServices = [
+    {
+      icon: 'bx-camera-movie',
+      title: 'CCTV Installation',
+      description: 'Professional installation of high-definition security cameras for homes and businesses. We ensure complete coverage and remote access setup.'
+    },
+    {
+      icon: 'bx-wrench',
+      title: 'Maintenance & Repair',
+      description: 'Regular maintenance and prompt repair services for security systems, ensuring your surveillance remains operational 24/7.'
+    },
+    {
+      icon: 'bx-briefcase',
+      title: 'Project Management',
+      description: 'Handling large-scale security projects from planning to execution, including wiring, networking, and system integration.'
+    }
+  ];
+
+  const displayServices = services.length > 0 ? services : defaultServices;
+
+  return (
+    <section className="services" id="services">
+      <div className="flex justify-between items-center mb-12">
+        <h2 className="services-heading !mb-0">IT & Security <span>Services</span></h2>
+      </div>
+
+      <div className="services-container">
+        {displayServices.map((service, index) => (
+          <motion.div 
+            key={service.id || index} 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            viewport={{ once: true }}
+            className="services-box group relative"
+          >
+            {service.imageUrl ? (
+              <div className="w-full h-40 mb-6 overflow-hidden rounded-xl">
+                <img src={service.imageUrl} alt={service.title} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+              </div>
+            ) : (
+              <i className={`bx ${service.icon}`}></i>
+            )}
+            <h3>{service.title}</h3>
+            <p>{service.description}</p>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-6 py-2 bg-[#dc143c] text-white rounded-full text-sm font-bold shadow-lg"
+            >
+              Read More
+            </motion.button>
+          </motion.div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const ManageServices = ({ withPassword }: { withPassword: (action: () => void) => void }) => {
+  const [services, setServices] = useState<any[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editingService, setEditingService] = useState<any>(null);
+  const [formData, setFormData] = useState({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' });
+
+  useEffect(() => {
+    const q = query(collection(db, 'services'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSave = async () => {
+    if (!formData.title || !formData.description) return;
+
+    try {
+      if (editingService) {
+        await updateDoc(doc(db, 'services', editingService.id), formData);
+      } else {
+        await addDoc(collection(db, 'services'), formData);
+      }
+      setShowModal(false);
+      setEditingService(null);
+      setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' });
+    } catch (error) {
+      console.error("Error saving service:", error);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    withPassword(async () => {
+      try {
+        await deleteDoc(doc(db, 'services', id));
+      } catch (error) {
+        console.error("Error deleting service:", error);
+      }
+    });
+  };
+
+  return (
+    <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl shadow-xl">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-2xl font-bold">Manage Services</h2>
+        <button 
+          onClick={() => { setEditingService(null); setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' }); setShowModal(true); }}
+          className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2"
+        >
+          <Plus size={20} /> Add Service
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {services.map(service => (
+          <div key={service.id} className="p-4 border dark:border-slate-800 rounded-2xl relative group">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-[#dc143c] overflow-hidden">
+                {service.imageUrl ? <img src={service.imageUrl} className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" /> : <i className={`bx ${service.icon} text-2xl`}></i>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setEditingService(service); setFormData({ title: service.title, description: service.description, icon: service.icon || 'bx-code-alt', imageUrl: service.imageUrl || '' }); setShowModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
+                  <Edit2 size={16} />
+                </button>
+                <button onClick={() => handleDelete(service.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+            <h3 className="font-bold text-lg mb-1">{service.title}</h3>
+            <p className="text-xs text-gray-500 line-clamp-2">{service.description}</p>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {showModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 shadow-2xl"
+            >
+              <h3 className="text-xl font-bold mb-6">{editingService ? 'Edit Service' : 'Add New Service'}</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Title</label>
+                  <input 
+                    type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-[#dc143c]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Description</label>
+                  <textarea 
+                    value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-[#dc143c] h-24"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Icon Class (from BoxIcons)</label>
+                  <input 
+                    type="text" value={formData.icon} onChange={e => setFormData({ ...formData, icon: e.target.value })} placeholder="bx-code-alt"
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-[#dc143c]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Image URL (Optional)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" value={formData.imageUrl} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })} placeholder="https://..."
+                      className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-[#dc143c]"
+                    />
+                    <label className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                      <CloudUpload size={20} />
+                      <input 
+                        type="file" accept="image/*" className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setFormData({ ...formData, imageUrl: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+                {formData.imageUrl && (
+                  <div className="relative w-full h-32 rounded-xl overflow-hidden border dark:border-slate-800">
+                    <img src={formData.imageUrl} className="w-full h-full object-cover" />
+                    <button 
+                      onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">Cancel</button>
+                  <button onClick={handleSave} className="flex-1 py-3 bg-[#dc143c] text-white rounded-xl font-bold">Save Service</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const SupportPage = () => {
   return (
     <div className="space-y-6 pb-24">
@@ -2521,6 +2787,7 @@ const AddProductModal = ({
     category: productCategories[0] || 'indoor',
     stock: '',
     image: '',
+    videoUrl: '',
     description: ''
   });
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
@@ -2562,6 +2829,34 @@ const AddProductModal = ({
     }
   };
 
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        alert("Video size too large. Max 50MB.");
+        return;
+      }
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = function() {
+        window.URL.revokeObjectURL(video.src);
+        const duration = video.duration;
+        if (duration > 180) {
+          alert("Video duration must be less than 3 minutes.");
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData({...formData, videoUrl: reader.result as string});
+        };
+        reader.readAsDataURL(file);
+      };
+      video.src = URL.createObjectURL(file);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -2584,19 +2879,50 @@ const AddProductModal = ({
         </div>
 
         <div className="space-y-4">
-          <div className="flex justify-center mb-4">
-            <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
-              {formData.image ? (
-                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <Package className="text-gray-300" size={32} />
-              )}
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageChange}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
+          <div className="flex justify-center gap-6 mb-4">
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Image</label>
+              <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
+                {formData.image ? (
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon className="text-gray-300" size={32} />
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Video (Max 3m)</label>
+              <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
+                {formData.videoUrl ? (
+                  <video src={formData.videoUrl} className="w-full h-full object-cover" />
+                ) : (
+                  <Video className="text-gray-300" size={32} />
+                )}
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  onChange={handleVideoChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                {formData.videoUrl && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFormData({...formData, videoUrl: ''});
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2780,6 +3106,34 @@ const EditProductModal = ({
     }
   };
 
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        alert("Video size too large. Max 50MB.");
+        return;
+      }
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = function() {
+        window.URL.revokeObjectURL(video.src);
+        const duration = video.duration;
+        if (duration > 180) {
+          alert("Video duration must be less than 3 minutes.");
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData({...formData, videoUrl: reader.result as string});
+        };
+        reader.readAsDataURL(file);
+      };
+      video.src = URL.createObjectURL(file);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -2802,19 +3156,50 @@ const EditProductModal = ({
         </div>
 
         <div className="space-y-4">
-          <div className="flex justify-center mb-4">
-            <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
-              {formData.image ? (
-                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <Package className="text-gray-300" size={32} />
-              )}
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageChange}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
+          <div className="flex justify-center gap-6 mb-4">
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Image</label>
+              <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
+                {formData.image ? (
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon className="text-gray-300" size={32} />
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Video (Max 3m)</label>
+              <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center">
+                {formData.videoUrl ? (
+                  <video src={formData.videoUrl} className="w-full h-full object-cover" />
+                ) : (
+                  <Video className="text-gray-300" size={32} />
+                )}
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  onChange={handleVideoChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                {formData.videoUrl && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFormData({...formData, videoUrl: ''});
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -3196,6 +3581,7 @@ function AppContent() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarClosed, setIsSidebarClosed] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('cctv_theme_preference');
     return saved !== null ? saved === 'true' : true;
@@ -3595,20 +3981,37 @@ function AppContent() {
     }
   }, [isDarkMode, customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages, user, isInitialLoad]);
 
-  // Dynamic Title for SEO
+  // Dynamic SEO Metadata
   useEffect(() => {
     const tabNames: Record<string, string> = {
-      dashboard: 'Dashboard',
+      dashboard: 'Admin Dashboard',
       clients: 'Clients Management',
-      products: 'Products & Orders',
+      products: 'Dahua & Hikvision Orders',
       expenses: 'Expense Tracker',
-      bandwidth: 'Bandwidth Test',
-      warranty: 'Warranty Status',
-      me: 'Profile & Settings',
-      'track-order': 'Track Order'
+      bandwidth: 'Network Speed Test',
+      warranty: 'Warranty Check',
+      me: 'Business Settings',
+      'track-order': 'Service Tracking'
     };
+    
+    const descriptions: Record<string, string> = {
+      dashboard: 'Overview of IT Department services: CCTV installation, AC and Fridge repair stats.',
+      clients: 'Client database for CCTV installation, repair, and maintenance services in Dhaka.',
+      products: 'Best prices for Dahua and Hikvision CCTV cameras. Track your installation orders.',
+      bandwidth: 'Test your internet speed for smooth CCTV remote monitoring.',
+      warranty: 'Check warranty for your Dahua, Hikvision CCTV and AC Fridge parts.',
+      'track-order': 'Track your CCTV camera repair or AC Fridge service status live.'
+    };
+
     const currentTab = tabNames[activeTab] || activeTab;
-    document.title = `${currentTab} | IT Department Pro`;
+    document.title = `${currentTab} | IT Department`;
+    
+    // Update meta description dynamically for better context
+    const description = descriptions[activeTab] || 'IT Department - Expert CCTV, AC & Fridge Repair Services in Dhaka.';
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', description);
+    }
   }, [activeTab]);
 
   // Dark Mode Class & Persist
@@ -3624,15 +4027,15 @@ function AppContent() {
   // Global Click Sound
   useEffect(() => {
     const tapAudio = new Audio(customClickSound || 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-    tapAudio.volume = 0.3;
+    tapAudio.volume = 1.0;
     tapAudio.preload = 'auto';
 
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // Check if the clicked element is a button or inside a button
-      if (target.closest('button') || target.closest('a') || target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'submit') {
+      if (target.closest('button') || target.closest('a') || target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'submit' || target.closest('[role="button"]')) {
         const sound = tapAudio.cloneNode() as HTMLAudioElement;
-        sound.volume = 0.3;
+        sound.volume = 1.0;
         sound.play().catch(() => {});
       }
     };
@@ -3931,10 +4334,13 @@ function AppContent() {
     };
 
     try {
+      console.log("Saving public order...");
       await setDoc(doc(db, 'public_orders', orderId), publicOrder);
+      console.log("Public order saved successfully");
       
       // Decrease stock
       for (const item of cart) {
+        console.log(`Updating stock for product ${item.productId}...`);
         const productRef = doc(db, 'products', String(item.productId));
         const productSnap = await getDoc(productRef);
         if (productSnap.exists()) {
@@ -3942,6 +4348,7 @@ function AppContent() {
           await updateDoc(productRef, {
             stock: Math.max(0, currentStock - item.quantity)
           });
+          console.log(`Stock updated for product ${item.productId}`);
         }
       }
 
@@ -3953,7 +4360,7 @@ function AppContent() {
       generateOrderPDF(publicOrder);
     } catch (error) {
       console.error("Error placing order:", error);
-      addNotification("Failed to place order. Please try again.");
+      handleFirestoreError(error, OperationType.WRITE, `public_orders/${orderId}`);
     }
   };
 
@@ -4534,19 +4941,42 @@ function AppContent() {
     }
   };
 
+  const uploadProductFile = async (dataUrl: string, path: string) => {
+    if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+    
+    try {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob);
+      return await getDownloadURL(storageRef);
+    } catch (error) {
+      console.error("Storage upload failed:", error);
+      return dataUrl; 
+    }
+  };
+
   const handleAddProduct = async (newProduct: Omit<Product, 'id'>) => {
     const productId = Date.now();
-    const product: Product = {
+    let product: Product = {
       ...newProduct,
       id: productId
     };
 
-    // Update local state immediately for responsiveness
+    const updateLocalStorage = (updatedProducts: Product[]) => {
+      try {
+        localStorage.setItem('cctv_products', JSON.stringify(updatedProducts));
+      } catch (e) {
+        console.warn("Storage quota exceeded, updating memory state only.");
+      }
+    };
+
     setProducts(prev => {
       const updated = [...prev, product];
-      localStorage.setItem('cctv_products', JSON.stringify(updated));
+      updateLocalStorage(updated);
       return updated;
     });
+    
     setShowAddProduct(false);
     addNotification("Product added!");
 
@@ -4555,9 +4985,24 @@ function AppContent() {
       return;
     }
     
-    const userId = user.uid;
     try {
+      // Background upload of media to Storage for cloud sync
+      if (product.image && product.image.startsWith('data:')) {
+        product.image = await uploadProductFile(product.image, `products/${productId}/image`);
+      }
+      if (product.videoUrl && product.videoUrl.startsWith('data:')) {
+        product.videoUrl = await uploadProductFile(product.videoUrl, `products/${productId}/video`);
+      }
+
       await setDoc(doc(db, 'products', String(productId)), product);
+      
+      // Update local state with the actual cloud URLs
+      setProducts(prev => {
+        const updated = prev.map(p => p.id === productId ? product : p);
+        updateLocalStorage(updated);
+        return updated;
+      });
+      
       addNotification("Product synced to cloud!");
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `products/${productId}`);
@@ -4565,17 +5010,17 @@ function AppContent() {
   };
 
   const handleDeleteProduct = async (id: number | string) => {
-    // Update local state immediately
     setProducts(prev => {
       const updated = prev.filter(p => p.id !== id);
-      localStorage.setItem('cctv_products', JSON.stringify(updated));
+      try {
+        localStorage.setItem('cctv_products', JSON.stringify(updated));
+      } catch (e) {}
       return updated;
     });
     addNotification("Product deleted!");
 
     if (!user) return;
     
-    const userId = user.uid;
     try {
       const docRef = doc(db, 'products', String(id));
       await deleteDoc(docRef);
@@ -4585,20 +5030,41 @@ function AppContent() {
   };
 
   const handleEditProduct = async (updatedProduct: Product) => {
-    // Update local state immediately
+    const updateLocalStorage = (updatedProducts: Product[]) => {
+      try {
+        localStorage.setItem('cctv_products', JSON.stringify(updatedProducts));
+      } catch (e) {
+        console.warn("Storage quota exceeded.");
+      }
+    };
+
     setProducts(prev => {
       const updated = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-      localStorage.setItem('cctv_products', JSON.stringify(updated));
+      updateLocalStorage(updated);
       return updated;
     });
+    
     setShowEditProduct(null);
     addNotification("Product updated!");
 
     if (!user) return;
     
-    const userId = user.uid;
     try {
-      await setDoc(doc(db, 'products', String(updatedProduct.id)), updatedProduct);
+      let product = { ...updatedProduct };
+      if (product.image && product.image.startsWith('data:')) {
+        product.image = await uploadProductFile(product.image, `products/${product.id}/image`);
+      }
+      if (product.videoUrl && product.videoUrl.startsWith('data:')) {
+        product.videoUrl = await uploadProductFile(product.videoUrl, `products/${product.id}/video`);
+      }
+
+      await setDoc(doc(db, 'products', String(product.id)), product);
+      
+      setProducts(prev => {
+        const updated = prev.map(p => p.id === product.id ? product : p);
+        updateLocalStorage(updated);
+        return updated;
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `products/${updatedProduct.id}`);
     }
@@ -4608,17 +5074,35 @@ function AppContent() {
     // Update local state immediately
     setClients(prev => {
       const updated = prev.map(c => c.id === clientId ? { ...c, image: image || undefined } : c);
-      localStorage.setItem('cctv_clients', JSON.stringify(updated));
+      try {
+        localStorage.setItem('cctv_clients', JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Client images storage quota exceeded locally.");
+      }
       return updated;
     });
+    
     addNotification(image ? "Profile picture updated!" : "Profile picture reset!");
 
     if (!user) return;
     
-    const userId = user.uid;
     try {
+      let finalImage = image;
+      if (image && image.startsWith('data:')) {
+        finalImage = await uploadProductFile(image, `clients/${clientId}/profile`);
+      }
+
       await updateDoc(doc(db, 'clients', String(clientId)), {
-        image: image || null
+        image: finalImage
+      });
+
+      // Update local state again with the cloud URL
+      setClients(prev => {
+        const updated = prev.map(c => c.id === clientId ? { ...c, image: finalImage || undefined } : c);
+        try {
+          localStorage.setItem('cctv_clients', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
@@ -4987,13 +5471,29 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
                 onClick={handlePayment}
                 disabled={isProcessing || !phoneNumber || !pin || !otp}
                 className={cn(
-                  "w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all flex items-center justify-center gap-2",
+                  "w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all flex items-center justify-center gap-2 relative overflow-hidden",
                   method === 'Bkash' ? "bg-[#D12053]" : "bg-[#F7941D]",
                   (isProcessing || !phoneNumber || !pin || !otp) && "opacity-50"
                 )}
               >
-                {isProcessing ? <RefreshCcw className="animate-spin" /> : <ShieldCheck size={20} />}
-                {isProcessing ? 'Processing...' : `Pay ${formatCurrency(amount)}`}
+                {isProcessing ? (
+                  <>
+                    <motion.div 
+                      initial={{ x: -100 }}
+                      animate={{ x: 400 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="absolute left-0"
+                    >
+                      <Plane size={24} className="rotate-90 opacity-50" />
+                    </motion.div>
+                    <span className="animate-pulse">Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={20} />
+                    Pay {formatCurrency(amount)}
+                  </>
+                )}
               </button>
               <button 
                 onClick={() => setStep('select')}
@@ -5018,14 +5518,37 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
     const [showGateway, setShowGateway] = useState(false);
+    const [isOrdering, setIsOrdering] = useState(false);
 
     const handleDigitalPayment = (type: 'Bkash' | 'Nagad') => {
       setShowGateway(false);
-      if (isAdmin && orderClientId) {
-        placeOrder(orderClientId, true, type as any);
-      } else {
-        placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, true, type as any);
-      }
+      setIsOrdering(true);
+      setTimeout(() => {
+        if (isAdmin && orderClientId) {
+          placeOrder(orderClientId, true, type as any);
+        } else {
+          placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, true, type as any);
+        }
+        setIsOrdering(false);
+      }, 2000);
+    };
+
+    const handleConfirmOrder = () => {
+      setIsOrdering(true);
+      setTimeout(() => {
+        if (orderClientId) {
+          placeOrder(orderClientId, isPaid, paymentType);
+        }
+        setIsOrdering(false);
+      }, 2000);
+    };
+
+    const handlePlacePublicOrder = () => {
+      setIsOrdering(true);
+      setTimeout(() => {
+        placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress});
+        setIsOrdering(false);
+      }, 2000);
     };
 
     return (
@@ -5256,45 +5779,71 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
                         WhatsApp Quote
                       </motion.button>
 
-                      <motion.button 
-                        whileTap={{ scale: 0.98 }}
+                      <LaunchOrderButton 
+                        label="Confirm & Order"
+                        onClick={handleConfirmOrder}
                         disabled={!orderClientId}
-                        onClick={() => orderClientId && placeOrder(orderClientId, isPaid, paymentType)}
-                        className="flex-[1.5] py-5 bg-green-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-green-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                      >
-                        <Save size={20} />
-                        Confirm & Order
-                      </motion.button>
+                        isOrdering={isOrdering}
+                        themeColor={140}
+                      />
                     </div>
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
-                      disabled={!orderClientId}
+                      disabled={!orderClientId || isOrdering}
                       onClick={() => setShowGateway(true)}
-                      className="w-full py-4 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2"
+                      className="w-full py-4 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
                     >
-                      <CreditCard size={20} />
-                      Digital Payment (Bkash/Nagad)
+                      {isOrdering ? (
+                         <div className="flex items-center gap-2">
+                           <motion.div 
+                              animate={{ x: [0, 400], opacity: [0, 1, 0] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="absolute left-0"
+                           >
+                             <Plane size={20} className="rotate-90 text-white/50" />
+                           </motion.div>
+                           <span className="animate-pulse">Processing Payment...</span>
+                         </div>
+                      ) : (
+                        <>
+                          <CreditCard size={20} />
+                          Digital Payment (Bkash/Nagad)
+                        </>
+                      )}
                     </motion.button>
                   </>
                 ) : (
                   <div className="space-y-3">
+                    <LaunchOrderButton 
+                      label="Place Cash Order"
+                      onClick={handlePlacePublicOrder}
+                      disabled={!customerName || !customerPhone || !customerAddress}
+                      isOrdering={isOrdering}
+                      themeColor={160}
+                    />
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
-                      disabled={!customerName || !customerPhone || !customerAddress}
-                      onClick={() => placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress})}
-                      className="w-full py-5 bg-emerald-600 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                    >
-                      <Save size={20} />
-                      Place Order (Cash on Delivery)
-                    </motion.button>
-                    <motion.button 
-                      whileTap={{ scale: 0.98 }}
-                      disabled={!customerName || !customerPhone || !customerAddress}
+                      disabled={!customerName || !customerPhone || !customerAddress || isOrdering}
                       onClick={() => setShowGateway(true)}
-                      className="w-full py-5 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2"
+                      className="w-full py-5 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
                     >
-                      <CreditCard size={20} />
-                      Pay Now (Bkash/Nagad)
+                      {isOrdering ? (
+                         <div className="flex items-center gap-2">
+                           <motion.div 
+                              animate={{ x: [0, 400], opacity: [0, 1, 0] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="absolute left-0"
+                           >
+                             <Plane size={20} className="rotate-90 text-white/50" />
+                           </motion.div>
+                           <span className="animate-pulse tracking-widest uppercase text-[10px] font-bold">Connecting Secure Gateway...</span>
+                         </div>
+                      ) : (
+                        <>
+                          <CreditCard size={20} />
+                          Pay Now (Bkash/Nagad)
+                        </>
+                      )}
                     </motion.button>
                   </div>
                 )}
@@ -5596,6 +6145,296 @@ const BandwidthTestPage = () => {
           </div>
         </div>
       </div>
+    );
+  };
+
+  const LaunchOrderButton = ({ 
+    label, 
+    onClick, 
+    disabled, 
+    isOrdering,
+    themeColor = 260
+  }: { 
+    label: string, 
+    onClick: () => void, 
+    disabled: boolean, 
+    isOrdering: boolean,
+    themeColor?: number
+  }) => {
+    const shirtRef = useRef<HTMLDivElement>(null);
+    const cannonRef = useRef<HTMLDivElement>(null);
+    const textRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    const handleLaunch = () => {
+      if (disabled || isOrdering) return;
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          onClick();
+        }
+      });
+
+      // Reset state for potential repeat (though usually it navigates or resets cart)
+      tl.set(shirtRef.current, { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 });
+      tl.set(cannonRef.current, { opacity: 0, x: -20 });
+      tl.set(textRef.current, { opacity: 1, y: 0 });
+
+      // Animation Sequence
+      tl.to(shirtRef.current, {
+        duration: 0.15,
+        y: -15,
+        repeat: 3,
+        yoyo: true,
+        ease: "power1.inOut"
+      })
+      .to(cannonRef.current, {
+        opacity: 1,
+        x: 0,
+        duration: 0.3,
+        ease: "back.out(2)"
+      }, "-=0.2")
+      .to(shirtRef.current, {
+        duration: 0.6,
+        x: 600,
+        y: -300,
+        rotation: 720,
+        scale: 0.2,
+        opacity: 0,
+        ease: "power4.in"
+      }, "+=0.1")
+      .to(textRef.current, {
+        duration: 0.4,
+        opacity: 0,
+        y: 30,
+        ease: "power2.in"
+      }, "<")
+      .add(() => {
+        if (textRef.current) {
+          textRef.current.innerText = "ORDERED!";
+          textRef.current.style.color = "#4ade80";
+        }
+      })
+      .fromTo(textRef.current, 
+        { y: -30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "back.out(2)" }
+      );
+    };
+
+    return (
+      <button 
+        ref={buttonRef}
+        disabled={disabled || isOrdering}
+        onClick={handleLaunch}
+        className="launch-button"
+        style={{ '--hue': themeColor } as any}
+      >
+        <div className="launch-btn-inner">
+          <div ref={shirtRef} className="launch-btn-shirt">
+            <svg className="t-shirt-svg" viewBox="0 0 64.8 60.9">
+              <path className="t-shirt-shirt-path" stroke="#000" strokeWidth="1" d="M90.5 151.3a9.5 4.6 0 01-9 3 9.5 4.6 0 01-9-3l-2.3.4v58.2h22.7v-58.2z" transform="matrix(1.00036 0 0 .99247 -49.2 -148.7)" />
+              <path className="t-shirt-shirt-path" stroke="#000" strokeWidth="1" d="M251.8 109.2a36 17.5 0 01-34 11.6 36 17.5 0 01-33.9-11.6l-31.5 4.8l-50 50l37 36.8l13-13v142.7h130.9V187.7l13.1 13.1l36.9-36.8l-50-50z" transform="matrix(.26468 0 0 .2626 -25.2 -27.2)" />
+            </svg>
+          </div>
+          <div ref={cannonRef} className="t-shirt-cannon">
+             <svg width="80" height="40" viewBox="0 0 100 40">
+                <path className="cannon-plastic" stroke="#000" strokeWidth="2" d="M10,10 h70 v20 h-70 z" />
+                <rect className="cannon-band" x="65" y="8" width="12" height="24" fill="#ffd500" stroke="#000" strokeWidth="1" />
+                <rect className="cannon-shine" x="20" y="12" width="30" height="3" rx="1" fill="rgba(255,255,255,0.5)" />
+             </svg>
+          </div>
+          <div className="launch-btn-text">
+            <div className="dummy">{label}</div>
+            <div ref={textRef} className="text uppercase font-black text-xs tracking-[0.2em]">{isOrdering ? 'PROCESSING...' : label}</div>
+          </div>
+          <div className="t-shirt-container" />
+        </div>
+      </button>
+    );
+  };
+
+  const AnimatedLoginForm = ({ onLogin }: { onLogin: () => void }) => {
+    return (
+      <div className="flex justify-center items-center py-20 overflow-hidden">
+        <div className="animated-login-container scale-75 md:scale-100">
+          {[...Array(50)].map((_, i) => (
+            <span 
+              key={i} 
+              style={{ 
+                '--i': i, 
+                transform: `scale(2.2) rotate(${i * (360 / 50)}deg)`,
+                animationDelay: `${i * (3 / 50)}s`
+              } as any} 
+            />
+          ))}
+          <div className="login-box-animated">
+            <h2 className="text-2xl font-bold text-[#0ef] text-center mb-4 drop-shadow-[0_0_8px_rgba(0,238,255,0.5)]">System Login</h2>
+            <div className="px-6 md:px-10">
+              <div className="animated-input-box">
+                <input type="email" required />
+                <label>Email Address</label>
+              </div>
+              <div className="animated-input-box">
+                <input type="password" required />
+                <label>Security Pin</label>
+              </div>
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onLogin}
+                className="animated-btn mt-2"
+              >
+                Access Account
+              </motion.button>
+              <div className="mt-8 text-center space-y-2">
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Recommended Method</p>
+                <motion.button 
+                  whileHover={{ y: -2 }}
+                  onClick={onLogin} 
+                  className="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-[#0ef] text-[10px] font-black tracking-widest transition-all"
+                >
+                  GOOGLE ID AUTHENTICATION
+                </motion.button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const EmptyPlaceholder = ({ title, message, icon: Icon, onAction, actionLabel }: any) => {
+    return (
+      <div className="modern-login-wrapper min-h-[500px]">
+        <div className="modern-login-box">
+          <div className="modern-login-header">
+            <span>{title.slice(0, 5)}</span>
+          </div>
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-orange-500 shadow-[0_0_20px_rgba(255,140,0,0.3)]">
+               <Icon size={32} />
+            </div>
+            <h3 className="text-xl font-black text-white">{title}</h3>
+            <p className="text-sm text-white/60 font-medium px-4 leading-relaxed">{message}</p>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onAction}
+              className="modern-input-submit"
+            >
+              {actionLabel}
+            </motion.button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const Sidebar = ({ 
+    activeTab, 
+    setActiveTab, 
+    isDarkMode, 
+    setIsDarkMode, 
+    user, 
+    isAdmin,
+    isClosed,
+    setIsClosed
+  }: { 
+    activeTab: string, 
+    setActiveTab: (tab: any) => void, 
+    isDarkMode: boolean, 
+    setIsDarkMode: (v: boolean) => void,
+    user: any,
+    isAdmin: boolean,
+    isClosed: boolean,
+    setIsClosed: (v: boolean) => void
+  }) => {
+    const menuItems = [
+      { id: 'dashboard', icon: 'bx-home-alt', label: 'Analytics', adminOnly: isAdmin },
+      { id: 'shop-view', icon: 'bx-store', label: 'Shop View', adminOnly: false },
+      { id: 'services', icon: 'bx-layer', label: 'Services', adminOnly: false },
+      { id: 'clients', icon: 'bx-user-voice', label: 'CRM Clients', adminOnly: true },
+      { id: 'categories', icon: 'bx-category', label: 'Categories', adminOnly: true },
+      { id: 'products', icon: 'bx-package', label: 'Products', adminOnly: true },
+      { id: 'expenses', icon: 'bx-wallet', label: 'Finance', adminOnly: true },
+      { id: 'my-orders', icon: 'bx-shopping-bag', label: 'My Orders', adminOnly: false },
+      { id: 'bandwidth', icon: 'bx-pulse', label: 'Network', adminOnly: false },
+      { id: 'manage-services', icon: 'bx-customize', label: 'Manage Services', adminOnly: true },
+      { id: isAdmin ? 'warranty' : 'support', icon: 'bx-support', label: 'Support', adminOnly: false },
+      { id: 'me', icon: 'bx-cog', label: 'Account', adminOnly: false },
+    ];
+
+    return (
+      <nav className={cn("custom-sidebar hidden md:block", isClosed && "close")}>
+        <header>
+          <div className="image-text">
+            <span className="image">
+              <img src={customLogo || "https://drive.google.com/uc?export=view&id=1ETZYgPpWbbBtpJnhi42_IR3vOwSOpR4z"} alt="Logo" />
+            </span>
+
+            <div className="text logo-text">
+              <span className="name">{isAdmin ? 'Admin Panel' : 'Stella Army'}</span>
+              <span className="profession">{isAdmin ? 'System Owner' : 'IT Technician'}</span>
+            </div>
+          </div>
+
+          <i 
+            className='bx bx-chevron-right toggle' 
+            onClick={() => setIsClosed(!isClosed)}
+          ></i>
+        </header>
+
+        <div className="menu-bar">
+          <div className="menu">
+            <li className="search-box">
+              <i className='bx bx-search icon'></i>
+              <input type="text" placeholder="Search..." />
+            </li>
+
+            <ul className="menu-links">
+              {menuItems.filter(item => isAdmin || !item.adminOnly).map(item => (
+                <li key={item.id} className="nav-link">
+                  <a 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (item.id === 'cart') setShowCart(true);
+                      else setActiveTab(item.id);
+                    }}
+                    className={cn(activeTab === item.id && "bg-[#dc143c]/10")}
+                  >
+                    <i className={cn('bx icon', item.icon, activeTab === item.id && "!text-[#dc143c]")}></i>
+                    <span className={cn("text nav-text", activeTab === item.id && "!text-[#dc143c]")}>
+                      {item.label}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bottom-content">
+            <li>
+              <a href="#" onClick={(e) => { e.preventDefault(); auth.signOut(); }}>
+                <i className='bx bx-log-out icon'></i>
+                <span className="text nav-text">Logout</span>
+              </a>
+            </li>
+
+            <li className="mode">
+              <div className="sun-moon">
+                <i className='bx bx-moon icon moon'></i>
+                <i className='bx bx-sun icon sun'></i>
+              </div>
+              <span className="mode-text text">{isDarkMode ? 'Dark mode' : 'Light mode'}</span>
+
+              <div className="toggle-switch" onClick={() => setIsDarkMode(!isDarkMode)}>
+                <span className="switch"></span>
+              </div>
+            </li>
+          </div>
+        </div>
+      </nav>
     );
   };
 
@@ -6026,22 +6865,9 @@ const BandwidthTestPage = () => {
         </AnimatePresence>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="glass-card p-6 flex flex-col items-center text-center h-fit">
+          <div className="glass-card p-6 flex flex-col items-center text-center h-fit overflow-hidden">
             {!user ? (
-              <div className="space-y-4 w-full">
-                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
-                  <User size={40} />
-                </div>
-                <h3 className="text-xl font-bold">Welcome to CCTV PRO</h3>
-                <p className="text-gray-500 text-sm">Login to sync your data to the cloud.</p>
-                <motion.button 
-                  whileTap={{ scale: 0.95 }}
-                  onClick={loginWithGoogle}
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 opacity-90 hover:opacity-100"
-                >
-                  <Smartphone size={20} /> Login with Google
-                </motion.button>
-              </div>
+               <AnimatedLoginForm onLogin={loginWithGoogle} />
             ) : (
               <>
                 <div className="relative">
@@ -6853,75 +7679,25 @@ const BandwidthTestPage = () => {
         </AnimatePresence>
       </div>
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-72 bg-white/5 dark:bg-slate-900/10 backdrop-blur-3xl border-r border-white/10 dark:border-slate-800/20 h-screen sticky top-0 z-40 shrink-0">
-        <div className="p-8 flex items-center gap-4 border-b border-white/5 dark:border-slate-800/20">
-          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-2xl overflow-hidden shrink-0 border border-white/20 bg-gradient-to-br", isDarkMode ? "from-emerald-600 to-green-700" : "from-orange-500 to-red-600")}>
-            {customLogo ? (
-              <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <ShieldCheck size={28} />
-            )}
-          </div>
-          <div>
-            <p className="font-black text-xl leading-none tracking-tight">IT Department <span className="text-orange-500 dark:text-emerald-500 transition-colors">Pro</span></p>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto py-8 px-6 space-y-3">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
-            { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
-            { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
-            { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
-            { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: true },
-            { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
-            { id: 'my-orders', icon: ShoppingBag, label: 'My Orders', adminOnly: false },
-            { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
-            { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
-            { id: 'me', icon: User, label: 'Account', adminOnly: false },
-          ].filter(item => isAdmin || !item.adminOnly).map(item => (
-            <motion.button 
-              whileHover={{ x: 5, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              animate={activeTab === item.id ? { scale: [1, 1.01, 1] } : { scale: 1 }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-              key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-              }}
-              className={cn(
-                "w-full flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-500 group",
-                activeTab === item.id 
-                  ? "bg-orange-600 dark:bg-emerald-600 text-white font-bold shadow-2xl ring-1 ring-white/20" 
-                  : "text-gray-500 hover:text-orange-600 dark:text-gray-400 hover:bg-white/10 dark:hover:bg-slate-800/40 dark:hover:text-emerald-500"
-              )}
-            >
-              <div className="flex items-center gap-4">
-                <motion.div
-                  animate={activeTab === item.id ? { 
-                    y: [0, -3, 0], 
-                    opacity: [0.5, 1, 0.5] 
-                  } : { y: 0, opacity: 1 }}
-                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                >
-                  <item.icon size={22} className={cn("transition-colors", activeTab === item.id ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "group-hover:text-orange-600 dark:group-hover:text-emerald-500")} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                </motion.div>
-                <span className="text-sm tracking-tight">{item.label}</span>
-              </div>
-              {item.id === 'products' && isAdmin && publicOrders.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ring-2 ring-white/10">
-                  {publicOrders.length}
-                </span>
-              )}
-            </motion.button>
-          ))}
-        </div>
-      </aside>
+      {/* Desktop Sidebar (Custom) */}
+      <Sidebar 
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        user={user}
+        isAdmin={isAdmin}
+        isClosed={isSidebarClosed}
+        setIsClosed={setIsSidebarClosed}
+      />
 
       {/* Main Content Wrapper */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <div className={cn(
+        "flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300",
+        !isSidebarClosed ? "md:ml-[250px]" : "md:ml-[88px]"
+      )}>
         {/* Header */}
-        <header className="p-4 flex justify-between items-center sticky top-0 bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl z-30 border-b border-white/10 dark:border-slate-800/30 md:px-8 shadow-sm">
+        <header className="p-4 flex justify-between items-center sticky top-0 z-30 border-b border-white/10 dark:border-slate-800/30 md:px-8 shadow-sm">
           <div className="flex items-center gap-2 md:hidden">
             <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 text-slate-500">
                <Menu size={24} />
@@ -6944,10 +7720,12 @@ const BandwidthTestPage = () => {
                 {[
                     { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
                     { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
+                    { id: 'services', icon: LayoutGrid, label: 'Services', adminOnly: false },
                     { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
                     { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
                     { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: true },
                     { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
+                    { id: 'manage-services', icon: LayoutGrid, label: 'Manage Services', adminOnly: true },
                     { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
                     { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
                     { id: 'ai-assistant', icon: Bot, label: 'AI Intelligence', adminOnly: false },
@@ -7060,6 +7838,12 @@ const BandwidthTestPage = () => {
                   setSelectedProduct={setSelectedProduct}
                 />
               )}
+              {activeTab === 'services' && (
+                <ServicesPage isAdmin={isAdmin} />
+              )}
+              {activeTab === 'manage-services' && isAdmin && (
+                <ManageServices withPassword={withPassword} />
+              )}
               {activeTab === 'offers' && (
                 <OffersPage 
                   isAdmin={isAdmin}
@@ -7116,6 +7900,24 @@ const BandwidthTestPage = () => {
               {activeTab === 'support' && (
                 <SupportPage />
               )}
+              {activeTab === 'alerts' && (
+                <EmptyPlaceholder 
+                  title="System Alerts"
+                  message="Active threat monitoring is currently scanning your network infrastructure. No critical incidents detected in the last 24 hours."
+                  icon={Bell}
+                  actionLabel="Run Security Scan"
+                  onAction={() => addNotification("Initiating deep security scan... system is secure.")}
+                />
+              )}
+              {activeTab === 'ai-assistant' && (
+                <EmptyPlaceholder 
+                  title="AI Intelligence"
+                  message="The IT Department neural network is initializing. Connect to a direct data stream to begin advanced pattern recognition."
+                  icon={Bot}
+                  actionLabel="Activate Core"
+                  onAction={() => addNotification("AI Core is ready. Please select a module.")}
+                />
+              )}
               {activeTab === 'me' && (
                 <MePage 
                   isDarkMode={isDarkMode}
@@ -7145,56 +7947,56 @@ const BandwidthTestPage = () => {
           </AnimatePresence>
         </main>
 
-        {/* Navigation - Mobile Only */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 px-2 py-2 flex justify-around items-center z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        {/* Navigation - Mobile Only (Custom Tab Bar) */}
+        <nav className="md:hidden custom-nav">
           {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Home', adminOnly: false },
-            { id: 'categories', icon: LayoutGrid, label: 'Groups', adminOnly: true },
-            { id: 'products', icon: Package, label: 'Stock', adminOnly: true },
-            { id: 'clients', icon: Users, label: 'Clients', adminOnly: true },
-            { id: 'cart', icon: ShoppingCart, label: 'Cart', adminOnly: false },
-            { id: 'me', icon: User, label: 'Account', adminOnly: false },
-          ].filter(item => isAdmin || !item.adminOnly).map(item => (
-            <motion.button 
-              key={item.id}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => {
-                if (item.id === 'cart') {
-                  setShowCart(true);
-                } else {
-                  setActiveTab(item.id as any);
-                }
-              }}
-              className={cn(
-                "flex flex-col items-center gap-1 transition-all duration-300 px-4 py-1 rounded-xl relative",
-                activeTab === item.id || (item.id === 'cart' && showCart)
-                  ? "text-orange-500 dark:text-emerald-500"
-                  : "text-gray-400 dark:text-gray-500"
-              )}
-            >
-              <motion.div
-                animate={activeTab === item.id || (item.id === 'cart' && showCart) ? {
-                  y: [0, -3, 0],
-                  opacity: [0.5, 1, 0.5]
-                } : { y: 0, opacity: 1 }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-              >
-                <item.icon size={20} className={activeTab === item.id || (item.id === 'cart' && showCart) ? "drop-shadow-md" : ""} strokeWidth={activeTab === item.id || (item.id === 'cart' && showCart) ? 3 : 2} />
-              </motion.div>
-              <span className="text-[10px] font-bold tracking-tighter uppercase">{item.label}</span>
-              {(activeTab === item.id || (item.id === 'cart' && showCart)) && (
-                <motion.div 
-                  layoutId="activeTabDot"
-                  className="absolute -top-1 w-1 h-1 rounded-full bg-orange-500 dark:bg-emerald-500"
-                />
-              )}
-              {item.id === 'cart' && cart.length > 0 && (
-                <span className="absolute top-0 right-3 bg-orange-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
-                  {cart.reduce((sum, i) => sum + i.quantity, 0)}
-                </span>
-              )}
-            </motion.button>
-          ))}
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
+            { id: 'services', icon: LayoutGrid, label: 'Services' },
+            { id: 'cart', icon: ShoppingCart, label: 'Cart' },
+            { id: 'me', icon: User, label: 'Account' },
+            { id: 'support', icon: Settings, label: 'Support' },
+          ].map((item, index) => {
+            const isActive = activeTab === item.id || (item.id === 'cart' && showCart);
+            return (
+              <ul key={item.id}>
+                <li>
+                  <a 
+                    className={cn(isActive && "active", "relative")}
+                    onClick={() => {
+                      if (item.id === 'cart') {
+                        setShowCart(true);
+                      } else {
+                        setActiveTab(item.id as any);
+                        setShowCart(false);
+                      }
+                    }}
+                  >
+                    <item.icon size={24} />
+                    {item.id === 'cart' && cart.length > 0 && (
+                      <span className="custom-nav-badge">
+                        {cart.reduce((sum, i) => sum + i.quantity, 0)}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              </ul>
+            );
+          })}
+
+          <div 
+            className="tubelight"
+            style={{ 
+              left: `${(([
+                'dashboard',
+                'services',
+                'cart',
+                'me',
+                'support'
+              ].indexOf(showCart ? 'cart' : activeTab) || 0) * 20) + 10}%`
+            }}
+          >
+            <div className="light-ray"></div>
+          </div>
         </nav>
       </div>
 

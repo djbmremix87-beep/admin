@@ -69,6 +69,18 @@
         "message": { "type": "string" },
         "type": { "type": "string" }
       }
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Business service offered",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -77,6 +89,7 @@
     "/expenses/{expenseId}": { "schema": "Expense", "description": "Spending" },
     "/offers/{offerId}": { "schema": "Offer", "description": "Marketing" },
     "/alerts/{alertId}": { "schema": "Alert", "description": "Network status" },
+    "/services/{serviceId}": { "schema": "Service", "description": "Offered services" },
     "/public_orders/{orderId}": { "schema": "Order", "description": "Incoming sales" },
     "/settings/global": { "schema": "object", "description": "Global config" },
     "/users/{userId}": { "schema": "object", "description": "Legacy user data" }

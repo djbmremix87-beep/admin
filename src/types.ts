@@ -33,6 +33,7 @@ export interface Product {
   stock: number;
   category: string;
   image?: string;
+  videoUrl?: string;
   badge?: 'new' | 'hot' | 'lowstock';
   description?: string;
 }
