@@ -20,6 +20,7 @@ import {
   Filter, 
   ChevronRight, 
   ArrowLeft, 
+  ArrowRight,
   MessageSquare, 
   Download, 
   Trash2, 
@@ -28,6 +29,7 @@ import {
   Sun, 
   Leaf,
   Bell,
+  RefreshCw,
   TrendingUp,
   TrendingDown,
   DollarSign,
@@ -57,6 +59,7 @@ import {
   Ticket,
   MessageCircle,
   AlertCircle,
+  CheckCircle,
   CreditCard,
   History,
   ArrowUpCircle,
@@ -66,11 +69,43 @@ import {
   LayoutGrid,
   ShoppingBag,
   Video,
-  Plane
+  Plane,
+  MapPin,
+  Navigation,
+  Locate,
+  Truck,
+  Map as MapIcon,
+  Clock,
+  LogOut,
+  Cctv,
+  Activity,
+  Camera,
+  Laptop
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import gsap from 'gsap';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { 
+  MapContainer, 
+  TileLayer, 
+  Marker, 
+  Popup, 
+  Tooltip as LeafletTooltip,
+  useMap,
+  Circle
+} from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet icon issue
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
 import { 
   LineChart, 
   Line, 
@@ -95,8 +130,26 @@ import {
   OrderStatus,
   WorkHistory,
   PaymentHistory,
-  PublicOrder
+  PublicOrder,
+  DeviceVersion
 } from './types';
+
+interface Staff {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  role: string;
+  attendance?: string[]; // Array of YYYY-MM-DD dates
+  lastKnownLocation?: {
+    lat: number;
+    lng: number;
+    updatedAt: string;
+    address?: string;
+  };
+  isActive: boolean;
+}
+
 
 // --- Default Data ---
 const DEFAULT_PRODUCTS: Product[] = [
@@ -155,6 +208,7 @@ import {
 import { 
   ref, 
   uploadBytes, 
+  uploadBytesResumable,
   getDownloadURL 
 } from 'firebase/storage';
 
@@ -190,40 +244,365 @@ interface Alert {
   createdAt: string;
 }
 
+const DeviceVersionIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" height="120" width="120" viewBox="0 0 200 200">
+    <g style={{ order: -1 }}>
+      <polygon
+        transform="rotate(45 100 100)"
+        strokeWidth="1"
+        stroke="#d3a410"
+        fill="none"
+        points="70,70 148,50 130,130 50,150"
+        id="device-bounce"
+      ></polygon>
+      <polygon
+        transform="rotate(45 100 100)"
+        strokeWidth="1"
+        stroke="#d3a410"
+        fill="none"
+        points="70,70 148,50 130,130 50,150"
+        id="device-bounce2"
+      ></polygon>
+      <polygon
+        transform="rotate(45 100 100)"
+        strokeWidth="2"
+        stroke=""
+        fill="#414750"
+        points="70,70 150,50 130,130 50,150"
+      ></polygon>
+      <polygon
+        strokeWidth="2"
+        stroke=""
+        fill="url(#device-gradiente)"
+        points="100,70 150,100 100,130 50,100"
+      ></polygon>
+      <defs>
+        <linearGradient y2="100%" x2="10%" y1="0%" x1="0%" id="device-gradiente">
+          <stop style={{ stopColor: '#1e2026', stopOpacity: 1 }} offset="20%"></stop>
+          <stop style={{ stopColor: '#414750', stopOpacity: 1 }} offset="60%"></stop>
+        </linearGradient>
+      </defs>
+      <polygon
+        transform="translate(20, 31)"
+        strokeWidth="2"
+        stroke=""
+        fill="#b7870f"
+        points="80,50 80,75 80,99 40,75"
+      ></polygon>
+      <polygon
+        transform="translate(20, 31)"
+        strokeWidth="2"
+        stroke=""
+        fill="url(#device-gradiente2)"
+        points="40,-40 80,-40 80,99 40,75"
+      ></polygon>
+      <defs>
+        <linearGradient y2="100%" x2="0%" y1="-17%" x1="10%" id="device-gradiente2">
+          <stop style={{ stopColor: '#d3a51000', stopOpacity: 1 }} offset="20%"></stop>
+          <stop
+            style={{ stopColor: '#d3a51054', stopOpacity: 1 }}
+            offset="100%"
+            id="device-animatedStop"
+          ></stop>
+        </linearGradient>
+      </defs>
+      <polygon
+        transform="rotate(180 100 100) translate(20, 20)"
+        strokeWidth="2"
+        stroke=""
+        fill="#d3a410"
+        points="80,50 80,75 80,99 40,75"
+      ></polygon>
+      <polygon
+        transform="rotate(0 100 100) translate(60, 20)"
+        strokeWidth="2"
+        stroke=""
+        fill="url(#device-gradiente3)"
+        points="40,-40 80,-40 80,85 40,110.2"
+      ></polygon>
+      <defs>
+        <linearGradient y2="100%" x2="10%" y1="0%" x1="0%" id="device-gradiente3">
+          <stop style={{ stopColor: '#d3a51000', stopOpacity: 1 }} offset="20%"></stop>
+          <stop
+            style={{ stopColor: '#d3a51054', stopOpacity: 1 }}
+            offset="100%"
+            id="device-animatedStop"
+          ></stop>
+        </linearGradient>
+      </defs>
+      <polygon
+        transform="rotate(45 100 100) translate(80, 95)"
+        strokeWidth="2"
+        stroke=""
+        fill="#ffe4a1"
+        points="5,0 5,5 0,5 0,0"
+        id="device-particles"
+      ></polygon>
+      <polygon
+        transform="rotate(45 100 100) translate(80, 55)"
+        strokeWidth="2"
+        stroke=""
+        fill="#ccb069"
+        points="6,0 6,6 0,6 0,0"
+        id="device-particles"
+      ></polygon>
+      <polygon
+        transform="rotate(45 100 100) translate(70, 80)"
+        strokeWidth="2"
+        stroke=""
+        fill="#fff"
+        points="2,0 2,2 0,2 0,0"
+        id="device-particles"
+      ></polygon>
+      <polygon
+        strokeWidth="2"
+        stroke=""
+        fill="#292d34"
+        points="29.5,99.8 100,142 100,172 29.5,130"
+      ></polygon>
+      <polygon
+        transform="translate(50, 92)"
+        strokeWidth="2"
+        stroke=""
+        fill="#1f2127"
+        points="50,50 120.5,8 120.5,35 50,80"
+      ></polygon>
+    </g>
+  </svg>
+);
+
+const UiverseSearch = ({ value, onChange, placeholder }: { value: string, onChange: (v: string) => void, placeholder?: string }) => (
+  <div className="uiverse-minimal-search-wrapper">
+    <div className="uiverse-minimal-search-glow"></div>
+    <input 
+      type="text" 
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder || "Search..."} 
+      className="uiverse-minimal-search-input"
+    />
+    <Search className="uiverse-minimal-search-icon" size={18} />
+  </div>
+);
+
+const ProductPastaCard = ({ product, onEdit, onDelete, isAdmin, onSelect }: { product: any, onEdit?: (p: any) => void, onDelete?: (id: string) => void, isAdmin?: boolean, onSelect?: (p: any) => void }) => {
+  return (
+    <div className="uiverse-pasta-card mx-auto">
+      <div className="uiverse-pasta-content" onClick={() => (onSelect ? onSelect(product) : (onEdit ? onEdit(product) : null))}>
+        <div className="uiverse-pasta-back">
+          <div className="uiverse-pasta-back-content">
+            {(product.imageUrl || product.image) ? (
+              <img src={product.imageUrl || product.image} alt={product.title || product.name} className="w-32 h-32 sm:w-44 sm:h-44 object-contain rounded-lg shadow-lg mb-2 sm:mb-4" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-32 h-32 sm:w-44 sm:h-44 bg-gray-800 rounded-lg flex items-center justify-center mb-2 sm:mb-4">
+                <Camera className="text-gray-600" size={40} />
+              </div>
+            )}
+            <h3 className="font-bold text-xs sm:text-base text-center px-2 sm:px-4 text-white line-clamp-2">{product.title || product.name}</h3>
+            <p className="text-orange-500 font-bold text-sm sm:text-lg">৳{product.price}</p>
+            {isAdmin && (
+              <div className="flex gap-2 mt-1 sm:mt-2" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => onEdit && onEdit(product)} className="p-1 sm:p-2 bg-blue-500/20 hover:bg-blue-500/40 rounded-full transition-colors">
+                  <Edit2 size={12} className="text-blue-400" />
+                </button>
+                <button onClick={() => onDelete && onDelete(product.id)} className="p-1 sm:p-2 bg-red-500/20 hover:bg-red-500/40 rounded-full transition-colors">
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </div>
+            )}
+            <p className="hidden sm:block text-[10px] text-gray-500 mt-2 italic px-2 text-center line-clamp-2">{product.description}</p>
+          </div>
+        </div>
+        <div className="uiverse-pasta-front">
+          <div className="uiverse-pasta-img-container">
+            <div className="uiverse-pasta-circle"></div>
+            <div className="uiverse-pasta-circle" id="uiverse-pasta-right"></div>
+            <div className="uiverse-pasta-circle" id="uiverse-pasta-bottom"></div>
+            {(product.imageUrl || product.image) && (
+               <img src={product.imageUrl || product.image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay" referrerPolicy="no-referrer" />
+            )}
+          </div>
+          <div className="uiverse-pasta-front-content">
+            <small className="uiverse-pasta-badge">{product.category}</small>
+            <div className="uiverse-pasta-description">
+              <div className="uiverse-pasta-title">
+                <p className="truncate mr-2 uppercase tracking-tighter"><strong>{product.title || product.name}</strong></p>
+                <svg fillRule="nonzero" height="15px" width="15px" viewBox="0,0,256,256" xmlnsXlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg"><g style={{mixBlendMode: 'normal'}} textAnchor="start" fontSize="none" fontWeight="none" fontFamily="none" strokeDashoffset="0" strokeDasharray="" strokeMiterlimit="10" strokeLinejoin="miter" strokeLinecap="butt" strokeWidth="1" stroke="none" fillRule="nonzero" fill="#20c997"><g transform="scale(8,8)"><path d="M25,27l-9,-6.75l-9,6.75v-23h18z"></path></g></g></svg>
+              </div>
+              <p className="uiverse-pasta-footer">
+                ৳{product.price} &nbsp; | &nbsp; {product.stock > 0 ? `${product.stock} In Stock` : 'Out of Stock'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Helpers ---
-export const generateOrderPDF = (order: PublicOrder) => {
+export const playSound = (type: 'click' | 'hover' | 'success' | 'error' | 'pop') => {
+  const sounds = {
+    click: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
+    hover: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
+    success: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3',
+    error: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3',
+    pop: 'https://assets.mixkit.co/active_storage/sfx/2567/2567-preview.mp3'
+  };
+  const audio = new Audio(sounds[type]);
+  audio.volume = 0.4;
+  audio.play().catch(() => {}); 
+};
+
+export const getBase64Image = (url: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = url;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = (e) => reject(e);
+  });
+};
+
+export const generateOrderPDF = async (order: PublicOrder, customLogo?: string | null) => {
   const doc = new jsPDF();
-  
-  doc.setFontSize(22);
-  doc.text('Invoice / Receipt', 105, 20, { align: 'center' });
-  
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+
+  // Pre-load images to base64
+  const itemsWithBase64 = await Promise.all(order.items.map(async (item) => {
+    if (item.image) {
+      try {
+        const base64 = await getBase64Image(item.image);
+        return { ...item, base64 };
+      } catch (e) {
+        console.error("Failed to load item image", e);
+        return { ...item, base64: null };
+      }
+    }
+    return { ...item, base64: null };
+  }));
+
+  // --- Header ---
+  doc.setFillColor(37, 99, 235); // Blue
+  doc.rect(0, 0, pageWidth, 45, 'F');
+
+  if (customLogo) {
+    try {
+      doc.addImage(customLogo, 'PNG', margin, 5, 30, 30);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('IT DEPARTMENT', margin + 35, 20);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Your Trusted Technology Partner', margin + 35, 26);
+      doc.text('CLIENT ORDER RECEIPT', margin + 35, 34);
+    } catch (e) {
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('IT DEPARTMENT', margin, 20);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('CLIENT ORDER RECEIPT', margin, 30);
+    }
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('IT DEPARTMENT', margin, 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('CLIENT ORDER RECEIPT', margin, 30);
+  }
+
+  // --- Order Info ---
+  const startY = 60;
+  doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
-  doc.text(`Order ID: ${order.id}`, 14, 35);
-  doc.text(`Date: ${order.date}`, 14, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Order Details', margin, startY);
   
-  doc.setFontSize(14);
-  doc.text('Customer Details:', 14, 55);
-  doc.setFontSize(11);
-  doc.text(`Name: ${order.customerName}`, 14, 62);
-  doc.text(`Phone: ${order.customerPhone}`, 14, 69);
-  doc.text(`Address: ${order.customerAddress}`, 14, 76);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Order ID: ${order.id}`, margin, startY + 8);
+  doc.text(`Date: ${order.date}`, margin, startY + 14);
+  doc.text(`Status: ${order.status.toUpperCase()}`, margin, startY + 20);
+
+  // --- Customer Info ---
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Customer Information', pageWidth / 2, startY);
   
-  const tableData = order.items.map(item => [
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Name: ${order.customerName}`, pageWidth / 2, startY + 8);
+  doc.text(`Phone: ${order.customerPhone}`, pageWidth / 2, startY + 14);
+  
+  const addressLines = doc.splitTextToSize(`Address: ${order.customerAddress}`, (pageWidth / 2) - margin);
+  doc.text(addressLines, pageWidth / 2, startY + 20);
+
+  // --- Table ---
+  const tableData = itemsWithBase64.map((item, index) => [
+    index + 1,
+    '', // Space for image
     item.name,
     item.quantity.toString(),
-    formatCurrency(item.price),
-    formatCurrency(item.price * item.quantity)
+    formatCurrency(item.price).replace('BDT', '').trim(),
+    formatCurrency(item.price * item.quantity).replace('BDT', '').trim()
   ]);
-  
+
+  let finalY = 0;
   autoTable(doc, {
-    startY: 85,
-    head: [['Item', 'Qty', 'Unit Price', 'Total']],
+    startY: startY + 35,
+    head: [['SL', 'Image', 'Item', 'Qty', 'Rate', 'Total']],
     body: tableData,
-    foot: [['', '', 'Grand Total:', formatCurrency(order.total)]],
-    theme: 'striped',
-    headStyles: { fillColor: [34, 197, 94] } // Tailwind green-500
+    theme: 'grid',
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 15, halign: 'center' },
+      1: { cellWidth: 25, halign: 'center', minCellHeight: 25 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 30, halign: 'right' },
+      5: { cellWidth: 30, halign: 'right' }
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        const item = itemsWithBase64[data.row.index];
+        if (item.base64) {
+          try {
+            doc.addImage(item.base64, 'JPEG', data.cell.x + 2, data.cell.y + 2, 21, 21);
+          } catch (e) {
+            console.error("Error adding image inside cell", e);
+          }
+        }
+      }
+    },
+    didDrawPage: (data) => {
+      if (data.cursor) finalY = data.cursor.y;
+    }
   });
+
+  // --- Totals ---
+  // If table is empty or cursor not updated, fallback
+  if (!finalY) finalY = doc.internal.pageSize.getHeight() - 60;
   
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total BDT: ${formatCurrency(order.total).replace('BDT', '').trim()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+  // Footer
+  const footerY = pageHeight - 20;
   doc.save(`Order_${order.id}.pdf`);
 };
 
@@ -236,10 +615,11 @@ export const generateReceiptPDF = (order: Order) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text('IT DEPARTMENT PRO', 20, 25);
+  doc.text('IT DEPARTMENT', 20, 25);
   doc.setFontSize(10);
   doc.text('DIGITAL MONEY RECEIPT', 20, 32);
-  doc.text('Email: itdepartmentpro33@gmail.com', 20, 37);
+  doc.text('Your Trusted Technology Partner', 20, 37);
+  doc.text('Email: itdepartmentpro33@gmail.com', 20, 42); // Shifted down
   
   // Order Info
   doc.setTextColor(0, 0, 0);
@@ -258,7 +638,7 @@ export const generateReceiptPDF = (order: Order) => {
       formatCurrency(item.price),
       formatCurrency(item.price * item.quantity)
     ]),
-    foot: [['', '', 'Grand Total', formatCurrency(order.total)]],
+    foot: [['', '', 'Total BDT', formatCurrency(order.total).replace('BDT', '').trim()]],
     theme: 'striped',
     headStyles: { fillColor: [37, 99, 235] },
     footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' }
@@ -784,63 +1164,27 @@ const OffersPage = ({ isAdmin, offers, user, addNotification, withPassword }: { 
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        addNotification('File is too large. Please select an image under 10MB.');
+      if (file.size > 20 * 1024 * 1024) {
+        addNotification('File is too large. Please select an image under 20MB.');
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Max dimensions for compression - increased for higher resolution
-          const MAX_WIDTH = 1600;
-          const MAX_HEIGHT = 1600;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-
-          // Compress to JPEG with 0.8 quality for better resolution
-          let quality = 0.8;
-          let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-          
-          // Iteratively reduce quality if still too large for Firestore (1MB limit)
-          while (compressedDataUrl.length > 950000 && quality > 0.1) {
-            quality -= 0.1;
-            compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-          }
-          
-          if (compressedDataUrl.length > 1000000) {
-            addNotification('Image is still too large. Please try a smaller image or lower resolution.');
-            return;
-          }
-          
-          setImageUrl(compressedDataUrl);
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+      // If it's a GIF, we MUST use Storage directly to preserve animation
+      // Actually, let's use Storage for ALL offer images to avoid base64 document size limits
+      addNotification("Uploading image...");
+      try {
+        const storageRef = ref(storage, `offers/${Date.now()}_${file.name}`);
+        const uploadTask = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(uploadTask.ref);
+        setImageUrl(url);
+        addNotification("Image uploaded successfully!");
+      } catch (error: any) {
+        console.error("Offer image upload error:", error);
+        addNotification("Image upload failed: " + (error.message || "Unknown error"));
+      }
     }
   };
 
@@ -1301,141 +1645,148 @@ const ProductDetailsModal = ({
   product, 
   onClose, 
   addToCart,
-  formatCurrency 
+  formatCurrency,
+  addNotification,
+  isAdmin,
+  onEdit,
+  onDelete
 }: { 
   product: Product, 
   onClose: () => void, 
   addToCart: (p: Product) => void,
-  formatCurrency: (v: number) => string
+  formatCurrency: (v: number) => string,
+  addNotification: (msg: string) => void,
+  isAdmin?: boolean,
+  onEdit?: (p: Product) => void,
+  onDelete?: (id: string | number) => void
 }) => {
   const [showVideo, setShowVideo] = useState(false);
 
   return (
-    <div 
-      className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[150] flex items-center justify-center p-4 overflow-y-auto"
       onClick={onClose}
     >
-      {/* Four pieces animation background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div 
-          className="absolute top-0 left-0 w-1/2 h-1/2 bg-blue-600/10 border-r border-b border-white/10"
-        />
-        <div 
-          className="absolute top-0 right-0 w-1/2 h-1/2 bg-blue-600/10 border-l border-b border-white/10"
-        />
-        <div 
-          className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-blue-600/10 border-r border-t border-white/10"
-        />
-        <div 
-          className="absolute bottom-0 right-0 w-1/2 h-1/2 bg-blue-600/10 border-l border-t border-white/10"
-        />
-      </div>
-
-      <div 
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[40px] overflow-hidden flex flex-col shadow-2xl relative z-10"
+      <motion.div 
+        initial={{ scale: 0.9, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.9, y: 20, opacity: 0 }}
+        className="w-full max-w-[500px] bg-black border border-slate-800 rounded-[32px] overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.15)] relative"
         onClick={e => e.stopPropagation()}
       >
-        <div className="relative pt-12 pb-4 flex flex-col items-center bg-gray-50 dark:bg-slate-800/30">
+        {/* Animated background flare */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-blue-600/20 blur-[100px] -z-10 pointer-events-none" />
+
+        <div className="relative p-6 sm:p-7">
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors shadow-md z-20"
+            className="absolute top-4 right-4 w-9 h-9 bg-slate-800/80 text-white rounded-full flex items-center justify-center hover:bg-slate-700 transition-all hover:rotate-90 z-20"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
           
-          <div 
-            className="relative w-48 h-48 rounded-3xl border-4 border-white dark:border-slate-900 shadow-2xl overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center z-10"
-          >
-            {showVideo && product.videoUrl ? (
-              <video 
-                src={product.videoUrl} 
-                className="w-full h-full object-cover" 
-                controls 
-                autoPlay
-              />
-            ) : product.image ? (
-              <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-            ) : (
-              <Package size={80} className="text-gray-300" strokeWidth={1} />
-            )}
+          <div className="flex flex-col sm:flex-row gap-6">
+            <div className="relative w-48 h-48 sm:w-60 sm:h-60 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden bg-slate-900/50 flex items-center justify-center shrink-0">
+              {showVideo && product.videoUrl ? (
+                <video 
+                  src={product.videoUrl} 
+                  className="w-full h-full object-cover" 
+                  controls 
+                  autoPlay
+                />
+              ) : product.image ? (
+                <img src={product.image} alt={product.name} className="w-full h-full object-contain p-2" />
+              ) : (
+                <Package size={60} className="text-slate-700" strokeWidth={1} />
+              )}
 
-            {product.videoUrl && (
-              <button 
-                onClick={() => setShowVideo(!showVideo)}
-                className="absolute bottom-2 right-2 bg-blue-600 text-white rounded-xl px-3 py-1.5 text-[10px] font-bold shadow-lg flex items-center gap-1.5"
-              >
-                {showVideo ? <ImageIcon size={12} /> : <Video size={12} />}
-                {showVideo ? 'View Image' : 'Play Video'}
-              </button>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg">
-              {product.category}
-            </span>
-          </div>
-        </div>
-        
-        <div className="p-6 space-y-5">
-          <div className="flex justify-between items-start">
-            <h2 className="text-xl font-black text-gray-900 dark:text-white leading-tight">{product.name}</h2>
-            <div className="text-right">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Price</p>
-              <p className="text-xl font-black text-blue-600">{formatCurrency(product.price)}</p>
+              {product.videoUrl && (
+                <button 
+                  onClick={() => setShowVideo(!showVideo)}
+                  className="absolute bottom-3 right-3 bg-blue-600 text-white rounded-xl px-3 py-1.5 text-[9px] font-black shadow-lg flex items-center gap-2 uppercase tracking-widest hover:bg-blue-500 transition-colors"
+                >
+                  {showVideo ? <ImageIcon size={12} /> : <Video size={12} />}
+                  {showVideo ? 'Image' : 'Video'}
+                </button>
+              )}
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
-              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1">Stock Status</p>
-              <div className="flex items-center gap-2">
-                <div className={cn("w-2 h-2 rounded-full", product.stock > 0 ? "bg-emerald-500" : "bg-red-500")} />
-                <p className={cn(
-                  "text-xs font-black",
-                  product.stock > 5 ? "text-emerald-500" : product.stock > 0 ? "text-amber-500" : "text-red-500"
-                )}>
-                  {product.stock > 0 ? `${product.stock} Units` : 'Out of Stock'}
+            <div className="flex-1 w-full text-center sm:text-left pt-1">
+              <span className="inline-block px-3 py-1 bg-blue-600/10 text-blue-500 text-[9px] font-black rounded-full uppercase tracking-widest border border-blue-600/20 mb-2">
+                {product.category}
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white leading-tight mb-2">{product.name}</h2>
+              <div className="flex items-center justify-center sm:justify-start gap-3 mb-4">
+                <p className="text-2xl font-black text-blue-600 font-mono tracking-tighter">৳{product.price}</p>
+                {product.oldPrice && (
+                  <p className="text-slate-500 line-through text-xs font-bold">৳{product.oldPrice}</p>
+                )}
+              </div>
+
+              <div className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50 mb-5 text-left">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-medium line-clamp-4">
+                  {product.description || `High-performance ${product.name} with advanced smart sensing and industrial-grade construction.`}
                 </p>
               </div>
-            </div>
-            <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
-              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1">Warranty</p>
-              <div className="flex items-center gap-2 text-blue-600">
-                <ShieldCheck size={14} />
-                <p className="text-xs font-black">1 Year Service</p>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    addToCart(product);
+                    addNotification(`${product.name} added to cart!`);
+                  }}
+                  disabled={product.stock <= 0}
+                  className={cn(
+                    "flex-1 h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-600/20",
+                    product.stock > 0 
+                      ? "bg-blue-600 text-white hover:bg-blue-500" 
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  )}
+                >
+                  <ShoppingCart size={16} />
+                  {product.stock > 0 ? 'Add to Cart' : 'Sold Out'}
+                </button>
+
+                <button 
+                  onClick={() => {
+                    const text = `Hello! I'm interested in the ${product.name} (Price: ৳${product.price}). Is it available?`;
+                    window.open(`https://wa.me/8801934279566?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+                >
+                  <MessageSquare size={20} />
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3 bg-gray-50 dark:bg-slate-800/20 p-4 rounded-3xl border border-gray-100 dark:border-slate-800">
-            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-               <FileText size={14} />
-               {product.description ? 'Detailed Description' : 'Specifications'}
-            </h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium whitespace-pre-wrap">
-              {product.description || `Professional grade ${product.name} with high-definition clarity. Optimized for 24/7 surveillance with smart motion detection and IR night vision.`}
-            </p>
-          </div>
-
-          <button 
-            onClick={() => {
-              addToCart(product);
-              onClose();
-            }}
-            disabled={product.stock <= 0}
-            className={cn(
-              "w-full py-5 rounded-3xl font-black text-sm uppercase tracking-widest transition-all duration-300 shadow-xl",
-              product.stock > 0 
-                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20" 
-                : "bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-            )}
-          >
-            {product.stock > 0 ? 'Add to Order' : 'Out of Stock'}
-          </button>
+          {isAdmin && (
+            <div className="flex gap-2 mt-6 pt-5 border-t border-slate-800/50">
+              <button 
+                onClick={() => onEdit?.(product)}
+                className="flex-1 h-10 bg-blue-600/10 text-blue-500 border border-blue-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Edit2 size={14} /> Edit
+              </button>
+              <button 
+                onClick={() => {
+                  if (confirm('Are you sure you want to delete this product?')) {
+                    onDelete?.(product.id);
+                    onClose();
+                  }
+                }}
+                className="flex-1 h-10 bg-red-600/10 text-red-500 border border-red-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -1531,7 +1882,8 @@ const ProductList = ({
   addToCart,
   isDarkMode,
   formatCurrency,
-  productCategories
+  productCategories,
+  isAdmin
 }: { 
   products: Product[], 
   inventoryMode: boolean, 
@@ -1543,7 +1895,8 @@ const ProductList = ({
   addToCart: (p: Product) => void,
   isDarkMode: boolean,
   formatCurrency: (v: number) => string,
-  productCategories: string[]
+  productCategories: string[],
+  isAdmin?: boolean
 }) => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -1638,16 +1991,11 @@ const ProductList = ({
           ))}
         </div>
 
-        <div className="relative group overflow-hidden rounded-2xl border border-white/10 shadow-inner">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={20} />
-          <input 
-            type="text" 
-            placeholder="Query infrastructure nodes..."
-            className="w-full bg-white/5 dark:bg-slate-900/50 backdrop-blur-xl border-none pl-14 pr-6 py-5 text-sm font-medium focus:ring-2 focus:ring-orange-500/50 dark:focus:ring-emerald-500/50 transition-all placeholder:text-gray-500"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <UiverseSearch 
+          value={search} 
+          onChange={setSearch} 
+          placeholder="Query infrastructure nodes..." 
+        />
 
         {suggestedCategories.length > 0 && (
           <div className="flex items-center gap-2 px-1">
@@ -1670,106 +2018,21 @@ const ProductList = ({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
         {filteredProducts.map((product, idx) => (
           <motion.div 
             key={product.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ delay: idx * 0.05 }}
-            onClick={() => setSelectedProduct(product)}
-            className="group relative glass-card overflow-hidden hover:translate-y-[-8px] transition-all duration-700 cursor-pointer"
+            transition={{ delay: (idx % 6) * 0.05 }}
           >
-            <div className="aspect-[4/5] bg-slate-950/20 dark:bg-slate-900/50 flex items-center justify-center relative overflow-hidden">
-              {product.image ? (
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-              ) : (
-                <motion.div 
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  className="text-gray-300 dark:text-slate-700 opacity-20"
-                >
-                  <Package size={80} strokeWidth={1} />
-                </motion.div>
-              )}
-              
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-              {product.badge && (
-                <div className="absolute top-4 left-4 z-10">
-                  <span className={cn(
-                    "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl backdrop-blur-md ring-1 ring-white/20",
-                    product.badge === 'new' ? "bg-blue-600/90 text-white" : 
-                    product.badge === 'hot' ? "bg-rose-500/90 text-white" : "bg-amber-500/90 text-white"
-                  )}>
-                    {product.badge}
-                  </span>
-                </div>
-              )}
-
-              <div className="absolute top-4 right-4 bg-black/20 backdrop-blur-md rounded-full p-1.5 px-3 flex items-center gap-2 border border-white/10">
-                <div className={cn(
-                  "w-2 h-2 rounded-full",
-                  product.stock > 5 ? "bg-emerald-500 shadow-[0_0_10px_#10b981]" : "bg-amber-500 animate-pulse shadow-[0_0_10px_#f59e0b]"
-                )} />
-                <span className="text-[10px] font-black text-white">
-                  {product.stock > 999 ? '999+' : product.stock} IN STOCK
-                </span>
-              </div>
-            </div>
-
-            <div className="p-5 relative">
-              <div className="mb-2">
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em]">{product.category}</span>
-              </div>
-              <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight line-clamp-2 tracking-tighter group-hover:text-blue-500 transition-colors uppercase">{product.name}</h4>
-              
-              <div className="mt-8 flex items-end justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1 truncate">Exchange Value</p>
-                  <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter truncate">{formatCurrency(product.price)}</p>
-                </div>
-                {inventoryMode ? (
-                  <div className="flex gap-2 flex-shrink-0">
-                    <motion.button 
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditProduct(product);
-                      }}
-                      className="w-10 h-10 bg-blue-600/10 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20 shadow-lg"
-                    >
-                      <Edit2 size={18} />
-                    </motion.button>
-                    <motion.button 
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteProduct(product.id);
-                      }}
-                      className="w-10 h-10 bg-rose-600/10 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all border border-rose-600/20 shadow-lg"
-                    >
-                      <Trash2 size={18} />
-                    </motion.button>
-                  </div>
-                ) : (
-                  <motion.button 
-                    whileHover={{ scale: 1.05, backgroundColor: '#2563eb' }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addToCart(product);
-                    }}
-                    className="h-12 px-6 bg-blue-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-2xl shadow-blue-600/30 flex-shrink-0 whitespace-nowrap"
-                  >
-                    <Plus size={18} strokeWidth={3} />
-                    ORDER NOW
-                  </motion.button>
-                )}
-              </div>
-            </div>
+            <ProductPastaCard 
+              product={product} 
+              onSelect={setSelectedProduct}
+              isAdmin={isAdmin}
+              onEdit={onEditProduct}
+              onDelete={handleDeleteProduct}
+            />
           </motion.div>
         ))}
       </div>
@@ -1910,20 +2173,18 @@ const AdminDashboard = ({
         </motion.div>
 
         <motion.div className="glass-card p-10">
-          <h3 className="text-2xl font-black tracking-tighter uppercase mb-2">Product Management</h3>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-8">Add, Edit & Monitor Products</p>
+          <h3 className="text-2xl font-black tracking-tighter uppercase mb-2">Admin Shortcuts</h3>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-8">Quick Access Nodes</p>
           <div className="space-y-4">
             <div className="flex gap-2">
               <button onClick={() => setActiveTab('products')} className="flex-1 p-6 rounded-3xl flex flex-col items-center justify-center text-white shadow-2xl transition-all hover:scale-[1.02] bg-orange-500 dark:bg-emerald-600 gap-2">
                 <Package size={24} />
-                <span className="font-black text-[10px] uppercase tracking-widest">Product List</span>
+                <span className="font-black text-[10px] uppercase tracking-widest text-center">Manage Panel</span>
               </button>
-              {setShowAddProduct && (
-                <button onClick={() => setShowAddProduct(true)} className="flex-1 p-6 rounded-3xl flex flex-col items-center justify-center text-white shadow-2xl transition-all hover:scale-[1.02] bg-blue-500 dark:bg-blue-600 gap-2">
-                  <Plus size={24} />
-                  <span className="font-black text-[10px] uppercase tracking-widest">Add Product</span>
-                </button>
-              )}
+              <button onClick={() => setActiveTab('categories')} className="flex-1 p-6 rounded-3xl flex flex-col items-center justify-center text-white shadow-2xl transition-all hover:scale-[1.02] bg-blue-500 dark:bg-blue-600 gap-2">
+                <LayoutGrid size={24} />
+                <span className="font-black text-[10px] uppercase tracking-widest text-center">Categories</span>
+              </button>
             </div>
             {[
               { label: 'Client Log', icon: Users, action: () => setActiveTab('clients'), color: 'bg-emerald-500 dark:bg-emerald-700' },
@@ -1941,8 +2202,8 @@ const AdminDashboard = ({
   );
 };
 
-const PublicStore = ({
-  products,
+const PublicStore = ({ 
+  products, 
   sliderImages,
   offers = [],
   formatCurrency,
@@ -1985,14 +2246,11 @@ const PublicStore = ({
       {/* Daraz-Style Search Header */}
       <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl -mx-4 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 flex items-center gap-3 bg-gray-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-transparent focus-within:border-orange-500 transition-all">
-            <Search size={18} className="text-gray-400" />
-            <input 
-              type="text" 
+          <div className="flex-1">
+            <UiverseSearch 
+              value={search} 
+              onChange={setSearch} 
               placeholder="Search cameras, NVR, DVR..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm w-full font-medium"
             />
           </div>
           <motion.button 
@@ -2045,27 +2303,32 @@ const PublicStore = ({
             </div>
           </div>
 
-          {/* Category Icon Grid */}
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-4 py-2">
+          {/* Category Icon Grid - Modern Single Row */}
+          <div className="flex items-start justify-between gap-1 py-6 overflow-x-auto no-scrollbar">
             {[
-              { label: 'Track Order', icon: Package, color: 'bg-blue-500', action: () => setActiveTab('track-order') },
-              { label: 'Hot Deals', icon: Sparkles, color: 'bg-orange-500', action: () => setActiveTab('offers') },
-              { label: 'Free Delivery', icon: CloudUpload, color: 'bg-teal-500', action: () => setActiveTab('products') },
-              { label: 'Support', icon: Headphones, color: 'bg-indigo-500', action: () => window.open('https://wa.me/8801817681233', '_blank') },
-              { label: 'Market', icon: ShoppingCart, color: 'bg-pink-500', action: () => setActiveTab('products') },
+              { label: 'Track Order', icon: Package, color: 'from-blue-500 to-blue-600', shadow: 'shadow-blue-500/20', action: () => setActiveTab('track-order') },
+              { label: 'Hot Deals', icon: Sparkles, color: 'from-orange-500 to-orange-600', shadow: 'shadow-orange-500/20', action: () => setActiveTab('offers') },
+              { label: 'Free Delivery', icon: Truck, color: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/20', action: () => setActiveTab('products') },
+              { label: 'Support', icon: Headphones, color: 'from-indigo-500 to-indigo-600', shadow: 'shadow-indigo-500/20', action: () => window.open('https://wa.me/8801817681233', '_blank') },
+              { label: 'Market', icon: ShoppingBag, color: 'from-pink-500 to-pink-600', shadow: 'shadow-pink-500/20', action: () => setActiveTab('products') },
             ].map((cat, i) => (
               <motion.button 
                 key={i}
-                animate={{ y: [0, -12, 0], opacity: [1, 0.5, 1] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.2 }}
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ y: -4, scale: 1.05 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={cat.action}
-                className="flex flex-col items-center gap-2 group"
+                className="flex flex-col items-center gap-2 min-w-[60px] group flex-1"
               >
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-active:scale-90", cat.color)}>
-                  <cat.icon size={20} strokeWidth={2.5} />
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center text-white bg-gradient-to-br shadow-lg transition-all duration-300 group-hover:brightness-110 group-active:shadow-none",
+                  cat.color,
+                  cat.shadow
+                )}>
+                  <cat.icon size={18} strokeWidth={2.5} />
                 </div>
-                <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 text-center uppercase tracking-tighter line-clamp-1">{cat.label}</span>
+                <span className="text-[8px] font-black text-slate-500 dark:text-slate-400 text-center uppercase tracking-tighter leading-tight whitespace-normal h-5 flex items-center justify-center px-1">
+                  {cat.label}
+                </span>
               </motion.button>
             ))}
           </div>
@@ -2156,7 +2419,7 @@ const PublicStore = ({
                 onClick={() => setSelectedProduct(product)}
                 className="min-w-[150px] bg-white dark:bg-slate-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-slate-700/50 cursor-pointer"
               >
-                <div className="h-28 bg-gray-50 dark:bg-slate-900 rounded-xl mb-3 overflow-hidden relative">
+                <div className="h-36 bg-gray-50 dark:bg-slate-900 rounded-xl mb-3 overflow-hidden relative">
                   {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
@@ -2182,63 +2445,24 @@ const PublicStore = ({
       </div>
 
       {/* Daraz-Style Main Product Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
         {filteredProducts.map((product, i) => (
           <motion.div 
             key={product.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            onClick={() => setSelectedProduct(product)}
-            className="group bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-700/50 flex flex-col cursor-pointer"
+            transition={{ delay: (i % 6) * 0.1 }}
           >
-            <div className="aspect-square bg-gray-50 dark:bg-slate-900 relative">
-              {product.image ? (
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={48} /></div>
-              )}
-              {product.badge && (
-                <div className={cn(
-                  "absolute top-3 left-3 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest text-white shadow-xl",
-                  product.badge === 'hot' ? 'bg-red-500' : product.badge === 'new' ? 'bg-blue-500' : 'bg-orange-500'
-                )}>
-                  {product.badge}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-3 flex flex-col flex-1">
-              <h4 className="text-xs font-bold line-clamp-2 min-h-[32px] mb-2 group-hover:text-orange-600 transition-colors uppercase tracking-tight">{product.name}</h4>
-              
-              <div className="mt-auto space-y-3">
-                <div className="flex flex-col">
-                  <span className="text-orange-600 font-black text-lg leading-none">{formatCurrency(product.price)}</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-gray-400 text-[10px] line-through">{formatCurrency(product.price * 1.2)}</span>
-                    <span className="text-emerald-500 text-[10px] font-bold">-20%</span>
-                  </div>
-                </div>
-
-                <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToCart(product);
-                  }}
-                  className="w-full py-2.5 bg-orange-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-orange-500/20 active:bg-orange-600 transition-colors border border-white/10"
-                >
-                  ORDER NOW
-                </motion.button>
-              </div>
-            </div>
+            <ProductPastaCard 
+              product={product} 
+              onSelect={setSelectedProduct}
+            />
           </motion.div>
         ))}
       </div>
 
       {/* Support Contact Section for Clients */}
-      <div className="pt-8 pb-4">
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl" />
@@ -2286,9 +2510,8 @@ const PublicStore = ({
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 const Dashboard = ({ 
   products, 
@@ -2370,16 +2593,11 @@ const ClientList = ({
 
   return (
     <div className="space-y-4 pb-20">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-        <input 
-          type="text" 
-          placeholder="Search clients..." 
-          className="w-full pl-10 pr-4 py-3 glass-card focus:ring-2 focus:ring-blue-500 outline-none"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <UiverseSearch 
+        value={search} 
+        onChange={setSearch} 
+        placeholder="Search clients..." 
+      />
 
       <div className="space-y-3">
         {filteredClients.map((client, idx) => (
@@ -2489,6 +2707,7 @@ const ServicesPage = ({ isAdmin }: { isAdmin: boolean }) => {
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => playSound('click')}
               className="px-6 py-2 bg-[#dc143c] text-white rounded-full text-sm font-bold shadow-lg"
             >
               Read More
@@ -2523,6 +2742,7 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
       } else {
         await addDoc(collection(db, 'services'), formData);
       }
+      playSound('success');
       setShowModal(false);
       setEditingService(null);
       setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' });
@@ -2546,7 +2766,12 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-bold">Manage Services</h2>
         <button 
-          onClick={() => { setEditingService(null); setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' }); setShowModal(true); }}
+          onClick={() => { 
+            playSound('click'); 
+            setEditingService(null); 
+            setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' }); 
+            setShowModal(true); 
+          }}
           className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2"
         >
           <Plus size={20} /> Add Service
@@ -2657,7 +2882,658 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
   );
 };
 
+const StaffTrackingMap = ({ staff }: { staff: Staff[] }) => {
+  const center: [number, number] = [23.8103, 90.4125]; // Default and fallback to Dhaka
+  
+  // Custom component to handle bounds and centering
+  const ChangeView = ({ staff }: { staff: Staff[] }) => {
+    const map = useMap();
+    useEffect(() => {
+      const activeStaff = staff.filter(s => s.lastKnownLocation);
+      if (activeStaff.length > 0) {
+        const bounds = L.latLngBounds(activeStaff.map(s => [s.lastKnownLocation!.lat, s.lastKnownLocation!.lng]));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      }
+    }, [staff, map]);
+    return null;
+  };
+
+  return (
+    <div className="h-[500px] w-full rounded-3xl overflow-hidden shadow-2xl relative z-0 border-4 border-white dark:border-slate-800">
+      <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }}>
+        <ChangeView staff={staff} />
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        {staff.filter(s => s.lastKnownLocation).map(member => (
+          <Marker 
+            key={member.id} 
+            position={[member.lastKnownLocation!.lat, member.lastKnownLocation!.lng]}
+          >
+            <LeafletTooltip permanent direction="top" offset={[0, -10]} opacity={1}>
+              <div className="font-bold text-[10px] text-[#dc143c] bg-white px-1.5 py-0.5 rounded shadow-sm border border-[#dc143c]/20 whitespace-nowrap">
+                {member.name}
+              </div>
+            </LeafletTooltip>
+            <Popup>
+              <div className="p-1 min-w-[180px]">
+                <div className="flex items-center gap-2 mb-2 border-b pb-2">
+                  <div className="w-10 h-10 rounded-full bg-[#dc143c] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {member.name.charAt(0)}
+                  </div>
+                  <div className="overflow-hidden">
+                    <h3 className="font-bold text-sm m-0 truncate">{member.name}</h3>
+                    <p className="text-[10px] text-[#dc143c] m-0 font-medium">{member.role}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                    <Clock size={10} className="text-[#dc143c]" />
+                    {new Date(member.lastKnownLocation!.updatedAt).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}
+                  </div>
+                  {member.lastKnownLocation?.address ? (
+                    <div className="flex items-start gap-2 text-[10px] text-gray-700 bg-slate-50 p-2 rounded-lg">
+                      <MapPin size={12} className="text-[#dc143c] shrink-0 mt-0.5" />
+                      <span className="leading-tight">{member.lastKnownLocation.address}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400 italic">
+                      <Navigation size={10} /> Lat: {member.lastKnownLocation!.lat.toFixed(4)}, Lng: {member.lastKnownLocation!.lng.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+    </div>
+  );
+};
+
+const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => void }) => {
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', role: 'Technician', isActive: true });
+  const [activeView, setActiveView] = useState<'list' | 'map'>('map');
+
+  const isOnline = (updatedAt: string | undefined) => {
+    if (!updatedAt) return false;
+    const diff = Date.now() - new Date(updatedAt).getTime();
+    return diff < 5 * 60 * 1000; // 5 minutes
+  };
+
+  const filteredStaff = staff.filter(member => 
+    member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    member.phone.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getStatusColor = (member: Staff) => {
+    if (!member.lastKnownLocation) return "bg-gray-300";
+    return isOnline(member.lastKnownLocation.updatedAt) ? "bg-green-500 animate-pulse" : "bg-orange-400";
+  };
+
+  const getStatusLabel = (member: Staff) => {
+    if (!member.lastKnownLocation) return "No Signal";
+    return isOnline(member.lastKnownLocation.updatedAt) ? "Live Now" : `Last seen ${new Date(member.lastKnownLocation.updatedAt).toLocaleTimeString()}`;
+  };
+
+  const renderAttendanceCalendarForAdmin = (att: string[] | undefined) => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d);
+    }
+    const todayStr = today.toISOString().split('T')[0];
+    const attendanceArray = att || [];
+
+    return (
+      <div className="mt-4 border-t border-slate-50 dark:border-slate-800 pt-4">
+        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Attendance (Last 30 Days)</h4>
+        <div className="grid grid-cols-7 gap-1">
+          {dates.map(dateObj => {
+            const dateStr = dateObj.toISOString().split('T')[0];
+            const isPresent = attendanceArray.includes(dateStr);
+            const isToday = dateStr === todayStr;
+            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+            
+            return (
+              <div key={dateStr} className={`relative flex flex-col items-center justify-center py-1 rounded border ${isPresent ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-600' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-500'}`}>
+                {isToday && !isPresent && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></div>}
+                <span className="text-[7px] font-bold uppercase opacity-60">{dayName}</span>
+                <span className="text-[9px] font-bold mt-0.5">{dateObj.getDate()}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    const q = query(collection(db, 'staff'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setStaff(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'staff');
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    playSound('click');
+    try {
+      const q = query(collection(db, 'staff'));
+      const snapshot = await getDocs(q);
+      setStaff(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Staff)));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, 'staff');
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.email) return;
+
+    try {
+      if (editingStaff) {
+        await updateDoc(doc(db, 'staff', editingStaff.id), formData);
+      } else {
+        await addDoc(collection(db, 'staff'), { ...formData, lastKnownLocation: null });
+      }
+      setShowModal(false);
+      setEditingStaff(null);
+      setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'staff');
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    withPassword(async () => {
+      try {
+        await deleteDoc(doc(db, 'staff', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'staff');
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold flex items-center gap-3">
+            <Users className="text-[#dc143c]" /> Staff Tracking
+          </h2>
+          <p className="text-slate-500 text-sm">Monitor staff locations and manage team members via Gmail access</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <UiverseSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search staff..." />
+          <div className="flex gap-2">
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex">
+            <button 
+              onClick={() => setActiveView('map')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
+                activeView === 'map' ? "bg-white dark:bg-slate-700 shadow-sm text-[#dc143c]" : "text-gray-500"
+              )}
+            >
+              <MapIcon size={16} /> Live Map
+            </button>
+            <button 
+              onClick={() => setActiveView('list')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
+                activeView === 'list' ? "bg-white dark:bg-slate-700 shadow-sm text-[#dc143c]" : "text-gray-500"
+              )}
+            >
+              <Users size={16} /> Staff List
+            </button>
+          </div>
+          <button 
+            onClick={refreshData}
+            className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            title="Refresh Data"
+          >
+            <RefreshCw size={20} className={cn(isRefreshing && "animate-spin")} />
+          </button>
+          <button 
+            onClick={() => { setEditingStaff(null); setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true }); setShowModal(true); }}
+            className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity"
+          >
+            <Plus size={20} /> Add Staff
+          </button>
+        </div>
+      </div>
+    </div>
+
+      {activeView === 'map' ? (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+          <StaffTrackingMap staff={filteredStaff} />
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filteredStaff.map(member => (
+              <div key={member.id} className="bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                <div className={cn(
+                   "w-3 h-3 rounded-full",
+                   getStatusColor(member)
+                )} />
+                <div className="overflow-hidden">
+                  <h4 className="font-bold text-sm truncate">{member.name}</h4>
+                  <p className="text-[10px] text-gray-400 truncate">
+                    {getStatusLabel(member)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredStaff.map(member => (
+            <motion.div 
+              key={member.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:shadow-xl transition-all"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-bold text-xl">
+                  {member.name.charAt(0)}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setEditingStaff(member); setFormData({ name: member.name, phone: member.phone, email: member.email, role: member.role, isActive: member.isActive }); setShowModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors">
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(member.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <h3 className="font-bold text-lg mb-1">{member.name}</h3>
+              <p className="text-xs text-[#dc143c] font-medium mb-3 uppercase tracking-wider">{member.role}</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <Smartphone size={14} /> {member.phone}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <Send size={14} /> {member.email}
+                </div>
+              </div>
+              
+              {renderAttendanceCalendarForAdmin(member.attendance)}
+
+              <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center text-[10px]">
+                <span className={cn(
+                  "px-2 py-1 rounded-full",
+                  member.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                )}>
+                  {member.isActive ? 'Active Staff' : 'Inactive'}
+                </span>
+                <span className="text-gray-400 italic">ID: {member.id.substring(0, 8)}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 shadow-2xl overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-[#dc143c]" />
+              <h3 className="text-2xl font-bold mb-6">{editingStaff ? 'Edit Staff Member' : 'Add New Staff'}</h3>
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Full Name</label>
+                  <input 
+                    type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-[#dc143c] transition-all"
+                    placeholder="Enter name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Phone</label>
+                    <input 
+                      type="text" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-[#dc143c] transition-all"
+                      placeholder="017..."
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Role</label>
+                    <select 
+                      value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-[#dc143c] transition-all"
+                    >
+                      <option>Technician</option>
+                      <option>Support Engineeer</option>
+                      <option>Project Manager</option>
+                      <option>IT Administrator</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest underline decoration-[#dc143c]">Gmail Address for Access</label>
+                  <input 
+                    type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-[#dc143c] transition-all"
+                    placeholder="staff-gmail@gmail.com"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-2 italic font-medium">✨ This staff member must log in with this exact Gmail.</p>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => setShowModal(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button onClick={handleSave} className="flex-1 py-4 bg-[#dc143c] text-white rounded-2xl font-bold shadow-lg shadow-red-500/30 hover:opacity-90 transition-all">Save Staff</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUser: Staff | null }) => {
+  const [staffInfo, setStaffInfo] = useState<Staff | null>(staffUser);
+  const [tracking, setTracking] = useState(true);
+  const [lastCheckIn, setLastCheckIn] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const watchId = useRef<number | null>(null);
+  const wakeLock = useRef<any>(null);
+
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock.current = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch (err) {
+      console.error('Wake Lock failed:', err);
+    }
+  };
+
+  const handleAttendanceCheckIn = async () => {
+    if (!staffInfo) return;
+    const today = new Date().toISOString().split('T')[0];
+    const currentAttendance = staffInfo.attendance || [];
+    if (currentAttendance.includes(today)) {
+      setError("You have already given attendance today!");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    try {
+      const staffRef = doc(db, 'staff', staffInfo.id);
+      await updateDoc(staffRef, {
+        attendance: [...currentAttendance, today]
+      });
+      setSuccess("Attendance submitted successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'staff');
+    }
+  };
+
+  const renderAttendanceCalendar = () => {
+    const dates = [];
+    const today = new Date();
+    // Start from 29 days ago up to today
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d);
+    }
+    const att = staffInfo?.attendance || [];
+    const todayStr = today.toISOString().split('T')[0];
+
+    return (
+      <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <h3 className="text-sm font-bold mb-3">Attendance History (Last 30 Days)</h3>
+        <div className="grid grid-cols-7 gap-2">
+          {dates.map((dateObj, i) => {
+            const dateStr = dateObj.toISOString().split('T')[0];
+            const isPresent = att.includes(dateStr);
+            const isToday = dateStr === todayStr;
+            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+            
+            // Red mark for absent days
+            return (
+              <div key={dateStr} className={`relative flex flex-col items-center justify-center py-2 rounded-lg border ${isPresent ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                {isToday && !isPresent && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>}
+                <span className="text-[8px] text-gray-400 font-bold uppercase">{dayName}</span>
+                <span className="text-[10px] font-bold mt-0.5">{dateObj.getDate()}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+
+  useEffect(() => {
+    if (staffUser) {
+      setStaffInfo(staffUser);
+      startTrackingService();
+    }
+    
+    if (!user?.email) return;
+    const q = query(collection(db, 'staff'), where('email', '==', user.email));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Staff;
+        setStaffInfo(data);
+        if (data.lastKnownLocation) {
+          setLastCheckIn(data.lastKnownLocation.updatedAt);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => {
+       unsubscribe();
+       if (watchId.current !== null) {
+         navigator.geolocation.clearWatch(watchId.current);
+       }
+       if (trackingInterval.current) {
+         clearInterval(trackingInterval.current);
+       }
+       if (wakeLock.current) {
+         wakeLock.current.release().catch((e: any) => console.error(e));
+         wakeLock.current = null;
+       }
+    };
+  }, [user?.email, staffUser]);
+
+  const lastAddressUpdate = useRef<{lat: number, lng: number, time: number} | null>(null);
+  const lastAddress = useRef<string>("Address retrieving...");
+
+  const handleLocationUpdate = async (position: GeolocationPosition) => {
+    if (!staffInfo) return;
+    
+    const { latitude, longitude } = position.coords;
+    const now = new Date().toISOString();
+    const nowTimestamp = Date.now();
+    
+    try {
+      // Throttle reverse geocoding to once every 30 seconds OR if moved > ~50 meters
+      const shouldUpdateAddress = !lastAddressUpdate.current || 
+        (nowTimestamp - lastAddressUpdate.current.time > 30000) ||
+        (Math.abs(latitude - lastAddressUpdate.current.lat) > 0.0005) ||
+        (Math.abs(longitude - lastAddressUpdate.current.lng) > 0.0005);
+
+      if (shouldUpdateAddress) {
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
+          const data = await response.json();
+          lastAddress.current = data.display_name || "Location found, address unknown";
+          lastAddressUpdate.current = { lat: latitude, lng: longitude, time: nowTimestamp };
+        } catch (e) {
+          lastAddress.current = lastAddress.current || `Coord: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        }
+      }
+      
+      await updateDoc(doc(db, 'staff', staffInfo.id), {
+        lastKnownLocation: {
+          lat: latitude,
+          lng: longitude,
+          updatedAt: now,
+          address: lastAddress.current
+        }
+      });
+
+      await addDoc(collection(db, 'staff', staffInfo.id, 'history'), {
+        lat: latitude,
+        lng: longitude,
+        timestamp: now,
+        address: lastAddress.current
+      });
+
+      setLastCheckIn(now);
+      setError(null);
+    } catch (err) {
+      console.error("Tracking update error:", err);
+    }
+  };
+
+  const trackingInterval = useRef<any>(null);
+
+  const startTrackingService = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    requestWakeLock();
+    
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+    }
+    if (trackingInterval.current) {
+        clearInterval(trackingInterval.current);
+    }
+
+    // High frequency position watching
+    watchId.current = navigator.geolocation.watchPosition(
+      (position) => {
+        handleLocationUpdate(position);
+        setLoading(false);
+        setTracking(true);
+      },
+      (err) => {
+        let msg = "Location unavailable. Please check permissions.";
+        if (err.code === 1) msg = "Access denied. Please enable 'Always' permission.";
+        setError(msg);
+        setTracking(false);
+        setLoading(false);
+        // Automatic retry
+        setTimeout(startTrackingService, 10000);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+
+    // Force heartbeat update every 1 second
+    trackingInterval.current = setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => handleLocationUpdate(pos),
+            () => {},
+            { enableHighAccuracy: true, maximumAge: 0 }
+        );
+    }, 1000);
+  };
+
+  if (loading && !tracking) return (
+    <div className="flex items-center justify-center p-20 text-[#dc143c] flex-col gap-4">
+      <RefreshCw className="animate-spin" size={48} />
+      <p className="font-black uppercase tracking-widest text-xs">Initializing Satellite Protocol...</p>
+    </div>
+  );
+
+  if (!staffInfo) return (
+    <div className="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-3xl border border-orange-100 dark:border-orange-800 text-center">
+      <AlertCircle className="mx-auto text-orange-500 mb-4" size={48} />
+      <h2 className="text-xl font-bold mb-2">Staff Only Page</h2>
+      <p className="text-slate-500 text-sm">Your email ({user?.email}) is not registered in our staff directory. Please contact your IT administrator.</p>
+    </div>
+  );
+
+  return (
+    <div className="max-w-md mx-auto space-y-6 pb-24">
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-3 bg-[#dc143c]" />
+        
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-black text-2xl">
+            {staffInfo.name.charAt(0)}
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">{staffInfo.name}</h2>
+            <p className="text-sm text-gray-500 font-medium">{staffInfo.role}</p>
+          </div>
+        </div>
+
+        {/* The tracking UI elements are hidden but the system works in the background via useEffect */}
+        <div className="space-y-4">
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-center">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Welcome to Staff Portal</h3>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Session ID: {user?.uid.slice(0, 8)}</p>
+          </div>
+          
+          <button 
+            onClick={handleAttendanceCheckIn}
+            className="w-full bg-[#dc143c] hover:bg-[#b01030] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={staffInfo.attendance?.includes(new Date().toISOString().split('T')[0])}
+          >
+            <CheckCircle size={20} />
+            {staffInfo.attendance?.includes(new Date().toISOString().split('T')[0]) ? 'Attendance Given Today' : 'Give Daily Attendance (হাজিরা দিন)'}
+          </button>
+
+          {success && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-xl text-xs font-bold text-center">
+              {success}
+            </div>
+          )}
+
+          {error && error !== "Location unavailable. Please check permissions." && error !== "Access denied. Please enable 'Always' permission." && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl text-xs font-bold text-center">
+              {error}
+            </div>
+          )}
+
+          {renderAttendanceCalendar()}
+          
+          {(error === "Location unavailable. Please check permissions." || error === "Access denied. Please enable 'Always' permission.") && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl text-[10px] font-bold text-center uppercase tracking-tighter mt-4">
+              System Syncing...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SupportPage = () => {
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex justify-between items-end">
@@ -3481,7 +4357,7 @@ const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic }: { customLogo: s
             transition={{ delay: 0.4 }}
             className="text-5xl font-black text-white mb-2 tracking-tighter"
           >
-            IT DEPARTMENT <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">PRO</span>
+            IT DEPARTMENT
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0 }}
@@ -3489,7 +4365,7 @@ const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic }: { customLogo: s
             transition={{ delay: 0.6 }}
             className="text-white/40 text-[10px] font-bold uppercase tracking-[0.4em] mb-12"
           >
-            Security & Management Infrastructure
+            Your Trusted Technology Partner
           </motion.p>
           
           <div className="h-16 flex flex-col items-center justify-center relative w-72 mx-auto">
@@ -3580,7 +4456,11 @@ function AppContent() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
   const [isSidebarClosed, setIsSidebarClosed] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('cctv_theme_preference');
@@ -3605,9 +4485,11 @@ function AppContent() {
   const adminEmails = ['itdepartmentpro33@gmail.com', 'djbmremix87@gmail.com'];
   const isAdmin = user?.email && adminEmails.includes(user.email);
 
+  // Removed automatic redirection to shop-view for admins to avoid confusion
   useEffect(() => {
-    if (isAuthReady && isAdmin) {
-      setActiveTab('shop-view');
+    if (isAuthReady && isAdmin && activeTab === 'dashboard') {
+      // Only set to shop-view if they are on dashboard initially
+      // but maybe it's better to just let them choose
     }
   }, [isAuthReady, isAdmin]);
 
@@ -3639,10 +4521,48 @@ function AppContent() {
     return localStorage.getItem('adminPassword') || '1233@';
   });
   const [notifications, setNotifications] = useState<{id: number, text: string}[]>([]);
+  const [staffUser, setStaffUser] = useState<Staff | null>(null);
+  const [clientProfile, setClientProfile] = useState<any | null>(null);
+
+  const handleLogout = () => {
+    playSound('pop');
+    auth.signOut();
+    setStaffUser(null);
+    setClientProfile(null);
+    setActiveTab('dashboard');
+  };
+
+  useEffect(() => {
+    if (isAuthReady && user) {
+      const checkRoles = async () => {
+        try {
+          // 1. Check if Staff
+          const staffQuery = query(collection(db, 'staff'), where('email', '==', user.email));
+          const staffSnap = await getDocs(staffQuery);
+          if (!staffSnap.empty) {
+            const data = { id: staffSnap.docs[0].id, ...staffSnap.docs[0].data() } as Staff;
+            setStaffUser(data);
+            if (!isAdmin) setActiveTab('staff-tracking');
+            return;
+          }
+
+          // 2. Check if Client
+          const clientQuery = query(collection(db, 'clients'), where('email', '==', user.email));
+          const clientSnap = await getDocs(clientQuery);
+          if (!clientSnap.empty) {
+            setClientProfile({ id: clientSnap.docs[0].id, ...clientSnap.docs[0].data() });
+          }
+        } catch (e) {
+          console.error("Role detection error:", e);
+        }
+      };
+      checkRoles();
+    }
+  }, [isAuthReady, user, isAdmin]);
 
   useEffect(() => {
     if (isAuthReady && !isAdmin) {
-      if (['categories', 'clients', 'expenses', 'warranty'].includes(activeTab)) {
+      if (['categories', 'clients', 'expenses', 'warranty', 'manage-staff'].includes(activeTab)) {
         setActiveTab('dashboard');
       }
     }
@@ -3721,6 +4641,23 @@ function AppContent() {
       }
     }
   }, [publicOrders.length, isAdmin]);
+
+  // Global Geolocation Permission Request on Mount
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          // Success - Permission granted or already have it
+          console.log("Location access granted.");
+        },
+        () => {
+          // Error/Denied - silent fail as requested, just trigger the prompt
+          console.log("Location access denied or unavailable.");
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   // Auth Listener
   useEffect(() => {
@@ -3815,7 +4752,13 @@ function AppContent() {
     // Products
     const productsRef = collection(db, 'products');
     getDocs(query(productsRef, orderBy('name'))).then((snapshot) => {
-      const items = snapshot.docs.map(doc => ({ ...doc.data() } as Product));
+      const items = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: data.id || doc.id,
+          ...data 
+        } as Product;
+      });
       setProducts(items);
       localStorage.setItem('cctv_products', JSON.stringify(items));
     }).catch(e => handleFirestoreError(e, OperationType.LIST, 'products'));
@@ -3824,7 +4767,13 @@ function AppContent() {
     if (isAdmin) {
       const clientsRef = collection(db, 'clients');
       getDocs(query(clientsRef, orderBy('name'))).then((snapshot) => {
-        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
+        const items = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.id || doc.id,
+            ...data
+          } as Client;
+        });
         
         if (items.length > 0) {
           setClients(items);
@@ -3851,14 +4800,20 @@ function AppContent() {
       const clientsRef = collection(db, 'clients');
       const q = query(clientsRef, where('email', '==', user.email || ''));
       getDocs(q).then((snapshot) => {
-        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Client));
+        const items = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { id: data.id || doc.id, ...data } as Client;
+        });
         if (items.length > 0) {
           setClients(items);
         } else {
           // Try by name if email fails
           const q2 = query(clientsRef, where('name', '==', user.displayName || ''));
           getDocs(q2).then((snap2) => {
-            const items2 = snap2.docs.map(doc => ({ ...doc.data() } as Client));
+            const items2 = snap2.docs.map(doc => {
+              const data = doc.data();
+              return { id: data.id || doc.id, ...data } as Client;
+            });
             if (items2.length > 0) setClients(items2);
           });
         }
@@ -3872,7 +4827,10 @@ function AppContent() {
     if (isAdmin) {
       const expensesRef = collection(db, 'expenses');
       getDocs(query(expensesRef, orderBy('date', 'desc'))).then((snapshot) => {
-        const items = snapshot.docs.map(doc => ({ ...doc.data() } as Expense));
+        const items = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { id: data.id || doc.id, ...data } as Expense;
+        });
         
         if (items.length > 0) {
           setExpenses(items);
@@ -4064,26 +5022,42 @@ function AppContent() {
   };
 
   const handleSplashEnter = () => {
+    playSound('pop');
     setShowSplash(false);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isLogoUploading, setIsLogoUploading] = useState(false);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && user) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setCustomLogo(base64);
+      if (file.size > 10 * 1024 * 1024) {
+        addNotification("Logo file too large! Max 10MB.");
+        return;
+      }
+      
+      setIsLogoUploading(true);
+      addNotification("Uploading logo...");
+      try {
+        const storageRef = ref(storage, `settings/logo_${Date.now()}_${file.name}`);
+        const uploadTask = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(uploadTask.ref);
+        setCustomLogo(url);
+        localStorage.setItem('cctv_custom_logo', url);
         addNotification("Logo updated successfully!");
-      };
-      reader.readAsDataURL(file);
+      } catch (error: any) {
+        console.error("Logo upload error:", error);
+        addNotification("Logo upload failed: " + (error.message || "Unknown error"));
+      } finally {
+        setIsLogoUploading(false);
+      }
     } else if (!user) {
       addNotification("Please login to upload logo.");
     }
   };
 
   const addNotification = (text: string) => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifications(prev => [...prev, { id, text }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
@@ -4282,9 +5256,11 @@ function AppContent() {
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
+      playSound('error');
       addNotification("Out of stock!");
       return;
     }
+    playSound('success');
     setCart(prev => {
       const existing = prev.find(item => item.productId === product.id);
       if (existing) {
@@ -4292,17 +5268,19 @@ function AppContent() {
           item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { productId: product.id, name: product.name, price: product.price, quantity: 1 }];
+      return [...prev, { productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.image }];
     });
     addNotification(`${product.name} added to cart`);
   };
 
   const removeFromCart = (productId: number) => {
+    playSound('click');
     setCart(prev => prev.filter(item => item.productId !== productId));
     addNotification("Item removed from cart");
   };
 
   const updateCartQuantity = (productId: number | string, delta: number) => {
+    playSound('click');
     setCart(prev => prev.map(item => {
       if (item.productId === productId) {
         const newQty = Math.max(0, item.quantity + delta);
@@ -4354,10 +5332,11 @@ function AppContent() {
 
       setCart([]);
       setShowCart(false);
+      playSound('success');
       addNotification(isPaid ? `Order placed and paid via ${paymentType}!` : "Order placed successfully! We will contact you soon.");
       
       // Generate PDF for the client
-      generateOrderPDF(publicOrder);
+      await generateOrderPDF(publicOrder, customLogo);
     } catch (error) {
       console.error("Error placing order:", error);
       handleFirestoreError(error, OperationType.WRITE, `public_orders/${orderId}`);
@@ -4472,7 +5451,7 @@ function AppContent() {
         }
       }
 
-      generatePDF(client, cart, total, isPaid, paymentType);
+      await generatePDF(client, cart, total, isPaid, paymentType);
       generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
 
       setCart([]);
@@ -4535,15 +5514,47 @@ function AppContent() {
     }
   };
 
-  const generatePDF = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
+  // Helper to convert Image URL to Base64 (needed for jsPDF)
+  const getBase64Image = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.src = url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = (e) => reject(e);
+    });
+  };
+
+  const generatePDF = async (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
 
+    // Pre-load images to base64
+    const itemsWithBase64 = await Promise.all(items.map(async (item) => {
+      if (item.image) {
+        try {
+          const base64 = await getBase64Image(item.image);
+          return { ...item, base64 };
+        } catch (e) {
+          console.error("Failed to load item image", e);
+          return { ...item, base64: null };
+        }
+      }
+      return { ...item, base64: null };
+    }));
+
     // --- Header ---
     // Blue background for header
-    doc.setFillColor(255, 140, 0); // orange-500
+    doc.setFillColor(37, 99, 235); 
     doc.rect(0, 0, pageWidth, 50, 'F');
 
     // Logo if available
@@ -4554,22 +5565,22 @@ function AppContent() {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('IT DEPARTMENT PRO', margin + 35, 25);
+        doc.text('IT DEPARTMENT', margin + 35, 25);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text('Your Security, Our Priority', margin + 35, 32);
+        doc.text('Your Trusted Technology Partner', margin + 35, 32);
         doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin + 35, 38);
       } catch (e) {
         // Fallback if logo fails
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('IT DEPARTMENT PRO', margin, 25);
+        doc.text('IT DEPARTMENT', margin, 25);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text('Your Security, Our Priority', margin, 32);
+        doc.text('Your Trusted Technology Partner', margin, 32);
         doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin, 38);
       }
     } else {
@@ -4577,11 +5588,11 @@ function AppContent() {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
-      doc.text('IT DEPARTMENT PRO', margin, 25);
+      doc.text('IT DEPARTMENT', margin, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('Your Security, Our Priority', margin, 32);
+      doc.text('Your Trusted Technology Partner', margin, 32);
       doc.text('Phone: 01817681233 | Email: itdepartmentpro33@gmail.com', margin, 38);
     }
 
@@ -4618,8 +5629,9 @@ function AppContent() {
     }
 
     // --- Table ---
-    const tableData = items.map((item, index) => [
+    const tableData = itemsWithBase64.map((item, index) => [
       index + 1,
+      '', // Space for product image
       item.name,
       item.quantity,
       formatCurrency(item.price).replace('BDT', '').trim(),
@@ -4628,7 +5640,7 @@ function AppContent() {
 
     autoTable(doc, {
       startY: 95,
-      head: [['SL', 'DESCRIPTION', 'QTY', 'PRICE (BDT)', 'TOTAL (BDT)']],
+      head: [['SL', 'PIC', 'DESCRIPTION', 'QTY', 'PRICE (BDT)', 'TOTAL (BDT)']],
       body: tableData,
       theme: 'grid',
       headStyles: {
@@ -4639,15 +5651,29 @@ function AppContent() {
         halign: 'center'
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 15 },
-        1: { cellWidth: 'auto' },
-        2: { halign: 'center', cellWidth: 20 },
-        3: { halign: 'right', cellWidth: 35 },
-        4: { halign: 'right', cellWidth: 35 }
+        0: { halign: 'center', cellWidth: 10 },
+        1: { halign: 'center', cellWidth: 25 }, // PIC column
+        2: { cellWidth: 'auto' },
+        3: { halign: 'center', cellWidth: 15 },
+        4: { halign: 'right', cellWidth: 30 },
+        5: { halign: 'right', cellWidth: 30 }
       },
       styles: {
         fontSize: 9,
-        cellPadding: 5
+        cellPadding: 5,
+        minCellHeight: 25 // Ensure enough height for image
+      },
+      didDrawCell: (data) => {
+        if (data.section === 'body' && data.column.index === 1) {
+          const item = itemsWithBase64[data.row.index];
+          if (item.base64) {
+            try {
+              doc.addImage(item.base64, 'JPEG', data.cell.x + 2, data.cell.y + 2, 21, 21);
+            } catch (e) {
+              console.error("Error adding image to cell", e);
+            }
+          }
+        }
       }
     });
 
@@ -4671,8 +5697,7 @@ function AppContent() {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(37, 99, 235);
-    doc.text('GRAND TOTAL:', pageWidth - margin - 60, finalY + 25);
-    doc.text(formatCurrency(total), pageWidth - margin - 10, finalY + 25, { align: 'right' });
+    doc.text(`TOTAL BDT: ${formatCurrency(total).replace('BDT', '').trim()}`, pageWidth - margin - 10, finalY + 25, { align: 'right' });
 
     // In Words
     doc.setTextColor(0, 0, 0);
@@ -4713,7 +5738,7 @@ function AppContent() {
   };
 
   const generateWhatsAppMessage = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
-    let message = `*CCTV Order Confirmation*\n\n`;
+    let message = `*IT DEPARTMENT Order Confirmation*\n\n`;
     message += `Client: ${client.name}\n`;
     message += `Phone: ${client.phone}\n`;
     message += `Date: ${new Date().toLocaleDateString()}\n`;
@@ -4723,6 +5748,7 @@ function AppContent() {
       message += `${index + 1}. ${item.name} x ${item.quantity} = ${formatCurrency(item.price * item.quantity)}\n`;
     });
     message += `\n*Total Amount: ${formatCurrency(total)}*\n\n`;
+    message += `Your Trusted Technology Partner\n`;
     message += `Thank you for choosing us!`;
 
     const encoded = encodeURIComponent(message);
@@ -4742,27 +5768,28 @@ function AppContent() {
     if (customLogo) {
       try {
         doc.addImage(customLogo, 'PNG', margin, 5, 30, 30);
-        doc.setFontSize(20);
+        doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
-        doc.text('CLIENT PROFILE REPORT', margin + 35, 25);
+        doc.text('IT DEPARTMENT', margin + 35, 20);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, margin + 35, 32);
+        doc.text('Your Trusted Technology Partner', margin + 35, 26);
+        doc.text('CLIENT PROFILE REPORT', margin + 35, 34);
       } catch (e) {
-        doc.setFontSize(20);
+        doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('CLIENT PROFILE REPORT', margin, 25);
+        doc.text('IT DEPARTMENT', margin, 20);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, 32);
+        doc.text('CLIENT PROFILE REPORT', margin, 30);
       }
     } else {
-      doc.setFontSize(20);
+      doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
-      doc.text('CLIENT PROFILE REPORT', margin, 25);
+      doc.text('IT DEPARTMENT', margin, 20);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, 32);
+      doc.text('CLIENT PROFILE REPORT', margin, 30);
     }
 
     // Client Info
@@ -4828,27 +5855,28 @@ function AppContent() {
     if (customLogo) {
       try {
         doc.addImage(customLogo, 'PNG', margin, 5, 30, 30);
-        doc.setFontSize(20);
+        doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
-        doc.text('INVENTORY BACKUP REPORT', margin + 35, 25);
+        doc.text('IT DEPARTMENT', margin + 35, 20);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, margin + 35, 32);
+        doc.text('Your Trusted Technology Partner', margin + 35, 26);
+        doc.text('INVENTORY BACKUP REPORT', margin + 35, 34);
       } catch (e) {
-        doc.setFontSize(20);
+        doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('INVENTORY BACKUP REPORT', margin, 25);
+        doc.text('IT DEPARTMENT', margin, 20);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, 32);
+        doc.text('INVENTORY BACKUP REPORT', margin, 30);
       }
     } else {
-      doc.setFontSize(20);
+      doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
-      doc.text('INVENTORY BACKUP REPORT', margin, 25);
+      doc.text('IT DEPARTMENT', margin, 20);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, 32);
+      doc.text('INVENTORY BACKUP REPORT', margin, 30);
     }
 
     autoTable(doc, {
@@ -5246,7 +6274,7 @@ function AppContent() {
   };
 
   const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
-    const expenseId = `EXP-${Date.now()}`;
+    const expenseId = `EXP-${Date.now()}-${Math.round(Math.random() * 1000)}`;
     const expense: Expense = {
       ...newExpense,
       id: expenseId
@@ -6268,33 +7296,30 @@ const BandwidthTestPage = () => {
             />
           ))}
           <div className="login-box-animated">
-            <h2 className="text-2xl font-bold text-[#0ef] text-center mb-4 drop-shadow-[0_0_8px_rgba(0,238,255,0.5)]">System Login</h2>
+            <h2 className="text-2xl font-bold text-[#0ef] text-center mb-1 drop-shadow-[0_0_8px_rgba(0,238,255,0.5)] uppercase tracking-tighter">System Access</h2>
+            <p className="text-[#0ef]/60 text-[10px] text-center mb-10 uppercase tracking-widest font-bold">Secure Google Identity</p>
+            
             <div className="px-6 md:px-10">
-              <div className="animated-input-box">
-                <input type="email" required />
-                <label>Email Address</label>
-              </div>
-              <div className="animated-input-box">
-                <input type="password" required />
-                <label>Security Pin</label>
-              </div>
               <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onLogin}
-                className="animated-btn mt-2"
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { playSound('click'); onLogin(); }}
+                className="w-full py-5 bg-[#0ef] text-black rounded-2xl font-black text-sm uppercase tracking-widest shadow-[0_0_30px_rgba(14,239,255,0.5)] flex items-center justify-center gap-4 transition-all mb-10"
               >
-                Access Account
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-6 h-6 bg-white rounded-full p-1" />
+                Sign in with Google
               </motion.button>
-              <div className="mt-8 text-center space-y-2">
-                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Recommended Method</p>
-                <motion.button 
-                  whileHover={{ y: -2 }}
-                  onClick={onLogin} 
-                  className="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-[#0ef] text-[10px] font-black tracking-widest transition-all"
-                >
-                  GOOGLE ID AUTHENTICATION
-                </motion.button>
+
+              <div className="space-y-6 pt-4 border-t border-[#0ef]/10">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-[#0ef]/10 flex items-center justify-center text-[#0ef]">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-black text-[#0ef] uppercase tracking-wider">Role Analytics</h4>
+                    <p className="text-[9px] text-white/40 font-medium leading-tight">Admin, Staff, or Client status is detected automatically.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6330,7 +7355,7 @@ const BandwidthTestPage = () => {
     );
   };
 
-  const Sidebar = ({ 
+    const Sidebar = ({ 
     activeTab, 
     setActiveTab, 
     isDarkMode, 
@@ -6349,16 +7374,20 @@ const BandwidthTestPage = () => {
     isClosed: boolean,
     setIsClosed: (v: boolean) => void
   }) => {
+    const [sidebarSearch, setSidebarSearch] = useState('');
     const menuItems = [
-      { id: 'dashboard', icon: 'bx-home-alt', label: 'Analytics', adminOnly: isAdmin },
+      { id: 'dashboard', icon: 'bx-home-alt', label: 'Analytics', adminOnly: false },
       { id: 'shop-view', icon: 'bx-store', label: 'Shop View', adminOnly: false },
+      { id: 'device-version', icon: 'bx-devices', label: 'Device Version', adminOnly: false },
       { id: 'services', icon: 'bx-layer', label: 'Services', adminOnly: false },
       { id: 'clients', icon: 'bx-user-voice', label: 'CRM Clients', adminOnly: true },
       { id: 'categories', icon: 'bx-category', label: 'Categories', adminOnly: true },
-      { id: 'products', icon: 'bx-package', label: 'Products', adminOnly: true },
+      { id: 'products', icon: 'bx-package', label: 'Admin Panel', adminOnly: true },
       { id: 'expenses', icon: 'bx-wallet', label: 'Finance', adminOnly: true },
       { id: 'my-orders', icon: 'bx-shopping-bag', label: 'My Orders', adminOnly: false },
       { id: 'bandwidth', icon: 'bx-pulse', label: 'Network', adminOnly: false },
+      { id: 'staff-tracking', icon: 'bx-navigation', label: 'Check-in', adminOnly: false },
+      { id: 'manage-staff', icon: 'bx-group', label: 'Manage Staff', adminOnly: true },
       { id: 'manage-services', icon: 'bx-customize', label: 'Manage Services', adminOnly: true },
       { id: isAdmin ? 'warranty' : 'support', icon: 'bx-support', label: 'Support', adminOnly: false },
       { id: 'me', icon: 'bx-cog', label: 'Account', adminOnly: false },
@@ -6373,8 +7402,8 @@ const BandwidthTestPage = () => {
             </span>
 
             <div className="text logo-text">
-              <span className="name">{isAdmin ? 'Admin Panel' : 'Stella Army'}</span>
-              <span className="profession">{isAdmin ? 'System Owner' : 'IT Technician'}</span>
+              <span className="name">IT DEPARTMENT</span>
+              <span className="profession">Technology Partner</span>
             </div>
           </div>
 
@@ -6387,12 +7416,17 @@ const BandwidthTestPage = () => {
         <div className="menu-bar">
           <div className="menu">
             <li className="search-box">
-              <i className='bx bx-search icon'></i>
-              <input type="text" placeholder="Search..." />
+              <UiverseSearch 
+                value={sidebarSearch} 
+                onChange={setSidebarSearch} 
+                placeholder="Search..." 
+              />
             </li>
 
             <ul className="menu-links">
-              {menuItems.filter(item => isAdmin || !item.adminOnly).map(item => (
+              {menuItems
+                .filter(item => (isAdmin || !item.adminOnly) && item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                .map(item => (
                 <li key={item.id} className="nav-link">
                   <a 
                     href="#" 
@@ -6438,7 +7472,438 @@ const BandwidthTestPage = () => {
     );
   };
 
-  const MePage = ({ 
+  const DeviceVersionPage = ({ 
+    user, 
+    isAdmin, 
+    customLogo 
+  }: { 
+    user: FirebaseUser | null, 
+    isAdmin: boolean, 
+    customLogo: string | null 
+  }) => {
+    const [versions, setVersions] = useState<DeviceVersion[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [formData, setFormData] = useState({ deviceName: '', versionName: '', description: '', downloadUrl: '' });
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadMode, setUploadMode] = useState<'link' | 'file'>('file');
+    const [loading, setLoading] = useState(false);
+  
+    useEffect(() => {
+      const q = query(collection(db, 'device_versions'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setVersions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeviceVersion)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'device_versions'));
+      return () => unsubscribe();
+    }, []);
+  
+    const handleUpload = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!formData.deviceName || !formData.versionName) {
+        alert('Please fill in Device Name and Version Name');
+        return;
+      }
+      
+      let finalUrl = formData.downloadUrl;
+      setLoading(true);
+      setUploadProgress(0);
+      
+      try {
+        if (uploadMode === 'file') {
+          if (!uploadFile) {
+            alert('Please select a firmware file first');
+            setLoading(false);
+            return;
+          }
+
+          console.log(`Starting upload for file: ${uploadFile.name} (${(uploadFile.size / 1024 / 1024).toFixed(2)} MB)`);
+          // Set metadata to help Firebase Storage identify the file type
+          const metadata = {
+            contentType: uploadFile.type || 'application/zip'
+          };
+          
+          if (uploadFile.size > 100 * 1024 * 1024) {
+            alert('File size exceeds 100MB. Please use a smaller file or upload to a drive and share the link.');
+            setLoading(false);
+            return;
+          }
+
+          const storageRef = ref(storage, `firmwares/${Date.now()}_${uploadFile.name}`);
+          
+          // Using uploadBytesResumable to track progress
+          const uploadTask = uploadBytesResumable(storageRef, uploadFile, metadata);
+          
+          await new Promise((resolve, reject) => {
+            uploadTask.on('state_changed', 
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+                if (progress === 100) {
+                  console.log("Upload reached 100%, waiting for server confirmation...");
+                } else {
+                  console.log(`Upload progress: ${Math.round(progress)}%`);
+                }
+              }, 
+              (error) => {
+                console.error("Firebase Storage Upload Error:", error);
+                let message = "Upload failed: ";
+                if (error.code === 'storage/unauthorized') {
+                  message += "Permission denied. Please log in again or check your account level.";
+                } else if (error.code === 'storage/canceled') {
+                  message += "Upload canceled.";
+                } else if (error.code === 'storage/quota-exceeded') {
+                  message += "Storage quota exceeded.";
+                } else {
+                  message += error.message;
+                }
+                alert(message);
+                setLoading(false); // Immediate reset for better UX
+                reject(error);
+              }, 
+              async () => {
+                try {
+                  console.log("Upload task finalized successfully, fetching URL...");
+                  const url = await getDownloadURL(uploadTask.snapshot.ref);
+                  finalUrl = url;
+                  console.log("Download URL obtained successfully.");
+                  resolve(true);
+                } catch (urlError: any) {
+                  console.error("Critical Get download URL error:", urlError);
+                  alert(`Server link generation failed: ${urlError.message}`);
+                  setLoading(false);
+                  reject(urlError);
+                }
+              }
+            );
+          });
+        }
+  
+        if (!finalUrl && uploadMode === 'link') {
+          alert('Please provide a valid download URL link');
+          setLoading(false);
+          return;
+        }
+
+        if (!finalUrl) {
+          throw new Error('Firmware URL could not be determined');
+        }
+  
+        console.log("Saving metadata to Firestore...");
+        await addDoc(collection(db, 'device_versions'), {
+          deviceName: formData.deviceName,
+          versionName: formData.versionName,
+          description: formData.description,
+          downloadUrl: finalUrl,
+          createdAt: new Date().toISOString(),
+          authorName: user?.displayName || user?.email || 'Admin'
+        });
+        
+        console.log("Metadata saved successfully");
+        setShowAddModal(false);
+        setFormData({ deviceName: '', versionName: '', description: '', downloadUrl: '' });
+        setUploadFile(null);
+        setUploadProgress(0);
+        playSound('success');
+        alert('Firmware uploaded successfully!');
+      } catch (error: any) {
+        console.error("Final catch in handleUpload:", error);
+        // Error already alerted in the task observer if it was a storage error
+        if (!error.code || !error.code.startsWith('storage/')) {
+          alert(`Error: ${error.message || 'An unexpected error occurred during upload.'}`);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    const handleDelete = async (id: string) => {
+      if (!confirm('Are you sure you want to delete this version?')) return;
+      try {
+        await deleteDoc(doc(db, 'device_versions', id));
+        playSound('pop');
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'device_versions');
+      }
+    };
+  
+    const filteredVersions = versions.filter(v => 
+      v.deviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.versionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-8 rounded-[40px] border border-white dark:border-slate-800 shadow-2xl">
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl p-1 shadow-2xl flex items-center justify-center border border-white/20">
+              <img src={customLogo || "https://drive.google.com/uc?export=view&id=1ETZYgPpWbbBtpJnhi42_IR3vOwSOpR4z"} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">IT DEPARTMENT</h1>
+              <p className="text-xs font-black text-emerald-500 uppercase tracking-[0.2em] mt-1">Your Trusted Technology Partner</p>
+            </div>
+          </div>
+  
+          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <UiverseSearch 
+              value={searchQuery} 
+              onChange={setSearchQuery} 
+              placeholder="Search firmware versions..." 
+            />
+            {isAdmin && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAddModal(true)}
+                className="h-12 px-8 bg-emerald-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-2xl shadow-emerald-500/30 whitespace-nowrap"
+              >
+                <Plus size={18} strokeWidth={3} />
+                Add New Version
+              </motion.button>
+            )}
+          </div>
+        </div>
+  
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredVersions.length === 0 ? (
+            <div className="col-span-full py-20 bg-white/30 dark:bg-slate-900/30 rounded-[40px] border border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+              <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                <Download className="text-slate-400" size={40} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-400">No Versions Found</h3>
+              <p className="text-slate-500 max-w-[300px] mt-2">Try searching different keywords or add a new firmware version.</p>
+            </div>
+          ) : (
+            filteredVersions.map((v) => (
+              <motion.div
+                key={v.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card group relative p-8 hover:translate-y-[-8px] transition-all duration-500"
+              >
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <a 
+                    href={v.downloadUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 bg-emerald-600/10 text-emerald-600 rounded-xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-lg"
+                  >
+                    <Download size={20} />
+                  </a>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => handleDelete(v.id)}
+                      className="w-10 h-10 bg-rose-600/10 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-lg"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                </div>
+  
+                <div className="mb-6 flex justify-center">
+                  <DeviceVersionIcon />
+                </div>
+  
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{v.deviceName}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-500 text-white rounded-md uppercase tracking-wider">
+                        v{v.versionName}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {new Date(v.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+  
+                  <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">
+                    {v.description}
+                  </p>
+  
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <User size={14} className="text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Uploaded by</p>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{v.authorName}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+  
+        <AnimatePresence>
+          {showAddModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowAddModal(false)}
+                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl border border-white/20 overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-8">
+                  <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+  
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-12 h-12 bg-emerald-600/10 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <CloudUpload size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Add Version</h2>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Share firmware with staff</p>
+                  </div>
+                </div>
+  
+                <form onSubmit={handleUpload} className="space-y-5">
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
+                    <button 
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${uploadMode === 'file' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
+                    >
+                      Upload File
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setUploadMode('link')}
+                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${uploadMode === 'link' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
+                    >
+                      Paste Link
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Device Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.deviceName}
+                      onChange={e => setFormData({ ...formData, deviceName: e.target.value })}
+                      className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
+                      placeholder="e.g. Ranger 2 Pro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Version Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.versionName}
+                      onChange={e => setFormData({ ...formData, versionName: e.target.value })}
+                      className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
+                      placeholder="e.g. 2.0.1_R"
+                    />
+                  </div>
+
+                  {uploadMode === 'file' ? (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Select Firmware File</label>
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                          className="hidden"
+                          id="firmware-file"
+                          accept=".zip,.rar,.7z,.bin,.iso,.tar,.tgz"
+                        />
+                        <label 
+                          htmlFor="firmware-file"
+                          className="w-full h-24 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 transition-all group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50"
+                        >
+                          <CloudUpload className={`${uploadFile ? 'text-emerald-500' : 'text-slate-400'}`} size={24} />
+                          <span className="text-xs font-bold text-slate-500 mt-2">
+                            {uploadFile ? uploadFile.name : 'Click to select or drag and drop'}
+                          </span>
+                        </label>
+                      </div>
+                      {uploadProgress > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-black text-emerald-500 uppercase tracking-widest px-1">
+                            <span>Uploading...</span>
+                            <span>{Math.round(uploadProgress)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${uploadProgress}%` }}
+                              className="bg-emerald-500 h-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Firmware Link / Download URL</label>
+                      <input
+                        type="text"
+                        required={uploadMode === 'link'}
+                        value={formData.downloadUrl}
+                        onChange={e => setFormData({ ...formData, downloadUrl: e.target.value })}
+                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Description</label>
+                    <textarea
+                      required
+                      value={formData.description}
+                      onChange={e => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full h-32 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold resize-none"
+                      placeholder="What's new in this version?"
+                    />
+                  </div>
+  
+                  <div className="pt-4 flex gap-4">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="h-14 flex-1 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                      disabled={loading || (uploadMode === 'file' && !uploadFile)}
+                    >
+                      {loading ? <RefreshCw className="animate-spin" size={18} /> : <CloudUpload size={18} />}
+                      {loading ? `Uploading ${Math.round(uploadProgress)}%` : 'Upload Version'}
+                    </motion.button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModal(false)}
+                      className="h-14 px-8 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+const MePage = ({ 
     isDarkMode, 
     setIsDarkMode, 
     customLogo, 
@@ -6498,38 +7963,76 @@ const BandwidthTestPage = () => {
     const [newPass, setNewPass] = useState('');
     const [confirmPass, setConfirmPass] = useState('');
 
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file && user) {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          // Optimize logo slightly, usually logos are tiny but just in case
-          const MAX_SIZE = 500;
-          if (width > height && width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          } else if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
+        if (file.size > 10 * 1024 * 1024) {
+          addNotification("File too large! Max 10MB.");
+          return;
+        }
+
+        setIsLogoUploading(true);
+        addNotification("Updating logo...");
+        try {
+          // If it's a GIF, we skip canvas optimization to preserve animation
+          const isGif = file.type === 'image/gif';
+          
+          if (!isGif) {
+            // Optimization for non-GIFs
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            const optimizedBlob = await new Promise<Blob | null>((resolve) => {
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_SIZE = 800;
+                if (width > height && width > MAX_SIZE) {
+                  height *= MAX_SIZE / width;
+                  width = MAX_SIZE;
+                } else if (height > MAX_SIZE) {
+                  width *= MAX_SIZE / height;
+                  height = MAX_SIZE;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.8);
+                } else {
+                  resolve(null);
+                }
+                URL.revokeObjectURL(url);
+              };
+              img.src = url;
+            });
+
+            if (optimizedBlob) {
+              const storageRef = ref(storage, `settings/logo_${Date.now()}.webp`);
+              const uploadTask = await uploadBytes(storageRef, optimizedBlob);
+              const downloadUrl = await getDownloadURL(uploadTask.ref);
+              setCustomLogo(downloadUrl);
+              localStorage.setItem('cctv_custom_logo', downloadUrl);
+              addNotification("Logo optimized and uploaded!");
+            } else {
+              throw new Error("Optimization failed");
+            }
+          } else {
+            // Direct upload for GIFs
+            const storageRef = ref(storage, `settings/logo_${Date.now()}.gif`);
+            const uploadTask = await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(uploadTask.ref);
+            setCustomLogo(downloadUrl);
+            localStorage.setItem('cctv_custom_logo', downloadUrl);
+            addNotification("GIF Logo uploaded!");
           }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            // we should probably keep png transparency if possible or webp.
-            ctx.drawImage(img, 0, 0, width, height);
-            const base64 = canvas.toDataURL('image/webp', 0.8);
-            setCustomLogo(base64);
-            localStorage.setItem('cctv_custom_logo', base64);
-            addNotification("Logo updated and optimized!");
-          }
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
+        } catch (error: any) {
+          console.error("Logo upload error:", error);
+          addNotification("Logo upload failed: " + error.message);
+        } finally {
+          setIsLogoUploading(false);
+        }
       }
     };
 
@@ -6866,30 +8369,58 @@ const BandwidthTestPage = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="glass-card p-6 flex flex-col items-center text-center h-fit overflow-hidden">
-            {!user ? (
-               <AnimatedLoginForm onLogin={loginWithGoogle} />
+            {!user && !staffUser ? (
+              <div className="w-full">
+                <AnimatedLoginForm onLogin={loginWithGoogle} />
+                <div className="mt-6 flex flex-col items-center gap-2">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Client Login</p>
+                  <button onClick={() => { playSound('click'); loginWithGoogle(); }} className="px-6 py-2 bg-slate-100 dark:bg-slate-800 rounded-full text-xs font-bold hover:bg-slate-200 transition-colors">
+                    Access My Profile
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-4xl font-bold mb-4 border-4 border-white shadow-2xl overflow-hidden">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {user?.photoURL || staffUser ? (
+                      <img src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${staffUser?.name || 'Staff'}`} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      customLogo ? <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : "AD"
+                      (user?.displayName || staffUser?.name || 'U').charAt(0)
                     )}
                   </div>
+                  <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full border-4 border-white flex items-center justify-center text-white">
+                    <ShieldCheck size={14} />
+                  </div>
                   {isAdmin && (
-                    <label className="absolute bottom-4 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors">
-                      <Plus size={16} />
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e)} />
+                    <label className={`absolute bottom-4 right-0 p-2 ${isLogoUploading ? 'bg-slate-400' : 'bg-blue-600'} text-white rounded-full shadow-lg cursor-pointer hover:bg-blue-700 transition-colors`}>
+                      {isLogoUploading ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />}
+                      <input disabled={isLogoUploading} type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e)} />
                     </label>
                   )}
                 </div>
-                <h3 className="text-xl font-bold">{user.displayName || 'User Profile'}</h3>
-                <p className="text-gray-500 text-sm">{user.email}</p>
-                <div className="flex gap-4 mt-2">
-                  {isAdmin && <p className="text-[10px] text-blue-600 cursor-pointer" onClick={() => setCustomLogo(null)}>Reset Logo</p>}
-                  <p className="text-[10px] text-red-600 cursor-pointer font-bold" onClick={logout}>Logout</p>
+                <h3 className="text-xl font-bold mt-2">{user?.displayName || staffUser?.name || 'User Profile'}</h3>
+                <p className="text-gray-500 text-xs mb-4">{user?.email || (staffUser ? 'Staff Member' : 'System User')}</p>
+                
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+                  <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    {isAdmin ? 'Administrator' : (staffUser ? 'Staff Member' : 'Client')}
+                  </span>
+                  {clientProfile && (
+                    <span className="px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      Verified Client
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col w-full gap-3">
+                  {isAdmin && <button className="text-[10px] text-blue-600 hover:underline" onClick={() => setCustomLogo(null)}>Reset Logo</button>}
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full py-4 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-red-500/10"
+                  >
+                    <LogOut size={16} /> Logout System
+                  </button>
                 </div>
               </>
             )}
@@ -7021,9 +8552,10 @@ const BandwidthTestPage = () => {
                         <p className="text-[10px] text-gray-500">Change brand identity</p>
                       </div>
                     </div>
-                    <label className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors">
-                      Upload
-                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                    <label className={`px-4 py-2 ${isLogoUploading ? 'bg-slate-400' : 'bg-blue-600'} text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors flex items-center gap-2`}>
+                      {isLogoUploading && <RefreshCw size={12} className="animate-spin" />}
+                      {isLogoUploading ? 'Uploading...' : 'Upload'}
+                      <input disabled={isLogoUploading} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                     </label>
                   </div>
 
@@ -7138,56 +8670,33 @@ const BandwidthTestPage = () => {
                           <Trash2 size={16} />
                         </button>
                       )}
-                      <label className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors">
-                        Add Image
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      <label className={`px-4 py-2 ${isLogoUploading ? 'bg-slate-400' : 'bg-purple-600'} text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-purple-700 transition-colors flex items-center gap-2`}>
+                        {isLogoUploading && <RefreshCw size={12} className="animate-spin" />}
+                        {isLogoUploading ? 'Uploading...' : 'Add Image'}
+                        <input disabled={isLogoUploading} type="file" accept="image/*" className="hidden" onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (sliderImages.length >= 5) {
-                              addNotification("Maximum 5 banner images allowed.");
+                            if (sliderImages.length >= 8) {
+                              addNotification("Maximum 8 banner images allowed.");
                               return;
                             }
-                            
-                            const img = new Image();
-                            const url = URL.createObjectURL(file);
-                            
-                            img.onload = () => {
-                              const canvas = document.createElement('canvas');
-                              let width = img.width;
-                              let height = img.height;
-                              
-                              // Compress and resize image to fit in Firestore (1MB limit for document)
-                              const MAX_WIDTH = 1200;
-                              const MAX_HEIGHT = 800;
-                              
-                              if (width > height) {
-                                if (width > MAX_WIDTH) {
-                                  height = Math.round((height * MAX_WIDTH) / width);
-                                  width = MAX_WIDTH;
-                                }
-                              } else {
-                                if (height > MAX_HEIGHT) {
-                                  width = Math.round((width * MAX_HEIGHT) / height);
-                                  height = MAX_HEIGHT;
-                                }
-                              }
-                              
-                              canvas.width = width;
-                              canvas.height = height;
-                              const ctx = canvas.getContext('2d');
-                              if (ctx) {
-                                ctx.drawImage(img, 0, 0, width, height);
-                                // Compress as JPEG at 60% quality -> usually ~50-150KB
-                                const base64 = canvas.toDataURL('image/jpeg', 0.6);
-                                const newImages = [...sliderImages, base64];
-                                setSliderImages(newImages);
-                                localStorage.setItem('cctv_slider_images', JSON.stringify(newImages));
-                                addNotification("Slider image added and optimized!");
-                              }
-                              URL.revokeObjectURL(url);
-                            };
-                            
-                            img.src = url;
+
+                            setIsLogoUploading(true);
+                            addNotification("Uploading banner...");
+                            try {
+                              const storageRef = ref(storage, `settings/slider_${Date.now()}_${file.name}`);
+                              const uploadTask = await uploadBytes(storageRef, file);
+                              const downloadUrl = await getDownloadURL(uploadTask.ref);
+                              const newImages = [...sliderImages, downloadUrl];
+                              setSliderImages(newImages);
+                              localStorage.setItem('cctv_slider_images', JSON.stringify(newImages));
+                              addNotification("Banner image added successfully!");
+                            } catch (error: any) {
+                              console.error("Slider upload error:", error);
+                              addNotification("Upload failed: " + error.message);
+                            } finally {
+                              setIsLogoUploading(false);
+                            }
                           }
                         }} />
                       </label>
@@ -7720,6 +9229,7 @@ const BandwidthTestPage = () => {
                 {[
                     { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
                     { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
+                    { id: 'device-version', icon: Laptop, label: 'Device Version', adminOnly: false },
                     { id: 'services', icon: LayoutGrid, label: 'Services', adminOnly: false },
                     { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
                     { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
@@ -7727,6 +9237,8 @@ const BandwidthTestPage = () => {
                     { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
                     { id: 'manage-services', icon: LayoutGrid, label: 'Manage Services', adminOnly: true },
                     { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
+                    { id: 'staff-tracking', icon: Navigation, label: 'Check-in', adminOnly: false },
+                    { id: 'manage-staff', icon: Users, label: 'Manage Staff', adminOnly: true },
                     { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
                     { id: 'ai-assistant', icon: Bot, label: 'AI Intelligence', adminOnly: false },
                     { id: 'offers', icon: Megaphone, label: 'Marketing', adminOnly: false },
@@ -7838,6 +9350,13 @@ const BandwidthTestPage = () => {
                   setSelectedProduct={setSelectedProduct}
                 />
               )}
+              {activeTab === 'device-version' && (
+                <DeviceVersionPage 
+                  user={user}
+                  isAdmin={isAdmin}
+                  customLogo={customLogo}
+                />
+              )}
               {activeTab === 'services' && (
                 <ServicesPage isAdmin={isAdmin} />
               )}
@@ -7888,6 +9407,7 @@ const BandwidthTestPage = () => {
                   isDarkMode={isDarkMode}
                   formatCurrency={formatCurrency}
                   productCategories={productCategories}
+                  isAdmin={isAdmin}
                 />
               )}
               {activeTab === 'expenses' && isAdmin && (
@@ -7895,6 +9415,12 @@ const BandwidthTestPage = () => {
               )}
               {activeTab === 'bandwidth' && (
                 <BandwidthTestPage />
+              )}
+              {activeTab === 'staff-tracking' && (
+                <StaffCheckIn user={user} staffUser={staffUser} />
+              )}
+              {activeTab === 'manage-staff' && isAdmin && (
+                <ManageStaff withPassword={withPassword} />
               )}
               {activeTab === 'warranty' && isAdmin && <WarrantyPage clients={clients} />}
               {activeTab === 'support' && (
@@ -7951,10 +9477,11 @@ const BandwidthTestPage = () => {
         <nav className="md:hidden custom-nav">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
+            { id: 'device-version', icon: Laptop, label: 'Device' },
             { id: 'services', icon: LayoutGrid, label: 'Services' },
+            { id: isAdmin ? 'manage-staff' : 'staff-tracking', icon: isAdmin ? Users : Navigation, label: isAdmin ? 'Staff' : 'Check-in' },
             { id: 'cart', icon: ShoppingCart, label: 'Cart' },
             { id: 'me', icon: User, label: 'Account' },
-            { id: 'support', icon: Settings, label: 'Support' },
           ].map((item, index) => {
             const isActive = activeTab === item.id || (item.id === 'cart' && showCart);
             return (
@@ -7963,6 +9490,7 @@ const BandwidthTestPage = () => {
                   <a 
                     className={cn(isActive && "active", "relative")}
                     onClick={() => {
+                      playSound('click');
                       if (item.id === 'cart') {
                         setShowCart(true);
                       } else {
@@ -7988,11 +9516,12 @@ const BandwidthTestPage = () => {
             style={{ 
               left: `${(([
                 'dashboard',
+                'device-version',
                 'services',
+                isAdmin ? 'manage-staff' : 'staff-tracking',
                 'cart',
-                'me',
-                'support'
-              ].indexOf(showCart ? 'cart' : activeTab) || 0) * 20) + 10}%`
+                'me'
+              ].indexOf(showCart ? 'cart' : (['dashboard', 'device-version', 'services', isAdmin ? 'manage-staff' : 'staff-tracking', 'cart', 'me'].includes(activeTab) ? activeTab : 'dashboard')) || 0) * (100/6)) + (100/12)}%`
             }}
           >
             <div className="light-ray"></div>
@@ -8009,12 +9538,21 @@ const BandwidthTestPage = () => {
           <CartModal />
         )}
         {selectedProduct && (
-          <ProductDetailsModal 
-            product={selectedProduct} 
-            onClose={() => setSelectedProduct(null)} 
-            addToCart={addToCart}
-            formatCurrency={formatCurrency}
-          />
+            <ProductDetailsModal 
+              product={selectedProduct} 
+              onClose={() => setSelectedProduct(null)} 
+              addToCart={addToCart}
+              formatCurrency={formatCurrency}
+              addNotification={addNotification}
+              isAdmin={isAdmin && activeTab === 'products'}
+              onEdit={(p) => {
+                setSelectedProduct(null);
+                withPassword(() => setShowEditProduct(p), true);
+              }}
+              onDelete={(id) => {
+                withPassword(() => handleDeleteProduct(id));
+              }}
+            />
         )}
         {showClientProfile && (
           <ClientProfile 

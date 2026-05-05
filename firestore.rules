@@ -25,10 +25,11 @@ service cloud.firestore {
       allow update: if true; 
     }
 
-    // Offers: Anyone can read, only admin can write
+    // Offers: Anyone can read, only admin can create/delete, anyone signed in can like/comment
     match /offers/{offerId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isSignedIn();
     }
 
     // Alerts: Anyone can read, only admin can write
@@ -41,6 +42,20 @@ service cloud.firestore {
     match /services/{serviceId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Staff: Admin can manage, authenticated users can read basic info
+    match /staff/{staffId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+      
+      // Location updates: Staff can update their own location if their email matches
+      allow update: if isSignedIn() && (isAdmin() || request.auth.token.email == resource.data.email);
+
+      match /history/{historyId} {
+        allow read: if isAdmin();
+        allow create: if isSignedIn() && (isAdmin() || request.auth.token.email == get(/databases/$(database)/documents/staff/$(staffId)).data.email);
+      }
     }
 
     // Public Orders: Anyone can create, admin can manage
@@ -62,6 +77,12 @@ service cloud.firestore {
     }
     match /expenses/{expenseId} {
       allow read, write: if isAdmin();
+    }
+
+    // Device Versions: Anyone can read, only admin can create/delete
+    match /device_versions/{versionId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // Health check

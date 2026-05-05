@@ -401,6 +401,670 @@
     @apply absolute top-[30%] right-[10%] w-[40rem] h-[40rem] bg-blue-500/15 blur-[150px] rounded-full animate-pulse;
   }
 
+  /* From Uiverse.io by ElSombrero2 - Updated for React and App Theme */
+.uiverse-pasta-card {
+  overflow: visible;
+  width: 100%;
+  height: 350px;
+  max-width: 280px;
+  perspective: 1000px;
+}
+
+@media (max-width: 640px) {
+  .uiverse-pasta-card {
+    height: 300px;
+  }
+}
+
+.uiverse-pasta-content {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 600ms;
+  box-shadow: 0px 0px 20px 1px rgba(0,0,0,0.4);
+  border-radius: 15px;
+  cursor: pointer;
+}
+
+.uiverse-pasta-card:hover .uiverse-pasta-content {
+  transform: rotateY(180deg);
+}
+
+.uiverse-pasta-front, .uiverse-pasta-back {
+  background-color: #151515;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.uiverse-pasta-back {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.uiverse-pasta-back::before {
+  position: absolute;
+  content: ' ';
+  display: block;
+  width: 160px;
+  height: 160%;
+  background: linear-gradient(90deg, transparent, #ff9966, #ff9966, #ff9966, #ff9966, transparent);
+  animation: rotation_481 5000ms infinite linear;
+}
+
+.uiverse-pasta-back-content {
+  position: absolute;
+  width: 98%;
+  height: 98%;
+  background-color: #151515;
+  border-radius: 14px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  z-index: 1;
+}
+
+.uiverse-pasta-front {
+  transform: rotateY(180deg);
+  color: white;
+}
+
+.uiverse-pasta-front .uiverse-pasta-front-content {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.uiverse-pasta-front-content .uiverse-pasta-badge {
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  width: fit-content;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .uiverse-pasta-front-content .uiverse-pasta-badge {
+    font-size: 8px;
+    padding: 2px 8px;
+  }
+}
+
+.uiverse-pasta-description {
+  box-shadow: 0px 0px 10px 5px rgba(0,0,0,0.2);
+  width: 100%;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+}
+
+.uiverse-pasta-title {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .uiverse-pasta-title {
+    font-size: 10px;
+  }
+}
+
+.uiverse-pasta-footer {
+  color: #ffffff99;
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  .uiverse-pasta-footer {
+    font-size: 8px;
+    margin-top: 2px;
+  }
+}
+
+.uiverse-pasta-img-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: #111;
+  overflow: hidden;
+}
+
+.uiverse-pasta-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background-color: #ffbb66;
+  position: absolute;
+  filter: blur(30px);
+  animation: floating 3s infinite ease-in-out;
+}
+
+#uiverse-pasta-bottom {
+  background-color: #ff8866;
+  right: -20px;
+  bottom: -20px;
+  width: 180px;
+  height: 180px;
+  animation-delay: -800ms;
+}
+
+#uiverse-pasta-right {
+  background-color: #ff2233;
+  left: -30px;
+  top: -30px;
+  width: 60px;
+  height: 60px;
+  animation-delay: -1800ms;
+}
+
+@keyframes rotation_481 {
+  0% { transform: rotateZ(0deg); }
+  100% { transform: rotateZ(360deg); }
+}
+
+@keyframes floating {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(15px) rotate(5deg); }
+}
+
+/* From Uiverse.io by Juanes200122 */ 
+.uiverse-device-icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+@keyframes device-bounce {
+  0%,
+  100% {
+    translate: 0px 36px;
+  }
+  50% {
+    translate: 0px 46px;
+  }
+}
+@keyframes device-bounce2 {
+  0%,
+  100% {
+    translate: 0px 46px;
+  }
+  50% {
+    translate: 0px 56px;
+  }
+}
+
+@keyframes device-umbral {
+  0% {
+    stop-color: #d3a5102e;
+  }
+  50% {
+    stop-color: rgba(211, 165, 16, 0.519);
+  }
+  100% {
+    stop-color: #d3a5102e;
+  }
+}
+@keyframes device-particles {
+  0%,
+  100% {
+    translate: 0px 16px;
+  }
+  50% {
+    translate: 0px 6px;
+  }
+}
+#device-particles {
+  animation: device-particles 4s ease-in-out infinite;
+}
+#device-animatedStop {
+  animation: device-umbral 4s infinite;
+}
+#device-bounce {
+  animation: device-bounce 4s ease-in-out infinite;
+  translate: 0px 36px;
+}
+#device-bounce2 {
+  animation: device-bounce2 4s ease-in-out infinite;
+  translate: 0px 46px;
+  animation-delay: 0.5s;
+}
+
+/* Minimal Search Bar - Addressing "No Background" request */
+.uiverse-minimal-search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+
+.uiverse-minimal-search-input {
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0 45px;
+  color: white;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.uiverse-minimal-search-input:focus {
+  border-color: #ff8c00;
+  box-shadow: 0 0 15px rgba(255, 140, 0, 0.2);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.uiverse-minimal-search-icon {
+  position: absolute;
+  left: 15px;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.uiverse-minimal-search-input:focus + .uiverse-minimal-search-icon {
+  color: #ff8c00;
+}
+
+.uiverse-minimal-search-glow {
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(90deg, #ff8c00, #ff4500);
+  border-radius: 14px;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  filter: blur(8px);
+}
+
+.uiverse-minimal-search-input:focus ~ .uiverse-minimal-search-glow {
+  opacity: 0.3;
+}
+
+/* From Uiverse.io by chase2k25 */ 
+  .uiverse-container {
+    background: #181c21;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    position: fixed;
+    inset: 0;
+    z-index: -100;
+  }
+
+  .pattern-bg {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: repeating-linear-gradient(
+      135deg,
+      #232526 0px,
+      #232526 60px,
+      #23252699 70px,
+      #414345 130px
+    );
+  }
+
+  .cube-svg {
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    left: -30%;
+    top: -20%;
+    background: transparent;
+    opacity: 0.7;
+    z-index: 1;
+    animation: cubeMove 18s linear infinite alternate;
+  }
+
+  @keyframes cubeMove {
+    from {
+      transform: translateY(0) scale(1);
+    }
+    to {
+      transform: translateY(-20%) scale(1.02) rotate(1deg);
+    }
+  }
+
+  /* From Uiverse.io by Lakshay-art */ 
+  .uiverse-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1rem 0;
+    transform: scale(0.9);
+  }
+
+  .uiverse-poda {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .uiverse-white,
+  .uiverse-border,
+  .uiverse-darkBorderBg,
+  .uiverse-glow {
+    max-height: 70px;
+    max-width: 314px;
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    overflow: hidden;
+    z-index: -1;
+    /* Border Radius */
+    border-radius: 12px;
+    filter: blur(3px);
+  }
+
+  .uiverse-input {
+    background-color: #010201;
+    border: none;
+    width: 301px;
+    height: 56px;
+    border-radius: 10px;
+    color: white;
+    padding-inline: 59px;
+    font-size: 18px;
+  }
+
+  .uiverse-input::placeholder {
+    color: #c0b9c0;
+  }
+
+  .uiverse-input:focus {
+    outline: none;
+  }
+
+  #uiverse-main:focus-within > #uiverse-input-mask {
+    display: none;
+  }
+
+  #uiverse-input-mask {
+    pointer-events: none;
+    width: 100px;
+    height: 20px;
+    position: absolute;
+    background: linear-gradient(90deg, transparent, black);
+    top: 18px;
+    left: 70px;
+  }
+
+  #uiverse-pink-mask {
+    pointer-events: none;
+    width: 30px;
+    height: 20px;
+    position: absolute;
+    background: #cf30aa;
+    top: 10px;
+    left: 5px;
+    filter: blur(20px);
+    opacity: 0.8;
+    transition: all 2s;
+  }
+
+  #uiverse-main:hover > #uiverse-pink-mask {
+    opacity: 0;
+  }
+
+  .uiverse-white {
+    max-height: 63px;
+    max-width: 307px;
+    border-radius: 10px;
+    filter: blur(2px);
+  }
+
+  .uiverse-white::before {
+    content: "";
+    z-index: -2;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(83deg);
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    filter: brightness(1.4);
+    background-image: conic-gradient(
+      rgba(0, 0, 0, 0) 0%,
+      #a099d8,
+      rgba(0, 0, 0, 0) 8%,
+      rgba(0, 0, 0, 0) 50%,
+      #dfa2da,
+      rgba(0, 0, 0, 0) 58%
+    );
+    transition: all 2s;
+  }
+
+  .uiverse-border {
+    max-height: 59px;
+    max-width: 303px;
+    border-radius: 11px;
+    filter: blur(0.5px);
+  }
+
+  .uiverse-border::before {
+    content: "";
+    z-index: -2;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(70deg);
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    filter: brightness(1.3);
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-image: conic-gradient(
+      #1c191c,
+      #402fb5 5%,
+      #1c191c 14%,
+      #1c191c 50%,
+      #cf30aa 60%,
+      #1c191c 64%
+    );
+    transition: all 2s;
+  }
+
+  .uiverse-darkBorderBg {
+    max-height: 65px;
+    max-width: 312px;
+  }
+
+  .uiverse-darkBorderBg::before {
+    content: "";
+    z-index: -2;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(82deg);
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-image: conic-gradient(
+      rgba(0, 0, 0, 0),
+      #18116a,
+      rgba(0, 0, 0, 0) 10%,
+      rgba(0, 0, 0, 0) 50%,
+      #6e1b60,
+      rgba(0, 0, 0, 0) 60%
+    );
+    transition: all 2s;
+  }
+
+  .uiverse-poda:hover > .uiverse-darkBorderBg::before {
+    transform: translate(-50%, -50%) rotate(262deg);
+  }
+
+  .uiverse-poda:hover > .uiverse-glow::before {
+    transform: translate(-50%, -50%) rotate(240deg);
+  }
+
+  .uiverse-poda:hover > .uiverse-white::before {
+    transform: translate(-50%, -50%) rotate(263deg);
+  }
+
+  .uiverse-poda:hover > .uiverse-border::before {
+    transform: translate(-50%, -50%) rotate(250deg);
+  }
+
+  /* Focus states */
+  .uiverse-poda:focus-within > .uiverse-darkBorderBg::before {
+    transform: translate(-50%, -50%) rotate(442deg);
+    transition: all 4s;
+  }
+
+  .uiverse-poda:focus-within > .uiverse-glow::before {
+    transform: translate(-50%, -50%) rotate(420deg);
+    transition: all 4s;
+  }
+
+  .uiverse-poda:focus-within > .uiverse-white::before {
+    transform: translate(-50%, -50%) rotate(443deg);
+    transition: all 4s;
+  }
+
+  .uiverse-poda:focus-within > .uiverse-border::before {
+    transform: translate(-50%, -50%) rotate(430deg);
+    transition: all 4s;
+  }
+
+  .uiverse-glow {
+    overflow: hidden;
+    filter: blur(30px);
+    opacity: 0.4;
+    max-height: 130px;
+    max-width: 354px;
+  }
+
+  .uiverse-glow:before {
+    content: "";
+    z-index: -2;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(60deg);
+    position: absolute;
+    width: 999px;
+    height: 999px;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-image: conic-gradient(
+      #000,
+      #402fb5 5%,
+      #000 38%,
+      #000 50%,
+      #cf30aa 60%,
+      #000 87%
+    );
+    transition: all 2s;
+  }
+
+  @keyframes uiverse-rotate {
+    100% {
+      transform: translate(-50%, -50%) rotate(450deg);
+    }
+  }
+
+  #uiverse-filter-icon {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    max-height: 40px;
+    max-width: 38px;
+    height: 100%;
+    width: 100%;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #161329, black, #1d1b4b);
+    border: 1px solid transparent;
+  }
+
+  .uiverse-filterBorder {
+    height: 42px;
+    width: 40px;
+    position: absolute;
+    overflow: hidden;
+    top: 7px;
+    right: 7px;
+    border-radius: 10px;
+  }
+
+  .uiverse-filterBorder::before {
+    content: "";
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    filter: brightness(1.35);
+    background-image: conic-gradient(
+      rgba(0, 0, 0, 0),
+      #3d3a4f,
+      rgba(0, 0, 0, 0) 50%,
+      rgba(0, 0, 0, 0) 50%,
+      #3d3a4f,
+      rgba(0, 0, 0, 0) 100%
+    );
+    animation: uiverse-rotate 4s linear infinite;
+  }
+
+  #uiverse-main {
+    position: relative;
+  }
+
+  #uiverse-search-icon {
+    position: absolute;
+    left: 20px;
+    top: 15px;
+  }
+
+
   .splash-bg {
     @apply bg-[#081229] flex items-center justify-center relative overflow-hidden;
   }
@@ -658,7 +1322,7 @@
     width: min(400px, 95%);
     height: 70px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     border-radius: 20px;
     padding: 0 10px;
     background: #000;
@@ -736,6 +1400,64 @@
     justify-content: center;
     border: 1px solid #000;
   }
+  .matrix-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .matrix-bg::before {
+    content: "";
+    position: absolute;
+    inset: -145%;
+    transform: rotate(-45deg);
+    background: #000;
+    background-image: 
+      radial-gradient(4px 100px at 0px 235px, #0f0, #0000),
+      radial-gradient(4px 100px at 300px 235px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 117.5px, #0f0 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 252px, #0f0, #0000),
+      radial-gradient(4px 100px at 300px 252px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 126px, #0f0 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 150px, #0f0, #0000),
+      radial-gradient(4px 100px at 300px 150px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 75px, #0f0 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 200px, #0f0, #0000),
+      radial-gradient(4px 100px at 300px 200px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 100px, #0f0 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 100px, #0f0, #0000),
+      radial-gradient(4px 100px at 300px 100px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 50px, #0f0 100%, #0000 150%),
+      /* Adding more density */
+      radial-gradient(4px 100px at 50px 180px, #0f0, #0000),
+      radial-gradient(4px 100px at 250px 180px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 125px 90px, #0f0 100%, #0000 150%),
+      radial-gradient(4px 100px at 100px 210px, #0f0, #0000),
+      radial-gradient(4px 100px at 200px 210px, #0f0, #0000),
+      radial-gradient(1.5px 1.5px at 150px 105px, #0f0 100%, #0000 150%);
+    background-size: 300px 235px, 300px 235px, 300px 235px, 300px 252px, 300px 252px,
+      300px 252px, 300px 150px, 300px 150px, 300px 150px, 300px 200px, 300px 200px,
+      300px 200px, 300px 100px, 300px 100px, 300px 100px,
+      300px 180px, 300px 180px, 300px 180px, 300px 210px, 300px 210px, 300px 210px;
+    animation: matrix-rain 4s linear infinite;
+  }
+
+  @keyframes matrix-rain {
+    0% {
+      background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%,
+        0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%,
+        0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+    }
+    100% {
+      background-position: 0% 235px, 0% 235px, 0% 235px, 0% 252px, 0% 252px,
+        0% 252px, 0% 150px, 0% 150px, 0% 150px, 0% 200px, 0% 200px, 0% 200px,
+        0% 100px, 0% 100px, 0% 100px,
+        0% 180px, 0% 180px, 0% 180px, 0% 210px, 0% 210px, 0% 210px;
+    }
+  }
+
   /* Modern Login Form Styles (CodingStella) */
   .modern-login-wrapper {
     width: 100%;

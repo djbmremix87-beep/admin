@@ -1,6 +1,6 @@
 {
-  "name": "IT Department Pro ",
+  "name": "IT Department Pro",
   "description": "Comprehensive ISP and CCTV Management system for tracking clients, inventory, and network performance.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": []
 }

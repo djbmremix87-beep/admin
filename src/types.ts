@@ -36,6 +36,7 @@ export interface Product {
   videoUrl?: string;
   badge?: 'new' | 'hot' | 'lowstock';
   description?: string;
+  oldPrice?: number;
 }
 
 export interface WorkHistory {
@@ -59,6 +60,7 @@ export interface CartItem {
   name: string;
   quantity: number;
   price: number;
+  image?: string;
 }
 
 export interface Order {
@@ -102,8 +104,18 @@ export interface PublicOrder {
   customerName: string;
   customerPhone: string;
   customerAddress?: string;
-  items: { productId: number | string; name: string; quantity: number; price: number }[];
+  items: CartItem[];
   total: number;
   date: string;
   status: 'pending' | 'accepted' | 'rejected';
+}
+
+export interface DeviceVersion {
+  id: string;
+  deviceName: string;
+  versionName: string;
+  description: string;
+  downloadUrl: string;
+  createdAt: string;
+  authorName: string;
 }

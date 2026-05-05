@@ -81,6 +81,40 @@
         "icon": { "type": "string" },
         "imageUrl": { "type": "string" }
       }
+    },
+    "Staff": {
+      "title": "Staff Member",
+      "description": "Information about a staff member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "staffCode": { "type": "string" },
+        "pin": { "type": "string" },
+        "role": { "type": "string" },
+        "lastKnownLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "updatedAt": { "type": "string" }
+          }
+        },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "LocationHistory": {
+      "title": "Location History",
+      "description": "Historical location data points for staff",
+      "type": "object",
+      "properties": {
+        "staffId": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "timestamp": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -90,6 +124,8 @@
     "/offers/{offerId}": { "schema": "Offer", "description": "Marketing" },
     "/alerts/{alertId}": { "schema": "Alert", "description": "Network status" },
     "/services/{serviceId}": { "schema": "Service", "description": "Offered services" },
+    "/staff/{staffId}": { "schema": "Staff", "description": "Employee directory" },
+    "/staff/{staffId}/history/{historyId}": { "schema": "LocationHistory", "description": "Location tracking points" },
     "/public_orders/{orderId}": { "schema": "Order", "description": "Incoming sales" },
     "/settings/global": { "schema": "object", "description": "Global config" },
     "/users/{userId}": { "schema": "object", "description": "Legacy user data" }
