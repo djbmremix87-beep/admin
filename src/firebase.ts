@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -8,9 +8,10 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// Use initializeFirestore to enable specific settings like long polling
+// Use initializeFirestore to enable specific settings like long polling and offline persistence
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
+  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
 }, firebaseConfig.firestoreDatabaseId);
 
 // Validate Connection to Firestore on boot

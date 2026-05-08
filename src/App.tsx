@@ -140,7 +140,8 @@ interface Staff {
   phone: string;
   email: string;
   role: string;
-  attendance?: string[]; // Array of YYYY-MM-DD dates
+  image?: string;
+  attendance?: string[] | Record<string, string>; // Array of YYYY-MM-DD dates or Object map of date to time
   lastKnownLocation?: {
     lat: number;
     lng: number;
@@ -2919,8 +2920,12 @@ const StaffTrackingMap = ({ staff }: { staff: Staff[] }) => {
             <Popup>
               <div className="p-1 min-w-[180px]">
                 <div className="flex items-center gap-2 mb-2 border-b pb-2">
-                  <div className="w-10 h-10 rounded-full bg-[#dc143c] flex items-center justify-center text-white font-bold text-sm shrink-0">
-                    {member.name.charAt(0)}
+                  <div className="w-10 h-10 rounded-full bg-[#dc143c] flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden shadow-inner">
+                    {member.image ? (
+                      <img src={member.image} className="w-full h-full object-cover" alt={member.name} />
+                    ) : (
+                      member.name.charAt(0)
+                    )}
                   </div>
                   <div className="overflow-hidden">
                     <h3 className="font-bold text-sm m-0 truncate">{member.name}</h3>
@@ -2957,7 +2962,7 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', role: 'Technician', isActive: true });
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', role: 'Technician', isActive: true, image: '' });
   const [activeView, setActiveView] = useState<'list' | 'map'>('map');
 
   const isOnline = (updatedAt: string | undefined) => {
@@ -2982,7 +2987,7 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
     return isOnline(member.lastKnownLocation.updatedAt) ? "Live Now" : `Last seen ${new Date(member.lastKnownLocation.updatedAt).toLocaleTimeString()}`;
   };
 
-  const renderAttendanceCalendarForAdmin = (att: string[] | undefined) => {
+  const renderAttendanceCalendarForAdmin = (att: string[] | Record<string, string> | undefined) => {
     const dates = [];
     const today = new Date();
     for (let i = 29; i >= 0; i--) {
@@ -2991,7 +2996,13 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
       dates.push(d);
     }
     const todayStr = today.toISOString().split('T')[0];
-    const attendanceArray = att || [];
+    
+    let attendanceMap: Record<string, string> = {};
+    if (Array.isArray(att)) {
+      att.forEach(d => attendanceMap[d] = '✔');
+    } else if (att) {
+      attendanceMap = att;
+    }
 
     return (
       <div className="mt-4 border-t border-slate-50 dark:border-slate-800 pt-4">
@@ -2999,15 +3010,18 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
         <div className="grid grid-cols-7 gap-1">
           {dates.map(dateObj => {
             const dateStr = dateObj.toISOString().split('T')[0];
-            const isPresent = attendanceArray.includes(dateStr);
+            const isPresent = !!attendanceMap[dateStr];
             const isToday = dateStr === todayStr;
             const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
             
             return (
-              <div key={dateStr} className={`relative flex flex-col items-center justify-center py-1 rounded border ${isPresent ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-600' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-500'}`}>
+              <div key={dateStr} className={`relative flex flex-col items-center justify-center py-1 rounded border ${isPresent ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-600' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-500'}`} title={isPresent ? `Present (${attendanceMap[dateStr]})` : 'Absent'}>
                 {isToday && !isPresent && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></div>}
                 <span className="text-[7px] font-bold uppercase opacity-60">{dayName}</span>
                 <span className="text-[9px] font-bold mt-0.5">{dateObj.getDate()}</span>
+                {isPresent && attendanceMap[dateStr] !== '✔' && (
+                  <span className="text-[5px] font-bold mt-0.5 opacity-80 whitespace-nowrap">{attendanceMap[dateStr]}</span>
+                )}
               </div>
             );
           })}
@@ -3052,7 +3066,7 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
       }
       setShowModal(false);
       setEditingStaff(null);
-      setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true });
+      setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true, image: '' });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'staff');
     }
@@ -3108,7 +3122,7 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
             <RefreshCw size={20} className={cn(isRefreshing && "animate-spin")} />
           </button>
           <button 
-            onClick={() => { setEditingStaff(null); setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true }); setShowModal(true); }}
+            onClick={() => { setEditingStaff(null); setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true, image: '' }); setShowModal(true); }}
             className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity"
           >
             <Plus size={20} /> Add Staff
@@ -3123,10 +3137,19 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredStaff.map(member => (
               <div key={member.id} className="bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                <div className={cn(
-                   "w-3 h-3 rounded-full",
-                   getStatusColor(member)
-                )} />
+                <div className="relative shrink-0">
+                  {member.image ? (
+                    <img src={member.image} className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-slate-800 shadow-sm" alt={member.name} />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[#dc143c] font-bold border-2 border-white dark:border-slate-800 shadow-sm">
+                      {member.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className={cn(
+                    "absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900",
+                    getStatusColor(member)
+                  )} />
+                </div>
                 <div className="overflow-hidden">
                   <h4 className="font-bold text-sm truncate">{member.name}</h4>
                   <p className="text-[10px] text-gray-400 truncate">
@@ -3145,11 +3168,15 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
               className="bg-white dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:shadow-xl transition-all"
             >
               <div className="flex justify-between items-start mb-4">
-                <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-bold text-xl">
-                  {member.name.charAt(0)}
-                </div>
+                {member.image ? (
+                  <img src={member.image} className="w-14 h-14 object-cover rounded-2xl shadow-md border-2 border-slate-100 dark:border-slate-800" alt={member.name} />
+                ) : (
+                  <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-bold text-xl shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
+                    {member.name.charAt(0)}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <button onClick={() => { setEditingStaff(member); setFormData({ name: member.name, phone: member.phone, email: member.email, role: member.role, isActive: member.isActive }); setShowModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors">
+                  <button onClick={() => { setEditingStaff(member); setFormData({ name: member.name, phone: member.phone, email: member.email, role: member.role, isActive: member.isActive, image: member.image || '' }); setShowModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors">
                     <Edit2 size={16} />
                   </button>
                   <button onClick={() => handleDelete(member.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
@@ -3197,6 +3224,35 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
               <div className="absolute top-0 left-0 w-full h-2 bg-[#dc143c]" />
               <h3 className="text-2xl font-bold mb-6">{editingStaff ? 'Edit Staff Member' : 'Add New Staff'}</h3>
               <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Profile Picture</label>
+                  <div className="flex items-center gap-4">
+                    {formData.image ? (
+                      <img src={formData.image} alt="Preview" className="w-16 h-16 rounded-full object-cover border-2 border-[#dc143c] shadow-sm" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700">
+                        <Users size={24} className="text-slate-400" />
+                      </div>
+                    )}
+                    <label className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 flex justify-center items-center gap-2">
+                      <CloudUpload size={16} className="text-[#dc143c]" />
+                      <span className="text-sm font-bold">Upload Photo</span>
+                      <input 
+                        type="file" accept="image/*" className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setFormData({ ...formData, image: reader.result as string });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Full Name</label>
                   <input 
@@ -3271,9 +3327,18 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
 
   const handleAttendanceCheckIn = async () => {
     if (!staffInfo) return;
-    const today = new Date().toISOString().split('T')[0];
-    const currentAttendance = staffInfo.attendance || [];
-    if (currentAttendance.includes(today)) {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    let currentAttendance: Record<string, string> = {};
+    if (Array.isArray(staffInfo.attendance)) {
+        staffInfo.attendance.forEach(d => currentAttendance[d] = '✔');
+    } else if (staffInfo.attendance) {
+        currentAttendance = staffInfo.attendance;
+    }
+
+    if (currentAttendance[today]) {
       setError("You have already given attendance today!");
       setTimeout(() => setError(null), 3000);
       return;
@@ -3281,7 +3346,7 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
     try {
       const staffRef = doc(db, 'staff', staffInfo.id);
       await updateDoc(staffRef, {
-        attendance: [...currentAttendance, today]
+        attendance: { ...currentAttendance, [today]: timeStr }
       });
       setSuccess("Attendance submitted successfully!");
       setTimeout(() => setSuccess(null), 3000);
@@ -3299,7 +3364,13 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
       d.setDate(today.getDate() - i);
       dates.push(d);
     }
-    const att = staffInfo?.attendance || [];
+    
+    let attendanceMap: Record<string, string> = {};
+    if (Array.isArray(staffInfo?.attendance)) {
+      staffInfo.attendance.forEach(d => attendanceMap[d] = '✔');
+    } else if (staffInfo?.attendance) {
+      attendanceMap = staffInfo.attendance;
+    }
     const todayStr = today.toISOString().split('T')[0];
 
     return (
@@ -3308,7 +3379,7 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
         <div className="grid grid-cols-7 gap-2">
           {dates.map((dateObj, i) => {
             const dateStr = dateObj.toISOString().split('T')[0];
-            const isPresent = att.includes(dateStr);
+            const isPresent = !!attendanceMap[dateStr];
             const isToday = dateStr === todayStr;
             const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
             
@@ -3318,6 +3389,9 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
                 {isToday && !isPresent && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>}
                 <span className="text-[8px] text-gray-400 font-bold uppercase">{dayName}</span>
                 <span className="text-[10px] font-bold mt-0.5">{dateObj.getDate()}</span>
+                {isPresent && attendanceMap[dateStr] !== '✔' && (
+                  <span className="text-[8px] font-bold text-green-600 mt-0.5 tracking-tighter">{attendanceMap[dateStr]}</span>
+                )}
               </div>
             );
           })}
@@ -3482,8 +3556,12 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
         <div className="absolute top-0 left-0 w-full h-3 bg-[#dc143c]" />
         
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-black text-2xl">
-            {staffInfo.name.charAt(0)}
+          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-black text-2xl overflow-hidden shadow-md">
+            {staffInfo.image ? (
+              <img src={staffInfo.image} className="w-full h-full object-cover" alt="Profile" />
+            ) : (
+              staffInfo.name.charAt(0)
+            )}
           </div>
           <div>
             <h2 className="text-2xl font-bold">{staffInfo.name}</h2>
@@ -3501,10 +3579,19 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
           <button 
             onClick={handleAttendanceCheckIn}
             className="w-full bg-[#dc143c] hover:bg-[#b01030] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={staffInfo.attendance?.includes(new Date().toISOString().split('T')[0])}
+            disabled={
+              Array.isArray(staffInfo.attendance) 
+                ? staffInfo.attendance.includes(new Date().toISOString().split('T')[0]) 
+                : !!staffInfo.attendance?.[new Date().toISOString().split('T')[0]]
+            }
           >
             <CheckCircle size={20} />
-            {staffInfo.attendance?.includes(new Date().toISOString().split('T')[0]) ? 'Attendance Given Today' : 'Give Daily Attendance (হাজিরা দিন)'}
+            {
+              (Array.isArray(staffInfo.attendance) 
+                ? staffInfo.attendance.includes(new Date().toISOString().split('T')[0]) 
+                : !!staffInfo.attendance?.[new Date().toISOString().split('T')[0]])
+              ? 'Attendance Given Today' : 'Give Daily Attendance (হাজিরা দিন)'
+            }
           </button>
 
           {success && (
@@ -4277,7 +4364,7 @@ const CalculatorModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic }: { customLogo: string | null, onEnter: () => void, onPlay: () => void, hasMusic: boolean }) => {
+const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic, isLoading }: { customLogo: string | null, onEnter: () => void, onPlay: () => void, hasMusic: boolean, isLoading: boolean }) => {
   const [progress, setProgress] = useState(0);
   const [started, setStarted] = useState(!hasMusic);
 
@@ -4295,14 +4382,17 @@ const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic }: { customLogo: s
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setTimeout(onEnter, 300);
+          setTimeout(onEnter, 100);
           return 100;
         }
-        return prev + Math.random() * 20;
+        if (prev >= 95 && isLoading) {
+          return 95;
+        }
+        return prev + Math.random() * 40;
       });
-    }, 150);
+    }, 50);
     return () => clearInterval(interval);
-  }, [started, onEnter]);
+  }, [started, onEnter, isLoading]);
 
   return (
     <motion.div 
@@ -4675,7 +4765,7 @@ function AppContent() {
     
     // Global Settings
     const userDocRef = doc(db, 'settings', 'global');
-    getDoc(userDocRef).then((snapshot) => {
+    const unsubGlobal = onSnapshot(userDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         
@@ -4744,14 +4834,14 @@ function AppContent() {
         });
       }
       setIsInitialLoad(false);
-    }).catch((error) => {
+    }, (error) => {
       handleFirestoreError(error, OperationType.GET, `settings/global`);
       setIsInitialLoad(false);
     });
 
     // Products
     const productsRef = collection(db, 'products');
-    getDocs(query(productsRef, orderBy('name'))).then((snapshot) => {
+    const unsubProducts = onSnapshot(query(productsRef, orderBy('name')), (snapshot) => {
       const items = snapshot.docs.map(doc => {
         const data = doc.data();
         return { 
@@ -4761,12 +4851,16 @@ function AppContent() {
       });
       setProducts(items);
       localStorage.setItem('cctv_products', JSON.stringify(items));
-    }).catch(e => handleFirestoreError(e, OperationType.LIST, 'products'));
+    }, (e) => handleFirestoreError(e, OperationType.LIST, 'products'));
+
+    let unsubClients = () => {};
+    let unsubClientsNonAdmin1 = () => {};
+    let unsubClientsNonAdmin2 = () => {};
 
     // Clients
     if (isAdmin) {
       const clientsRef = collection(db, 'clients');
-      getDocs(query(clientsRef, orderBy('name'))).then((snapshot) => {
+      unsubClients = onSnapshot(query(clientsRef, orderBy('name')), (snapshot) => {
         const items = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -4794,12 +4888,12 @@ function AppContent() {
             localStorage.setItem('cctv_clients', '[]');
           }
         }
-      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `clients`));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `clients`));
     } else if (user) {
       // For non-admins, try to fetch their own client record
       const clientsRef = collection(db, 'clients');
       const q = query(clientsRef, where('email', '==', user.email || ''));
-      getDocs(q).then((snapshot) => {
+      unsubClientsNonAdmin1 = onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => {
           const data = doc.data();
           return { id: data.id || doc.id, ...data } as Client;
@@ -4808,8 +4902,9 @@ function AppContent() {
           setClients(items);
         } else {
           // Try by name if email fails
+          unsubClientsNonAdmin2();
           const q2 = query(clientsRef, where('name', '==', user.displayName || ''));
-          getDocs(q2).then((snap2) => {
+          unsubClientsNonAdmin2 = onSnapshot(q2, (snap2) => {
             const items2 = snap2.docs.map(doc => {
               const data = doc.data();
               return { id: data.id || doc.id, ...data } as Client;
@@ -4817,16 +4912,19 @@ function AppContent() {
             if (items2.length > 0) setClients(items2);
           });
         }
-      }).catch((error) => {
+      }, (error) => {
         // Silent error for non-admins if they don't have a record yet
         console.log("Non-admin client record fetch error or not found");
       });
     }
 
+    let unsubExpenses = () => {};
+    let unsubPublicOrders = () => {};
+
     // Expenses (Only for admin)
     if (isAdmin) {
       const expensesRef = collection(db, 'expenses');
-      getDocs(query(expensesRef, orderBy('date', 'desc'))).then((snapshot) => {
+      unsubExpenses = onSnapshot(query(expensesRef, orderBy('date', 'desc')), (snapshot) => {
         const items = snapshot.docs.map(doc => {
           const data = doc.data();
           return { id: data.id || doc.id, ...data } as Expense;
@@ -4851,7 +4949,7 @@ function AppContent() {
             localStorage.setItem('cctv_expenses', '[]');
           }
         }
-      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
     } else {
       setExpenses([]);
     }
@@ -4859,22 +4957,31 @@ function AppContent() {
     // Public Orders (Only for admin)
     if (isAdmin) {
       const poRef = collection(db, 'public_orders');
-      getDocs(query(poRef, where('status', '==', 'pending'))).then((snapshot) => {
+      unsubPublicOrders = onSnapshot(query(poRef, where('status', '==', 'pending')), (snapshot) => {
         const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PublicOrder));
         setPublicOrders(items);
-      }).catch((error) => handleFirestoreError(error, OperationType.LIST, `public_orders`));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, `public_orders`));
     } else {
       setPublicOrders([]);
     }
 
     // Offers
     const offersRef = collection(db, 'offers');
-    getDocs(query(offersRef, orderBy('createdAt', 'desc'))).then((snapshot) => {
+    const unsubOffers = onSnapshot(query(offersRef, orderBy('createdAt', 'desc')), (snapshot) => {
       setOffers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Offer)));
-    }).catch((error) => handleFirestoreError(error, OperationType.LIST, `offers`));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `offers`));
 
-    return () => {};
-  }, [isAdmin]);
+    return () => {
+      if (typeof unsubGlobal !== 'undefined') unsubGlobal();
+      if (typeof unsubProducts !== 'undefined') unsubProducts();
+      unsubClients();
+      unsubClientsNonAdmin1();
+      unsubClientsNonAdmin2();
+      unsubExpenses();
+      unsubPublicOrders();
+      if (typeof unsubOffers !== 'undefined') unsubOffers();
+    };
+  }, [isAdmin, user]);
 
   // Offers Music Playback
   useEffect(() => {
@@ -9150,7 +9257,7 @@ const MePage = ({
       <div className={cn("app-bg", isDarkMode ? "app-bg-dark" : "app-bg-light")} />
       
       <AnimatePresence>
-        {showSplash && <SplashScreen customLogo={customLogo} onEnter={handleSplashEnter} onPlay={handlePlayIntro} hasMusic={true} />}
+        {showSplash && <SplashScreen customLogo={customLogo} onEnter={handleSplashEnter} onPlay={handlePlayIntro} hasMusic={true} isLoading={isInitialLoad} />}
         {showAddProduct && (
           <AddProductModal 
             onClose={() => setShowAddProduct(false)} 
