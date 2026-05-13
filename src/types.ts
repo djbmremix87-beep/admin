@@ -26,6 +26,12 @@ export enum OrderStatus {
   CANCELLED = 'cancelled'
 }
 
+export interface CategoryData {
+  id: string;
+  name: string;
+  image?: string;
+}
+
 export interface Product {
   id: number | string;
   name: string;

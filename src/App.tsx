@@ -52,6 +52,7 @@ import {
   Lock,
   Key,
   Edit2,
+  Check,
   Calendar,
   Image as ImageIcon,
   Music,
@@ -119,7 +120,8 @@ import {
 } from 'recharts';
 import { cn, formatCurrency, numberToWords } from './lib/utils';
 import { 
-  Category, 
+  Category,
+  CategoryData,
   ClientStatus, 
   ExpenseCategory, 
   Product, 
@@ -134,6 +136,16 @@ import {
   DeviceVersion
 } from './types';
 
+interface SalaryRecord {
+  id: string;
+  monthName: string;
+  baseAmount: number;
+  bonusAmount: number;
+  totalPaid: number;
+  status: 'Pending' | 'Paid';
+  paidAt: string;
+}
+
 interface Staff {
   id: string;
   name: string;
@@ -142,6 +154,7 @@ interface Staff {
   role: string;
   image?: string;
   attendance?: string[] | Record<string, string>; // Array of YYYY-MM-DD dates or Object map of date to time
+  salaries?: SalaryRecord[];
   lastKnownLocation?: {
     lat: number;
     lng: number;
@@ -202,6 +215,8 @@ import {
   db, 
   storage,
   loginWithGoogle, 
+  loginWithEmail,
+  registerWithEmail,
   logout, 
   handleFirestoreError, 
   OperationType 
@@ -388,53 +403,68 @@ const UiverseSearch = ({ value, onChange, placeholder }: { value: string, onChan
 
 const ProductPastaCard = ({ product, onEdit, onDelete, isAdmin, onSelect }: { product: any, onEdit?: (p: any) => void, onDelete?: (id: string) => void, isAdmin?: boolean, onSelect?: (p: any) => void }) => {
   return (
-    <div className="uiverse-pasta-card mx-auto">
-      <div className="uiverse-pasta-content" onClick={() => (onSelect ? onSelect(product) : (onEdit ? onEdit(product) : null))}>
-        <div className="uiverse-pasta-back">
-          <div className="uiverse-pasta-back-content">
-            {(product.imageUrl || product.image) ? (
-              <img src={product.imageUrl || product.image} alt={product.title || product.name} className="w-32 h-32 sm:w-44 sm:h-44 object-contain rounded-lg shadow-lg mb-2 sm:mb-4" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="w-32 h-32 sm:w-44 sm:h-44 bg-gray-800 rounded-lg flex items-center justify-center mb-2 sm:mb-4">
-                <Camera className="text-gray-600" size={40} />
-              </div>
-            )}
-            <h3 className="font-bold text-xs sm:text-base text-center px-2 sm:px-4 text-white line-clamp-2">{product.title || product.name}</h3>
-            <p className="text-orange-500 font-bold text-sm sm:text-lg">৳{product.price}</p>
-            {isAdmin && (
-              <div className="flex gap-2 mt-1 sm:mt-2" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => onEdit && onEdit(product)} className="p-1 sm:p-2 bg-blue-500/20 hover:bg-blue-500/40 rounded-full transition-colors">
-                  <Edit2 size={12} className="text-blue-400" />
-                </button>
-                <button onClick={() => onDelete && onDelete(product.id)} className="p-1 sm:p-2 bg-red-500/20 hover:bg-red-500/40 rounded-full transition-colors">
-                  <Trash2 size={12} className="text-red-400" />
-                </button>
-              </div>
-            )}
-            <p className="hidden sm:block text-[10px] text-gray-500 mt-2 italic px-2 text-center line-clamp-2">{product.description}</p>
-          </div>
+    <div className="uiverse-glow-card mx-auto cursor-pointer" onClick={() => (onSelect ? onSelect(product) : (onEdit ? onEdit(product) : null))}>
+      <div className="uiverse-glow-card-content">
+        <div className="flex justify-between items-start mb-2">
+          <span className="bg-blue-500/10 text-blue-400 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-blue-500/20 backdrop-blur-md">
+            {product.category}
+          </span>
+          {product.stock <= 5 && product.stock > 0 && (
+            <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-amber-500/20 backdrop-blur-md">
+              Low Stock
+            </span>
+          )}
         </div>
-        <div className="uiverse-pasta-front">
-          <div className="uiverse-pasta-img-container">
-            <div className="uiverse-pasta-circle"></div>
-            <div className="uiverse-pasta-circle" id="uiverse-pasta-right"></div>
-            <div className="uiverse-pasta-circle" id="uiverse-pasta-bottom"></div>
-            {(product.imageUrl || product.image) && (
-               <img src={product.imageUrl || product.image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay" referrerPolicy="no-referrer" />
+
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <div className="w-full aspect-video rounded-xl overflow-hidden bg-slate-900/50 border border-white/5 relative group">
+            {(product.imageUrl || product.image) ? (
+              <img 
+                src={product.imageUrl || product.image} 
+                alt={product.title || product.name} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                referrerPolicy="no-referrer" 
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-700">
+                <Camera size={40} />
+              </div>
             )}
           </div>
-          <div className="uiverse-pasta-front-content">
-            <small className="uiverse-pasta-badge">{product.category}</small>
-            <div className="uiverse-pasta-description">
-              <div className="uiverse-pasta-title">
-                <p className="truncate mr-2 uppercase tracking-tighter"><strong>{product.title || product.name}</strong></p>
-                <svg fillRule="nonzero" height="15px" width="15px" viewBox="0,0,256,256" xmlnsXlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg"><g style={{mixBlendMode: 'normal'}} textAnchor="start" fontSize="none" fontWeight="none" fontFamily="none" strokeDashoffset="0" strokeDasharray="" strokeMiterlimit="10" strokeLinejoin="miter" strokeLinecap="butt" strokeWidth="1" stroke="none" fillRule="nonzero" fill="#20c997"><g transform="scale(8,8)"><path d="M25,27l-9,-6.75l-9,6.75v-23h18z"></path></g></g></svg>
-              </div>
-              <p className="uiverse-pasta-footer">
-                ৳{product.price} &nbsp; | &nbsp; {product.stock > 0 ? `${product.stock} In Stock` : 'Out of Stock'}
-              </p>
+
+          <div className="text-center w-full px-2">
+            <h2 className="text-white font-black text-xs sm:text-sm uppercase tracking-tighter line-clamp-2 leading-tight mb-1">
+              {product.title || product.name}
+            </h2>
+            <div className="flex items-center justify-center gap-2">
+               <span className="text-blue-400 font-black text-base italic tracking-tighter">৳{product.price}</span>
             </div>
           </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex gap-1.5">
+            {isAdmin && (
+              <>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onEdit && onEdit(product); }}
+                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-blue-500/20 text-white/40 hover:text-blue-400 flex items-center justify-center border border-white/10 transition-all active:scale-90"
+                >
+                  <Edit2 size={12} />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete && onDelete(product.id); }}
+                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 flex items-center justify-center border border-white/10 transition-all active:scale-90"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </>
+            )}
+          </div>
+          
+          <button className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1 hover:gap-2 transition-all">
+            See Details <ChevronRight size={12} />
+          </button>
         </div>
       </div>
     </div>
@@ -1675,7 +1705,7 @@ const ProductDetailsModal = ({
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        className="w-full max-w-[500px] bg-black border border-slate-800 rounded-[32px] overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.15)] relative"
+        className="w-full max-w-[500px] glow-effect-container text-white shadow-2xl relative"
         onClick={e => e.stopPropagation()}
       >
         {/* Animated background flare */}
@@ -1794,29 +1824,151 @@ const ProductDetailsModal = ({
 const CategoryManager = ({ 
   productCategories, 
   setProductCategories,
-  products 
+  products,
+  setProducts,
+  addNotification 
 }: { 
-  productCategories: string[], 
-  setProductCategories: (cats: string[]) => void,
-  products: Product[]
+  productCategories: CategoryData[], 
+  setProductCategories: (cats: CategoryData[]) => void,
+  products: Product[],
+  setProducts: (products: Product[]) => void,
+  addNotification: (msg: string) => void
 }) => {
   const [newCat, setNewCat] = useState('');
+  const [newCatImage, setNewCatImage] = useState('');
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editImage, setEditImage] = useState('');
 
-  const handleDeleteCategory = (catToDelete: string) => {
+  const handleDeleteCategory = (idToDelete: string) => {
+    const category = productCategories.find(c => c.id === idToDelete);
+    if (!category) return;
+
+    // Check if there are products in this category
+    const linkedProducts = products.filter(p => p.category === category.name);
+    if (linkedProducts.length > 0) {
+      addNotification(`Cannot delete: ${linkedProducts.length} products are still in this category.`);
+      return;
+    }
+
     // Check if category is purely an enum value (base category)
     const baseCategories = ['CCTV', 'NVR', 'DVR', 'ACCESSORIES'];
-    if (baseCategories.includes(catToDelete.toUpperCase())) {
+    if (baseCategories.includes(category.name.toUpperCase())) {
       const confirm = window.confirm("This is a base category. Are you sure?");
       if (!confirm) return;
     }
 
-    setProductCategories(productCategories.filter(c => c !== catToDelete));
+    setProductCategories(productCategories.filter(c => c.id !== idToDelete));
+    addNotification("Category deleted successfully.");
   };
 
   const handleAddCategory = () => {
-    if (newCat && !productCategories.includes(newCat)) {
-      setProductCategories([...productCategories, newCat]);
-      setNewCat('');
+    if (!newCat.trim()) {
+      addNotification("Please enter a category name.");
+      return;
+    }
+
+    if (productCategories.find(c => c.name.toLowerCase() === newCat.trim().toLowerCase())) {
+      addNotification("This category already exists.");
+      return;
+    }
+
+    const newCategory: CategoryData = {
+      id: Date.now().toString(),
+      name: newCat.trim(),
+      image: newCatImage
+    };
+    setProductCategories([...productCategories, newCategory]);
+    setNewCat('');
+    setNewCatImage('');
+    addNotification(`Category "${newCat}" added successfully!`);
+  };
+
+  const handleUpdateCategory = (id: string) => {
+    if (!editName.trim()) {
+      addNotification("Name cannot be empty.");
+      return;
+    }
+
+    const oldCategory = productCategories.find(c => c.id === id);
+    if (!oldCategory) return;
+
+    const oldName = oldCategory.name;
+    const newName = editName.trim();
+    
+    // Update category
+    setProductCategories(productCategories.map(c => 
+      c.id === id ? { ...c, name: newName, image: editImage } : c
+    ));
+
+    // Update products if name changed
+    if (oldName !== newName) {
+      setProducts(products.map(p => 
+        p.category === oldName ? { ...p, category: newName } : p
+      ));
+    }
+
+    setEditingCatId(null);
+    addNotification("Category updated successfully.");
+  };
+
+  const onEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIM = 256;
+          if (width > height && width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
+          } else if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          setEditImage(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIM = 256; // Smaller for category icons
+          if (width > height && width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
+          } else if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          setNewCatImage(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1828,41 +1980,138 @@ const CategoryManager = ({
       </div>
 
       <div className="glass-card p-6 space-y-6">
-        <div className="flex gap-3">
-          <input 
-            type="text" 
-            placeholder="New category name..." 
-            className="flex-1 px-5 py-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-800 outline-none font-bold text-sm focus:ring-2 focus:ring-green-500/20"
-            value={newCat}
-            onChange={e => setNewCat(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
-          />
-          <button 
-            onClick={handleAddCategory}
-            className="px-6 py-4 bg-green-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-green-500/20"
-          >
-            Add Category
-          </button>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 flex flex-col gap-3">
+            <input 
+              type="text" 
+              placeholder="New category name..." 
+              className="w-full px-5 py-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-800 outline-none font-bold text-sm focus:ring-2 focus:ring-green-500/20"
+              value={newCat}
+              onChange={e => setNewCat(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+            />
+            
+            <div className="flex items-center gap-3">
+              <label 
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-5 py-4 rounded-2xl border-2 border-dashed cursor-pointer transition-all",
+                  newCatImage ? "border-green-500/50 bg-green-500/5" : "border-gray-200 dark:border-slate-800 hover:border-blue-500/50"
+                )}
+              >
+                <input type="file" className="hidden" accept="image/*" onChange={onImageChange} />
+                <ImageIcon size={18} className={newCatImage ? "text-green-500" : "text-gray-400"} />
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  {newCatImage ? "Category Image Added" : "Add Category Logo/Pic"}
+                </span>
+                {newCatImage && (
+                  <button 
+                    onClick={(e) => { e.preventDefault(); setNewCatImage(''); }}
+                    className="ml-2 w-6 h-6 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </label>
+              
+              <button 
+                onClick={handleAddCategory}
+                className="px-8 py-4 glow-effect-container text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                Add Category
+              </button>
+            </div>
+          </div>
+          
+          {newCatImage && (
+            <div className="w-32 h-32 rounded-3xl overflow-hidden border border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900">
+              <img src={newCatImage} alt="Preview" className="w-full h-full object-cover" />
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {productCategories.map(cat => {
-            const productCount = products.filter(p => p.category === cat).length;
+            const productCount = products.filter(p => p.category === cat.name).length;
+            const isEditing = editingCatId === cat.id;
+
             return (
               <div 
-                key={cat} 
-                className="p-5 bg-gray-50 dark:bg-slate-800/40 rounded-3xl border border-gray-100 dark:border-slate-800 flex items-center justify-between group"
+                key={cat.id} 
+                className="p-2 bg-gray-50 dark:bg-slate-800/40 rounded-xl border border-gray-100 dark:border-slate-800 flex items-center gap-2 transition-all hover:shadow-lg hover:shadow-black/5"
               >
-                <div className="flex flex-col">
-                  <span className="font-black text-sm uppercase tracking-tight">{cat}</span>
-                  <span className="text-[10px] text-gray-500 font-bold uppercase">{productCount} Products Linked</span>
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 flex-shrink-0 relative group/img">
+                  {isEditing ? (
+                    <label className="w-full h-full flex items-center justify-center cursor-pointer bg-blue-500/10 text-blue-500">
+                      <input type="file" className="hidden" accept="image/*" onChange={onEditImageChange} />
+                      {editImage ? (
+                        <img src={editImage} alt="Edit" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon size={14} />
+                      )}
+                    </label>
+                  ) : (
+                    cat.image ? (
+                      <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <LayoutGrid size={14} />
+                      </div>
+                    )
+                  )}
                 </div>
-                <button 
-                  onClick={() => handleDeleteCategory(cat)}
-                  className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                >
-                  <Trash2 size={18} />
-                </button>
+                
+                <div className="flex-1 flex flex-col min-w-0">
+                  {isEditing ? (
+                    <input 
+                      autoFocus
+                      className="w-full bg-transparent border-b border-blue-500 outline-none font-black text-[10px] uppercase px-0 py-0.5"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleUpdateCategory(cat.id)}
+                    />
+                  ) : (
+                    <span className="font-black text-[10px] uppercase tracking-tight truncate">{cat.name}</span>
+                  )}
+                  <span className="text-[8px] text-gray-500 font-bold uppercase truncate">{productCount} Prod</span>
+                </div>
+                
+                <div className="flex items-center gap-0.5">
+                  {isEditing ? (
+                    <>
+                      <button 
+                        onClick={() => handleUpdateCategory(cat.id)}
+                        className="w-6 h-6 flex items-center justify-center text-green-500 hover:bg-green-500/10 rounded-md transition-all"
+                      >
+                        <Check size={12} />
+                      </button>
+                      <button 
+                        onClick={() => setEditingCatId(null)}
+                        className="w-6 h-6 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => {
+                          setEditingCatId(cat.id);
+                          setEditName(cat.name);
+                          setEditImage(cat.image || '');
+                        }}
+                        className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-all"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1896,7 +2145,7 @@ const ProductList = ({
   addToCart: (p: Product) => void,
   isDarkMode: boolean,
   formatCurrency: (v: number) => string,
-  productCategories: string[],
+  productCategories: CategoryData[],
   isAdmin?: boolean
 }) => {
   const [search, setSearch] = useState('');
@@ -1927,12 +2176,25 @@ const ProductList = ({
   const suggestedCategories = useMemo(() => {
     if (!search) return [];
     return productCategories.filter(cat => 
-      cat.toLowerCase().includes(search.toLowerCase()) && cat !== filter
-    );
+      cat.name.toLowerCase().includes(search.toLowerCase()) && cat.name !== filter
+    ).map(c => c.name);
   }, [search, productCategories, filter]);
 
   // Get all categories including custom ones
-  const allCategories = ['all', ...productCategories];
+  const allCategories = useMemo(() => {
+    const base = [{ id: 'all', name: 'all', image: undefined } as any];
+    if (!productCategories) return base;
+    
+    // Filter out potential 'all' collision and ensure unique IDs
+    const seenIds = new Set(['all']);
+    const uniqueProductCats = productCategories.filter(cat => {
+      if (seenIds.has(cat.id)) return false;
+      seenIds.add(cat.id);
+      return true;
+    });
+    
+    return [...base, ...uniqueProductCats];
+  }, [productCategories]);
 
   return (
     <div className="space-y-8 pb-32 md:pb-0">
@@ -1944,50 +2206,70 @@ const ProductList = ({
               {inventoryMode ? 'Node Control & Management' : 'High-End Enterprise Solutions'}
             </p>
           </div>
-          <div className="relative flex gap-3">
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setInventoryMode(!inventoryMode)}
-              className={cn(
-                "h-12 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-500 font-bold text-sm",
-                inventoryMode 
-                  ? "bg-green-600/90 text-white shadow-xl shadow-green-500/30 backdrop-blur-md" 
-                  : "bg-blue-600/90 text-white shadow-xl shadow-blue-500/30 backdrop-blur-md"
-              )}
-            >
-              <Edit2 size={18} strokeWidth={2.5} />
-              <span className="hidden sm:inline">{inventoryMode ? 'Exit Edit Mode' : 'Edit Mode'}</span>
-            </motion.button>
-            <motion.button 
-              whileHover={{ scale: 1.1, rotate: -5 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.preventDefault();
-                setShowAddProduct(true);
-              }}
-              className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-blue-600/30 hover:bg-blue-700 transition-all backdrop-blur-md"
-            >
-              <Plus size={24} strokeWidth={3} />
-            </motion.button>
-          </div>
+          {isAdmin && (
+            <div className="relative flex gap-3">
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setInventoryMode(!inventoryMode)}
+                className={cn(
+                  "h-12 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-500 font-bold text-sm glow-effect-container text-white shadow-xl shadow-blue-500/30 backdrop-blur-md"
+                )}
+              >
+                <Edit2 size={18} strokeWidth={2.5} />
+                <span className="hidden sm:inline">{inventoryMode ? 'Exit Edit Mode' : 'Edit Mode'}</span>
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.1, rotate: -5 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowAddProduct(true);
+                }}
+                className="w-12 h-12 glow-effect-container text-white rounded-2xl flex items-center justify-center shadow-xl transition-all backdrop-blur-md"
+              >
+                <Plus size={24} strokeWidth={3} />
+              </motion.button>
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-3 overflow-x-auto hide-scrollbar py-2">
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar py-3 px-1">
           {allCategories.map(cat => (
             <motion.button 
-              whileHover={{ y: -2 }}
+              whileHover={{ y: -4, scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
-              key={cat}
-              onClick={() => setFilter(cat)}
+              key={cat.id}
+              onClick={() => setFilter(cat.name)}
               className={cn(
-                "px-6 py-3 rounded-[20px] text-[10px] font-black tracking-[0.1em] whitespace-nowrap transition-all duration-500 uppercase ring-1",
-                filter === cat 
-                  ? "bg-blue-600 text-white ring-blue-500 shadow-2xl shadow-blue-600/40" 
-                  : "bg-white/10 text-gray-400 ring-white/10 hover:bg-white/20 hover:text-white"
+                "group relative min-w-[80px] h-20 rounded-[20px] overflow-hidden flex flex-col items-center justify-center gap-1 transition-all duration-500 ring-1 shadow-sm",
+                filter === cat.name 
+                  ? "bg-blue-600 ring-blue-500 shadow-2xl shadow-blue-600/40 translate-y-[-2px]" 
+                  : "bg-white dark:bg-slate-800/40 ring-gray-100 dark:ring-slate-700 hover:ring-blue-400/50"
               )}
             >
-              {cat}
+              <div className={cn(
+                "w-9 h-9 rounded-lg overflow-hidden mb-0.5 flex items-center justify-center p-0.5 transition-all duration-500",
+                filter === cat.name ? "bg-white/20" : "bg-gray-50 dark:bg-slate-900"
+              )}>
+                {(cat as CategoryData).image ? (
+                  <img src={(cat as CategoryData).image} alt={cat.name} className="w-full h-full object-cover rounded-[8px]" />
+                ) : (
+                  <LayoutGrid size={14} className={filter === cat.name ? "text-white" : "text-gray-400"} />
+                )}
+              </div>
+              <span className={cn(
+                "text-[7px] font-black tracking-widest uppercase px-1 text-center leading-tight transition-colors duration-500",
+                filter === cat.name ? "text-white" : "text-gray-600 dark:text-gray-300 group-hover:text-blue-500"
+              )}>
+                {cat.name}
+              </span>
+              {filter === cat.name && (
+                <motion.div 
+                  layoutId="activeFilterDot"
+                  className="absolute bottom-1 w-1 h-1 rounded-full bg-white shadow-sm"
+                />
+              )}
             </motion.button>
           ))}
         </div>
@@ -2023,8 +2305,9 @@ const ProductList = ({
         {filteredProducts.map((product, idx) => (
           <motion.div 
             key={product.id}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 30, scale: 0.8 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, margin: "-50px" }}
             transition={{ delay: (idx % 6) * 0.05 }}
           >
             <ProductPastaCard 
@@ -2044,6 +2327,7 @@ const ProductList = ({
 const AdminDashboard = ({ 
   products, 
   clients, 
+  publicOrders,
   formatCurrency,
   setActiveTab,
   expenses,
@@ -2054,6 +2338,7 @@ const AdminDashboard = ({
 }: { 
   products: Product[], 
   clients: Client[], 
+  publicOrders: PublicOrder[],
   formatCurrency: (v: number) => string,
   setActiveTab: (t: string) => void,
   expenses: Expense[],
@@ -2199,6 +2484,64 @@ const AdminDashboard = ({
           </div>
         </motion.div>
       </div>
+
+      {/* Recent Orders History Table */}
+      <div className="glass-card p-10 mt-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-2xl font-black tracking-tighter uppercase mb-1 leading-none">Order Activity History</h3>
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Real-time status of all public orders</p>
+          </div>
+          <button 
+            onClick={() => setActiveTab('clients')}
+            className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-emerald-500 hover:opacity-75 transition-opacity"
+          >
+            Deep Analytics →
+          </button>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-slate-800/30">
+                <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">ID</th>
+                <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Client Name</th>
+                <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Total</th>
+                <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-800/20">
+              {[
+                ...publicOrders.map(o => ({ ...o, clientName: o.customerName, type: 'Public' })),
+                ...clients.flatMap(c => (c.orders || []).map(o => ({ ...o, clientName: c.name, type: 'CRM' })))
+              ].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 12).map((order) => (
+                <tr key={order.id} className="group hover:bg-gray-50 dark:hover:bg-slate-800/10 transition-colors">
+                  <td className="py-5 font-mono text-[10px] font-bold text-blue-600 dark:text-emerald-400">{order.id}</td>
+                  <td className="py-5 text-xs font-bold text-slate-900 dark:text-white capitalize">{order.clientName}</td>
+                  <td className="py-5 text-xs font-black tracking-tighter text-slate-900 dark:text-white">{formatCurrency(order.total)}</td>
+                  <td className="py-5">
+                    <span className={cn(
+                      "text-[8px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full",
+                      order.status === 'pending' ? "bg-amber-100 text-amber-600" : 
+                      order.status === 'accepted' ? "bg-emerald-100 text-emerald-600" :
+                      "bg-gray-100 text-gray-600"
+                    )}>
+                      {order.status}
+                    </span>
+                  </td>
+                  <td className="py-5 text-[10px] font-bold text-gray-400">{order.date}</td>
+                </tr>
+              ))}
+              {clients.length === 0 && publicOrders.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] italic">No persistent records found in neural-link</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
@@ -2210,7 +2553,8 @@ const PublicStore = ({
   formatCurrency,
   addToCart,
   setActiveTab,
-  setSelectedProduct
+  setSelectedProduct,
+  productCategories
 }: {
   products: Product[],
   sliderImages: string[],
@@ -2218,10 +2562,12 @@ const PublicStore = ({
   formatCurrency: (v: number) => string,
   addToCart: (p: Product) => void,
   setActiveTab: (t: string) => void,
-  setSelectedProduct: (p: Product) => void
+  setSelectedProduct: (p: Product) => void,
+  productCategories: CategoryData[]
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
 
   const fuse = useMemo(() => new Fuse(products, {
     keys: ['name', 'category', 'description'],
@@ -2230,9 +2576,31 @@ const PublicStore = ({
   }), [products]);
 
   const filteredProducts = useMemo(() => {
-    if (!search) return products;
-    return fuse.search(search).map(r => r.item);
-  }, [search, products, fuse]);
+    let result = products;
+    if (search) {
+      result = fuse.search(search).map(r => r.item);
+    }
+    if (filter !== 'all') {
+      result = result.filter(p => p.category === filter);
+    }
+    return result;
+  }, [search, filter, products, fuse]);
+
+  // All categories including 'all'
+  const allCategories = useMemo(() => {
+    const base = [{ id: 'all', name: 'all', image: undefined } as any];
+    if (!productCategories) return base;
+    
+    // Filter out potential 'all' collision and ensure unique IDs
+    const seenIds = new Set(['all']);
+    const uniqueProductCats = (productCategories || []).filter(cat => {
+      if (seenIds.has(cat.id)) return false;
+      seenIds.add(cat.id);
+      return true;
+    });
+    
+    return [...base, ...uniqueProductCats];
+  }, [productCategories]);
 
   useEffect(() => {
     if (!sliderImages || sliderImages.length === 0) return;
@@ -2302,6 +2670,40 @@ const PublicStore = ({
                 ))
               )}
             </div>
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto hide-scrollbar py-2.5 px-1">
+            {allCategories.map(cat => (
+              <motion.button 
+                whileHover={{ y: -4, scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                key={cat.id}
+                onClick={() => setFilter(cat.name)}
+                className={cn(
+                   "group relative min-w-[85px] h-24 rounded-[24px] overflow-hidden flex flex-col items-center justify-center gap-1 transition-all duration-500 shadow-sm",
+                   filter === cat.name 
+                     ? "glow-effect-container text-white scale-[1.05] z-10" 
+                     : "bg-white dark:bg-slate-800/40 ring-1 ring-gray-100 dark:ring-slate-700 hover:ring-blue-400/50"
+                )}
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-xl overflow-hidden mb-0.5 flex items-center justify-center p-0.5 transition-all duration-500",
+                  filter === cat.name ? "bg-white/20" : "bg-gray-50 dark:bg-slate-900"
+                )}>
+                  {cat.image ? (
+                    <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-[8px]" />
+                  ) : (
+                    <LayoutGrid size={16} className={filter === cat.name ? "text-white" : "text-gray-400"} />
+                  )}
+                </div>
+                <span className={cn(
+                  "text-[8px] font-black tracking-widest uppercase px-1 text-center leading-tight transition-colors duration-500",
+                  filter === cat.name ? "text-white" : "text-gray-600 dark:text-gray-300 group-hover:text-blue-500"
+                )}>
+                  {cat.name}
+                </span>
+              </motion.button>
+            ))}
           </div>
 
           {/* Category Icon Grid - Modern Single Row */}
@@ -2414,8 +2816,9 @@ const PublicStore = ({
             {products.slice(0, 6).map((product, i) => (
               <motion.div 
                 key={product.id}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, x: 50, scale: 0.8 }}
+                whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 onClick={() => setSelectedProduct(product)}
                 className="min-w-[150px] bg-white dark:bg-slate-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-slate-700/50 cursor-pointer"
@@ -2450,9 +2853,9 @@ const PublicStore = ({
         {filteredProducts.map((product, i) => (
           <motion.div 
             key={product.id}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            initial={{ opacity: 0, y: 30, scale: 0.8 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, margin: "-50px" }}
             transition={{ delay: (i % 6) * 0.1 }}
           >
             <ProductPastaCard 
@@ -2517,6 +2920,7 @@ const PublicStore = ({
 const Dashboard = ({ 
   products, 
   clients, 
+  publicOrders,
   expenses, 
   sliderImages,
   offers = [],
@@ -2527,10 +2931,12 @@ const Dashboard = ({
   setShowAddProduct,
   onEditProduct,
   isAdmin,
-  isDarkMode
+  isDarkMode,
+  productCategories
 }: { 
   products: Product[], 
   clients: Client[], 
+  publicOrders: PublicOrder[],
   expenses: Expense[], 
   sliderImages: string[],
   offers?: Offer[],
@@ -2541,7 +2947,8 @@ const Dashboard = ({
   setShowAddProduct: (v: boolean) => void,
   onEditProduct: (p: Product) => void,
   isAdmin: boolean,
-  isDarkMode: boolean
+  isDarkMode: boolean,
+  productCategories: CategoryData[]
 }) => {
   if (!isAdmin) {
     return (
@@ -2553,6 +2960,7 @@ const Dashboard = ({
         addToCart={addToCart} 
         setActiveTab={setActiveTab}
         setSelectedProduct={setSelectedProduct}
+        productCategories={productCategories}
       />
     );
   }
@@ -2561,6 +2969,7 @@ const Dashboard = ({
     <AdminDashboard 
       products={products} 
       clients={clients} 
+      publicOrders={publicOrders}
       formatCurrency={formatCurrency} 
       setActiveTab={setActiveTab} 
       expenses={expenses}
@@ -2635,7 +3044,7 @@ const ClientList = ({
         whileTap={{ scale: 0.95 }}
         onClick={() => withPassword(() => setShowAddClient(true), true)}
         aria-label="Add new client"
-        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center btn-ripple z-40 opacity-90 hover:opacity-100"
+        className="fixed bottom-24 right-6 w-14 h-14 glow-effect-container text-white rounded-full shadow-2xl flex items-center justify-center btn-ripple z-40"
       >
         <Plus size={28} />
       </motion.button>
@@ -2773,7 +3182,7 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
             setFormData({ title: '', description: '', icon: 'bx-code-alt', imageUrl: '' }); 
             setShowModal(true); 
           }}
-          className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2"
+          className="px-4 py-2 glow-effect-container text-white rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-all"
         >
           <Plus size={20} /> Add Service
         </button>
@@ -2809,7 +3218,7 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 shadow-2xl"
+              className="glow-effect-container text-white w-full max-w-md rounded-3xl p-8 shadow-2xl"
             >
               <h3 className="text-xl font-bold mb-6">{editingService ? 'Edit Service' : 'Add New Service'}</h3>
               <div className="space-y-4">
@@ -2872,7 +3281,7 @@ const ManageServices = ({ withPassword }: { withPassword: (action: () => void) =
                 )}
                 <div className="flex gap-4 pt-4">
                   <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">Cancel</button>
-                  <button onClick={handleSave} className="flex-1 py-3 bg-[#dc143c] text-white rounded-xl font-bold">Save Service</button>
+                  <button onClick={handleSave} className="flex-1 py-3 glow-effect-container text-white rounded-xl font-bold hover:scale-[1.02] transition-all">Save Service</button>
                 </div>
               </div>
             </motion.div>
@@ -2957,13 +3366,57 @@ const StaffTrackingMap = ({ staff }: { staff: Staff[] }) => {
   );
 };
 
-const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => void }) => {
+const ManageStaff = ({ withPassword, addNotification }: { withPassword: (action: () => void) => void, addNotification: (text: string) => void }) => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', role: 'Technician', isActive: true, image: '' });
   const [activeView, setActiveView] = useState<'list' | 'map'>('map');
+
+  const [showSalaryModal, setShowSalaryModal] = useState<Staff | null>(null);
+  const [salaryFormData, setSalaryFormData] = useState({ baseAmount: '', bonusAmount: '', notes: '' });
+
+  const handlePaySalary = async () => {
+    if (!showSalaryModal) return;
+    try {
+      const base = Number(salaryFormData.baseAmount) || 0;
+      const bonus = Number(salaryFormData.bonusAmount) || 0;
+      if (base <= 0) {
+        addNotification("Please enter a valid base amount.");
+        return;
+      }
+      const total = base + bonus;
+      const now = new Date();
+      const monthId = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+      const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      
+      const newSalary: SalaryRecord = {
+        id: monthId,
+        monthName,
+        baseAmount: base,
+        bonusAmount: bonus,
+        totalPaid: total,
+        status: 'Paid',
+        paidAt: now.toISOString()
+      };
+      
+      const currentSalaries = showSalaryModal.salaries || [];
+      const updatedSalaries = [
+        ...currentSalaries.filter(s => s.id !== monthId),
+        newSalary
+      ];
+
+      await updateDoc(doc(db, 'staff', showSalaryModal.id), {
+        salaries: updatedSalaries
+      });
+      
+      addNotification(`Salary of BDT ${total} paid to ${showSalaryModal.name}!`);
+      setShowSalaryModal(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `staff/${showSalaryModal.id}`);
+    }
+  };
 
   const isOnline = (updatedAt: string | undefined) => {
     if (!updatedAt) return false;
@@ -3116,14 +3569,14 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
           </div>
           <button 
             onClick={refreshData}
-            className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="p-2 glow-effect-container text-white rounded-xl hover:opacity-90 transition-colors"
             title="Refresh Data"
           >
             <RefreshCw size={20} className={cn(isRefreshing && "animate-spin")} />
           </button>
           <button 
             onClick={() => { setEditingStaff(null); setFormData({ name: '', phone: '', email: '', role: 'Technician', isActive: true, image: '' }); setShowModal(true); }}
-            className="px-4 py-2 bg-[#dc143c] text-white rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity"
+            className="px-4 py-2 glow-effect-container text-white rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition-opacity"
           >
             <Plus size={20} /> Add Staff
           </button>
@@ -3204,7 +3657,18 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
                 )}>
                   {member.isActive ? 'Active Staff' : 'Inactive'}
                 </span>
-                <span className="text-gray-400 italic">ID: {member.id.substring(0, 8)}</span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setShowSalaryModal(member);
+                      setSalaryFormData({ baseAmount: '', bonusAmount: '', notes: '' });
+                    }}
+                    className="px-3 py-1.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors font-bold flex items-center gap-1 shadow-sm"
+                  >
+                    <DollarSign size={12} /> Pay Salary
+                  </button>
+                  <span className="text-gray-400 italic pt-1.5">ID: {member.id.substring(0, 4)}</span>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -3219,7 +3683,7 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 shadow-2xl overflow-hidden relative"
+              className="glow-effect-container text-white w-full max-w-md rounded-3xl p-8 shadow-2xl overflow-hidden relative"
             >
               <div className="absolute top-0 left-0 w-full h-2 bg-[#dc143c]" />
               <h3 className="text-2xl font-bold mb-6">{editingStaff ? 'Edit Staff Member' : 'Add New Staff'}</h3>
@@ -3294,7 +3758,52 @@ const ManageStaff = ({ withPassword }: { withPassword: (action: () => void) => v
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button onClick={() => setShowModal(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Cancel</button>
-                  <button onClick={handleSave} className="flex-1 py-4 bg-[#dc143c] text-white rounded-2xl font-bold shadow-lg shadow-red-500/30 hover:opacity-90 transition-all">Save Staff</button>
+                  <button onClick={handleSave} className="flex-1 py-4 glow-effect-container text-white rounded-2xl font-bold shadow-lg shadow-red-500/30 hover:opacity-90 transition-all">Save Staff</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showSalaryModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 shadow-2xl overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
+              <h3 className="text-2xl font-bold mb-2 flex items-center gap-2 text-emerald-600">
+                <DollarSign /> Issue Salary
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">For: <span className="font-bold text-slate-800 dark:text-slate-200">{showSalaryModal.name}</span></p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Base Salary (BDT)</label>
+                  <input 
+                    type="number" value={salaryFormData.baseAmount} onChange={e => setSalaryFormData({ ...salaryFormData, baseAmount: e.target.value })}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"
+                    placeholder="e.g. 15000"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1 uppercase tracking-widest">Bonus (BDT)</label>
+                  <input 
+                    type="number" value={salaryFormData.bonusAmount} onChange={e => setSalaryFormData({ ...salaryFormData, bonusAmount: e.target.value })}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"
+                    placeholder="e.g. 2000"
+                  />
+                </div>
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex justify-between items-center text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-100 dark:border-emerald-800/50">
+                  <span>Total Payload:</span>
+                  <span className="text-xl inline-flex items-center gap-1.5"><DollarSign size={18} /> {Number(salaryFormData.baseAmount || 0) + Number(salaryFormData.bonusAmount || 0)}</span>
+                </div>
+                <div className="flex gap-4 pt-2">
+                  <button onClick={() => setShowSalaryModal(null)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Cancel</button>
+                  <button onClick={handlePaySalary} className="flex-1 py-4 glow-effect-container text-white rounded-2xl font-bold shadow-lg shadow-emerald-500/30 hover:opacity-90 transition-all">Submit Payment</button>
                 </div>
               </div>
             </motion.div>
@@ -3447,18 +3956,29 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
     const nowTimestamp = Date.now();
     
     try {
-      // Throttle reverse geocoding to once every 30 seconds OR if moved > ~50 meters
-      const shouldUpdateAddress = !lastAddressUpdate.current || 
-        (nowTimestamp - lastAddressUpdate.current.time > 30000) ||
-        (Math.abs(latitude - lastAddressUpdate.current.lat) > 0.0005) ||
-        (Math.abs(longitude - lastAddressUpdate.current.lng) > 0.0005);
+      // Significant throttling: Only update DB if moved > 50 meters OR > 5 minutes since last update
+      const lastUpdate = lastAddressUpdate.current;
+      const timeElapsed = lastUpdate ? nowTimestamp - lastUpdate.time : Infinity;
+      
+      // Simple distance approx (0.0005 is roughly 50-60 meters)
+      const distLat = lastUpdate ? Math.abs(latitude - lastUpdate.lat) : Infinity;
+      const distLng = lastUpdate ? Math.abs(longitude - lastUpdate.lng) : Infinity;
+      
+      if (timeElapsed < 300000 && distLat < 0.0005 && distLng < 0.0005) {
+        return; // Skip early to save quota
+      }
+
+      // Throttle reverse geocoding even more: Once every 10 minutes OR if moved > ~200 meters
+      const shouldUpdateAddress = !lastUpdate || 
+        (nowTimestamp - lastUpdate.time > 600000) ||
+        (distLat > 0.002) ||
+        (distLng > 0.002);
 
       if (shouldUpdateAddress) {
         try {
           const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
           const data = await response.json();
           lastAddress.current = data.display_name || "Location found, address unknown";
-          lastAddressUpdate.current = { lat: latitude, lng: longitude, time: nowTimestamp };
         } catch (e) {
           lastAddress.current = lastAddress.current || `Coord: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         }
@@ -3473,13 +3993,20 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
         }
       });
 
-      await addDoc(collection(db, 'staff', staffInfo.id, 'history'), {
-        lat: latitude,
-        lng: longitude,
-        timestamp: now,
-        address: lastAddress.current
-      });
+      // Save history ONLY every 5 minutes to keep quota low
+      const lastHistoryTime = parseInt(localStorage.getItem(`last_history_${staffInfo.id}`) || '0');
+      if (nowTimestamp - lastHistoryTime > 300000) {
+        await addDoc(collection(db, 'staff', staffInfo.id, 'history'), {
+          lat: latitude,
+          lng: longitude,
+          timestamp: now,
+          address: lastAddress.current
+        });
+        localStorage.setItem(`last_history_${staffInfo.id}`, nowTimestamp.toString());
+      }
 
+      // Update our throttle ref
+      lastAddressUpdate.current = { lat: latitude, lng: longitude, time: nowTimestamp };
       setLastCheckIn(now);
       setError(null);
     } catch (err) {
@@ -3506,7 +4033,7 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
         clearInterval(trackingInterval.current);
     }
 
-    // High frequency position watching
+    // Regular frequency position watching
     watchId.current = navigator.geolocation.watchPosition(
       (position) => {
         handleLocationUpdate(position);
@@ -3520,19 +4047,19 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
         setTracking(false);
         setLoading(false);
         // Automatic retry
-        setTimeout(startTrackingService, 10000);
+        setTimeout(startTrackingService, 30000); // Back off to 30s
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 } // Allow cached positions
     );
 
-    // Force heartbeat update every 1 second
+    // Heartbeat update every 5 minutes (instead of 1m) to preserve quota
     trackingInterval.current = setInterval(() => {
         navigator.geolocation.getCurrentPosition(
             (pos) => handleLocationUpdate(pos),
             () => {},
-            { enableHighAccuracy: true, maximumAge: 0 }
+            { enableHighAccuracy: true, maximumAge: 60000 }
         );
-    }, 1000);
+    }, 300000);
   };
 
   if (loading && !tracking) return (
@@ -3575,6 +4102,39 @@ const StaffCheckIn = ({ user, staffUser }: { user: FirebaseUser | null, staffUse
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Welcome to Staff Portal</h3>
             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Session ID: {user?.uid.slice(0, 8)}</p>
           </div>
+          
+          {staffInfo.salaries && staffInfo.salaries.length > 0 && (
+            <div className="p-5 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+               <h4 className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold mb-3"><DollarSign size={16} /> Salary History</h4>
+               <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                 {[...staffInfo.salaries].sort((a, b) => b.id.localeCompare(a.id)).map(salary => (
+                   <div key={salary.id} className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-emerald-100/50 dark:border-emerald-800/30">
+                     <div className="flex justify-between items-center mb-2 border-b border-slate-100 dark:border-slate-700 pb-2">
+                       <span className="font-bold text-slate-700 dark:text-slate-200">{salary.monthName}</span>
+                       <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">{salary.status}</span>
+                     </div>
+                     <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                       <span>Base Salary:</span>
+                       <span className="font-medium text-slate-600 dark:text-slate-300">BDT {salary.baseAmount}</span>
+                     </div>
+                     <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                       <span>Bonus:</span>
+                       <span className="font-medium text-slate-600 dark:text-slate-300">BDT {salary.bonusAmount}</span>
+                     </div>
+                     <div className="flex justify-between text-sm font-bold text-slate-800 dark:text-slate-200 mt-2 pt-2 border-t border-slate-50 dark:border-slate-700/50">
+                       <span>Total Paid:</span>
+                       <span className="text-emerald-600">BDT {salary.totalPaid}</span>
+                     </div>
+                     {salary.paidAt && (
+                       <p className="text-[9px] text-slate-400 mt-2 text-right">
+                         Paid on: {new Date(salary.paidAt).toLocaleDateString()} {new Date(salary.paidAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                       </p>
+                     )}
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
           
           <button 
             onClick={handleAttendanceCheckIn}
@@ -3737,17 +4297,19 @@ const AddProductModal = ({
   onClose, 
   onAdd,
   productCategories,
-  setProductCategories
+  setProductCategories,
+  addNotification
 }: { 
   onClose: () => void, 
   onAdd: (p: any) => void,
-  productCategories: string[],
-  setProductCategories: (categories: string[]) => void
+  productCategories: CategoryData[],
+  setProductCategories: (categories: CategoryData[]) => void,
+  addNotification: (msg: string) => void
 }) => {
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    category: productCategories[0] || 'indoor',
+    category: productCategories[0]?.name || 'indoor',
     stock: '',
     image: '',
     videoUrl: '',
@@ -3831,7 +4393,7 @@ const AddProductModal = ({
       <motion.div 
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl"
+        className="w-full max-w-[400px] glow-effect-container text-white rounded-[32px] p-6 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
@@ -3935,11 +4497,13 @@ const AddProductModal = ({
                 />
                 <button 
                   onClick={() => {
-                    if (newCategory.trim() && !productCategories.includes(newCategory.trim())) {
-                      setProductCategories([...productCategories, newCategory.trim()]);
+                    const existing = productCategories.find(c => c.name.toLowerCase() === newCategory.trim().toLowerCase());
+                    if (newCategory.trim() && !existing) {
+                      const newCatObj = { id: Date.now().toString(), name: newCategory.trim() };
+                      setProductCategories([...productCategories, newCatObj]);
                       setFormData({...formData, category: newCategory.trim()});
-                    } else if (productCategories.includes(newCategory.trim())) {
-                      setFormData({...formData, category: newCategory.trim()});
+                    } else if (existing) {
+                      setFormData({...formData, category: existing.name});
                     }
                     setShowNewCategoryInput(false);
                     setNewCategory('');
@@ -3971,7 +4535,7 @@ const AddProductModal = ({
                 }}
               >
                 {productCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
                 ))}
                 <option value="add_new">+ Add New Category</option>
               </select>
@@ -4016,13 +4580,15 @@ const EditProductModal = ({
   onClose, 
   onSave,
   productCategories,
-  setProductCategories
+  setProductCategories,
+  addNotification
 }: { 
   product: Product,
   onClose: () => void, 
   onSave: (p: Product) => void,
-  productCategories: string[],
-  setProductCategories: (categories: string[]) => void
+  productCategories: CategoryData[],
+  setProductCategories: (categories: CategoryData[]) => void,
+  addNotification: (msg: string) => void
 }) => {
   const [formData, setFormData] = useState({
     ...product,
@@ -4108,7 +4674,7 @@ const EditProductModal = ({
       <motion.div 
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl"
+        className="w-full max-w-[400px] glow-effect-container text-white rounded-[32px] p-6 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
@@ -4212,11 +4778,13 @@ const EditProductModal = ({
                 />
                 <button 
                   onClick={() => {
-                    if (newCategory.trim() && !productCategories.includes(newCategory.trim())) {
-                      setProductCategories([...productCategories, newCategory.trim()]);
+                    const existing = productCategories.find(c => c.name.toLowerCase() === newCategory.trim().toLowerCase());
+                    if (newCategory.trim() && !existing) {
+                      const newCatObj = { id: Date.now().toString(), name: newCategory.trim() };
+                      setProductCategories([...productCategories, newCatObj]);
                       setFormData({...formData, category: newCategory.trim()});
-                    } else if (productCategories.includes(newCategory.trim())) {
-                      setFormData({...formData, category: newCategory.trim()});
+                    } else if (existing) {
+                      setFormData({...formData, category: existing.name});
                     }
                     setShowNewCategoryInput(false);
                     setNewCategory('');
@@ -4248,7 +4816,7 @@ const EditProductModal = ({
                 }}
               >
                 {productCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
                 ))}
                 <option value="add_new">+ Add New Category</option>
               </select>
@@ -4546,6 +5114,7 @@ function AppContent() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const settingsLoadedOnce = useRef(false);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
 
   useEffect(() => {
@@ -4633,6 +5202,16 @@ function AppContent() {
             const data = { id: staffSnap.docs[0].id, ...staffSnap.docs[0].data() } as Staff;
             setStaffUser(data);
             if (!isAdmin) setActiveTab('staff-tracking');
+            
+            // Notification for recently paid salary
+            const salaries = data.salaries || [];
+            if (salaries.length > 0) {
+              const latestSalary = [...salaries].sort((a, b) => b.id.localeCompare(a.id))[0];
+              const paidAt = new Date(latestSalary.paidAt).getTime();
+              if (Date.now() - paidAt < 3 * 24 * 60 * 60 * 1000) {
+                setTimeout(() => addNotification(`🎉 Salary Paid: BDT ${latestSalary.totalPaid} for ${latestSalary.monthName}.`), 2000);
+              }
+            }
             return;
           }
 
@@ -4651,12 +5230,48 @@ function AppContent() {
   }, [isAuthReady, user, isAdmin]);
 
   useEffect(() => {
+    if (isAuthReady && isAdmin) {
+      const now = new Date();
+      const date = now.getDate();
+      if (date >= 27 || date <= 5) {
+        const q = query(collection(db, 'staff'));
+        getDocs(q).then(snapshot => {
+          let unpaidStaff = 0;
+          const monthId = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+          snapshot.docs.forEach(doc => {
+            const salaries = doc.data().salaries || [];
+            if (!salaries.find((s: any) => s.id === monthId)) {
+              unpaidStaff++;
+            }
+          });
+          if (unpaidStaff > 0) {
+            setTimeout(() => addNotification(`⚠️ Reminder: Salary is pending for ${unpaidStaff} staff member(s)!`), 5000);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [isAuthReady, isAdmin]);
+
+  useEffect(() => {
     if (isAuthReady && !isAdmin) {
       if (['categories', 'clients', 'expenses', 'warranty', 'manage-staff'].includes(activeTab)) {
         setActiveTab('dashboard');
       }
     }
   }, [isAdmin, isAuthReady, activeTab]);
+
+  const lastPublicOrderCount = useRef(0);
+  useEffect(() => {
+    if (isAdmin && publicOrders.length > lastPublicOrderCount.current && !isInitialLoad) {
+      const newOrders = publicOrders.filter(order => order.status === 'pending' || order.status as any === 'new');
+      if (newOrders.length > 0) {
+        playSound('pop');
+        const latestOrder = newOrders[0];
+        addNotification(`🔔 New Order From: ${latestOrder.customerName}! Total BDT ${latestOrder.total}`);
+      }
+    }
+    lastPublicOrderCount.current = publicOrders.length;
+  }, [publicOrders, isAdmin, isInitialLoad]);
 
   const withPassword = (action: () => void, strict = false) => {
     // If strict is false and user is logged in via Firebase, they are the admin
@@ -4683,9 +5298,17 @@ function AppContent() {
     setIsVerified(false);
     addNotification("Admin session locked.");
   };
-  const [productCategories, setProductCategories] = useState<string[]>(() => {
+  const [productCategories, setProductCategories] = useState<CategoryData[]>(() => {
     const saved = localStorage.getItem('cctv_product_categories');
-    return saved ? JSON.parse(saved) : Object.values(Category);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Migration: if saved items are strings, convert to CategoryData objects
+      if (parsed.length > 0 && typeof parsed[0] === 'string') {
+        return parsed.map((name: string) => ({ id: name.toLowerCase().replace(/\s+/g, '_'), name }));
+      }
+      return parsed;
+    }
+    return Object.values(Category).map(cat => ({ id: cat, name: cat }));
   });
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('cctv_expense_categories');
@@ -4791,9 +5414,13 @@ function AppContent() {
           localStorage.setItem('cctv_expense_categories', JSON.stringify(data.expenseCategories));
         }
         if (data.productCategories !== undefined) {
-          setProductCategories(data.productCategories);
-          lastSyncedSettings.current.productCategories = JSON.stringify(data.productCategories);
-          localStorage.setItem('cctv_product_categories', JSON.stringify(data.productCategories));
+          let updatedCats = data.productCategories;
+          if (updatedCats.length > 0 && typeof updatedCats[0] === 'string') {
+            updatedCats = updatedCats.map((name: string) => ({ id: name.toLowerCase().replace(/\s+/g, '_'), name }));
+          }
+          setProductCategories(updatedCats);
+          lastSyncedSettings.current.productCategories = JSON.stringify(updatedCats);
+          localStorage.setItem('cctv_product_categories', JSON.stringify(updatedCats));
         }
         if (data.customIntroMusic !== undefined) {
           setCustomIntroMusic(data.customIntroMusic);
@@ -4818,22 +5445,30 @@ function AppContent() {
         if (!data.seeded && user && !isSeeding.current) {
           seedUserData(user.uid);
         }
+        
+        // Mark as loaded once we've processed the first snapshot with content
+        settingsLoadedOnce.current = true;
+        setIsInitialLoad(false);
       } else if (user && !isSeeding.current) {
         // Initialize user doc if it doesn't exist
         isSeeding.current = true;
         setDoc(userDocRef, { 
-          darkMode: isDarkMode, 
+          // darkMode: isDarkMode, // Removed from global sync to prevent multi-device loops
           customLogo, 
           expenseCategories,
           productCategories,
           seeded: true 
         }, { merge: true }).then(() => {
           seedUserData(user.uid);
+          settingsLoadedOnce.current = true;
+          setIsInitialLoad(false);
         }).finally(() => {
           isSeeding.current = false;
         });
+      } else {
+        // Doc doesn't exist and not seeding or no user
+        setIsInitialLoad(false);
       }
-      setIsInitialLoad(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `settings/global`);
       setIsInitialLoad(false);
@@ -4869,24 +5504,11 @@ function AppContent() {
           } as Client;
         });
         
-        if (items.length > 0) {
-          setClients(items);
+        setClients(items);
+        try {
           localStorage.setItem('cctv_clients', JSON.stringify(items));
-        } else if (isInitialLoad === false) {
-          // Sync local to cloud if cloud is empty
-          const localData = localStorage.getItem('cctv_clients');
-          if (localData && user) {
-            const parsed = JSON.parse(localData);
-            if (parsed.length > 0) {
-              console.log("Syncing local clients to Firestore...");
-              parsed.forEach((c: Client) => {
-                setDoc(doc(db, 'clients', String(c.id)), c);
-              });
-            }
-          } else {
-            setClients([]);
-            localStorage.setItem('cctv_clients', '[]');
-          }
+        } catch (e) {
+          console.warn("localStorage quota exceeded");
         }
       }, (error) => handleFirestoreError(error, OperationType.LIST, `clients`));
     } else if (user) {
@@ -4930,24 +5552,11 @@ function AppContent() {
           return { id: data.id || doc.id, ...data } as Expense;
         });
         
-        if (items.length > 0) {
-          setExpenses(items);
+        setExpenses(items);
+        try {
           localStorage.setItem('cctv_expenses', JSON.stringify(items));
-        } else if (isInitialLoad === false) {
-          // Sync local to cloud if cloud is empty
-          const localData = localStorage.getItem('cctv_expenses');
-          if (localData && user) {
-            const parsed = JSON.parse(localData);
-            if (parsed.length > 0) {
-              console.log("Syncing local expenses to Firestore...");
-              parsed.forEach((e: Expense) => {
-                setDoc(doc(db, 'expenses', e.id), e);
-              });
-            }
-          } else {
-            setExpenses([]);
-            localStorage.setItem('cctv_expenses', '[]');
-          }
+        } catch (e) {
+          console.warn("localStorage quota exceeded");
         }
       }, (error) => handleFirestoreError(error, OperationType.LIST, `expenses`));
     } else {
@@ -5005,16 +5614,16 @@ function AppContent() {
     };
   }, [activeTab, offersMusic]);
 
-  // Sync Settings to Firestore (Only if changed by user)
+  // Sync Settings to Firestore (Only if changed by admin after load)
   useEffect(() => {
-    if (user && !isInitialLoad) {
+    if (user && isAdmin && !isInitialLoad && settingsLoadedOnce.current) {
       const categoriesJson = JSON.stringify(expenseCategories);
       const productCategoriesJson = JSON.stringify(productCategories);
       const sliderImagesJson = JSON.stringify(sliderImages);
       
       // Only sync if values actually differ from what's in Firestore
+      // darkMode removed from global sync to avoid infinite write loops between devices
       if (
-        isDarkMode !== lastSyncedSettings.current.darkMode ||
         customLogo !== lastSyncedSettings.current.customLogo ||
         customIntroMusic !== lastSyncedSettings.current.customIntroMusic ||
         customClickSound !== lastSyncedSettings.current.customClickSound ||
@@ -5027,7 +5636,7 @@ function AppContent() {
         
         // Update ref immediately to prevent multiple triggers
         lastSyncedSettings.current = {
-          darkMode: isDarkMode,
+          ...lastSyncedSettings.current,
           customLogo: customLogo,
           customIntroMusic: customIntroMusic,
           customClickSound: customClickSound,
@@ -5037,14 +5646,27 @@ function AppContent() {
           sliderImages: sliderImagesJson
         };
 
-        setDoc(userDocRef, { darkMode: isDarkMode, customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages }, { merge: true })
-          .catch(error => {
-            // If it fails, we might want to revert the ref, but usually quota errors are persistent
-            handleFirestoreError(error, OperationType.WRITE, `settings/global`);
-          });
+        // Use a small timeout to debounce rapid changes
+        const timer = setTimeout(() => {
+          setDoc(userDocRef, { 
+            // darkMode: isDarkMode,
+            customLogo, 
+            customIntroMusic, 
+            customClickSound, 
+            offersMusic, 
+            expenseCategories, 
+            productCategories, 
+            sliderImages 
+          }, { merge: true })
+            .catch(error => {
+              handleFirestoreError(error, OperationType.WRITE, `settings/global`);
+            });
+        }, 1000);
+
+        return () => clearTimeout(timer);
       }
     }
-  }, [isDarkMode, customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages, user, isInitialLoad]);
+  }, [customLogo, customIntroMusic, customClickSound, offersMusic, expenseCategories, productCategories, sliderImages, user, isInitialLoad]);
 
   // Dynamic SEO Metadata
   useEffect(() => {
@@ -5303,13 +5925,13 @@ function AppContent() {
     // Update local state first to make it snappy
     setClients(prev => prev.map(c => 
       c.id === clientId 
-        ? { ...c, orders: c.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o) } 
+        ? { ...c, orders: (c.orders || []).map(o => o.id === orderId ? { ...o, status: newStatus } : o) } 
         : c
     ));
 
     const updatedClient = {
       ...client,
-      orders: client.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
+      orders: (client.orders || []).map(o => o.id === orderId ? { ...o, status: newStatus } : o)
     };
 
     try {
@@ -5349,8 +5971,8 @@ function AppContent() {
 
     const updatedClient = {
       ...client,
-      due: client.due - order.total,
-      orders: client.orders.filter(o => o.id !== orderId)
+      due: (client.due || 0) - order.total,
+      orders: (client.orders || []).filter(o => o.id !== orderId)
     };
 
     try {
@@ -5407,7 +6029,7 @@ function AppContent() {
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const orderId = `ORD-${Date.now()}`;
     
-    const publicOrder: PublicOrder = {
+    const publicOrder: any = {
       id: orderId,
       customerName: customerDetails.name,
       customerPhone: customerDetails.phone,
@@ -5415,7 +6037,9 @@ function AppContent() {
       items: cart,
       total,
       date: new Date().toISOString().split('T')[0],
-      status: isPaid ? 'accepted' : 'pending'
+      status: 'pending', // Always mark 'pending' so admin can review and confirm!
+      isPaid,
+      paymentType,
     };
 
     try {
@@ -5465,12 +6089,29 @@ function AppContent() {
     };
 
     try {
+      const isPaid = (order as any).isPaid;
+      const paymentType = (order as any).paymentType || 'Digital';
+      const orderTotal = order.total;
+
+      let paymentHistoryPayload: PaymentHistory[] = [];
+      if (isPaid) {
+        paymentHistoryPayload = [{
+          id: `PAY-${Date.now()}`,
+          date: new Date().toLocaleDateString(),
+          amount: orderTotal,
+          type: paymentType as any,
+          purpose: `Product Order (${order.id})`
+        }];
+      }
+
       if (client) {
         // Update existing client
         const updatedClient = {
           ...client,
-          orders: [newOrder, ...client.orders],
-          due: client.due + order.total
+          orders: [newOrder, ...(client.orders || [])],
+          due: (client.due || 0) + (isPaid ? 0 : orderTotal),
+          totalPaid: (client.totalPaid || 0) + (isPaid ? orderTotal : 0),
+          paymentHistory: [...paymentHistoryPayload, ...(client.paymentHistory || [])]
         };
         await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
       } else {
@@ -5479,14 +6120,14 @@ function AppContent() {
           id: clientId,
           name: order.customerName,
           phone: order.customerPhone,
-          address: order.customerAddress,
+          address: order.customerAddress || '',
           status: ClientStatus.ACTIVE,
           orders: [newOrder],
-          due: order.total,
-          totalPaid: 0,
+          due: isPaid ? 0 : orderTotal,
+          totalPaid: isPaid ? orderTotal : 0,
           works: 0,
           workHistory: [],
-          paymentHistory: []
+          paymentHistory: paymentHistoryPayload
         };
         await setDoc(doc(db, 'clients', String(clientId)), newClient);
       }
@@ -5520,8 +6161,8 @@ function AppContent() {
     // Update Client
     let updatedClient = {
       ...client,
-      orders: [newOrder, ...client.orders],
-      due: client.due + total
+      orders: [newOrder, ...(client.orders || [])],
+      due: (client.due || 0) + total
     };
 
     if (isPaid) {
@@ -5535,8 +6176,8 @@ function AppContent() {
       updatedClient = {
         ...updatedClient,
         due: updatedClient.due - total,
-        totalPaid: updatedClient.totalPaid + total,
-        paymentHistory: [newPayment, ...updatedClient.paymentHistory]
+        totalPaid: (updatedClient.totalPaid || 0) + total,
+        paymentHistory: [newPayment, ...(updatedClient.paymentHistory || [])]
       };
     }
 
@@ -6447,7 +7088,7 @@ function AppContent() {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           className={cn(
-            "bg-white dark:bg-slate-900 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl border border-white/10",
+            "glow-effect-container text-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl ",
             error && "animate-shake"
           )}
         >
@@ -6489,7 +7130,7 @@ function AppContent() {
                 </button>
                 <button 
                   type="submit"
-                  className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                  className="flex-[2] py-4 glow-effect-container text-white rounded-2xl font-bold shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02]"
                 >
                   Verify
                 </button>
@@ -6528,7 +7169,7 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
       <motion.div 
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl"
+        className="glow-effect-container text-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl"
       >
         <div className="p-8">
           <div className="flex justify-between items-center mb-6">
@@ -6658,32 +7299,44 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
     const handleDigitalPayment = (type: 'Bkash' | 'Nagad') => {
       setShowGateway(false);
       setIsOrdering(true);
-      setTimeout(() => {
-        if (isAdmin && orderClientId) {
-          placeOrder(orderClientId, true, type as any);
-        } else {
-          placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, true, type as any);
+      setTimeout(async () => {
+        try {
+          if (isAdmin && orderClientId) {
+            await placeOrder(orderClientId, true, type as any);
+          } else {
+            await placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, true, type as any);
+          }
+        } finally {
+          setIsOrdering(false);
         }
-        setIsOrdering(false);
-      }, 2000);
+      }, 500);
     };
 
     const handleConfirmOrder = () => {
       setIsOrdering(true);
-      setTimeout(() => {
-        if (orderClientId) {
-          placeOrder(orderClientId, isPaid, paymentType);
+      setTimeout(async () => {
+        try {
+          if (isAdmin && orderClientId) {
+            await placeOrder(orderClientId, isPaid, paymentType);
+          } else {
+            // For clients, always go through the public/pending flow
+            await placePublicOrder({ name: customerName, phone: customerPhone, address: customerAddress }, isPaid, paymentType);
+          }
+        } finally {
+          setIsOrdering(false);
         }
-        setIsOrdering(false);
-      }, 2000);
+      }, 500);
     };
 
     const handlePlacePublicOrder = () => {
       setIsOrdering(true);
-      setTimeout(() => {
-        placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress});
-        setIsOrdering(false);
-      }, 2000);
+      setTimeout(async () => {
+        try {
+          await placePublicOrder({name: customerName, phone: customerPhone, address: customerAddress}, isPaid, paymentType);
+        } finally {
+          setIsOrdering(false);
+        }
+      }, 500);
     };
 
     return (
@@ -6701,7 +7354,7 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
           )}
         </AnimatePresence>
         <div 
-          className="w-full max-w-[450px] md:max-w-xl max-h-[90vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-[40px] md:rounded-[40px] md:mb-8 shadow-2xl overflow-hidden flex flex-col"
+          className="w-full max-w-[450px] md:max-w-xl max-h-[90vh] md:max-h-[85vh] glow-effect-container text-white rounded-t-[40px] md:rounded-[40px] md:mb-8 shadow-2xl overflow-hidden flex flex-col"
           onClick={e => e.stopPropagation()}
         >
           <div className="p-8 pb-4">
@@ -6779,105 +7432,107 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
                   ))}
                 </div>
 
-                {isAdmin ? (
-                  <>
-                    <div className="space-y-4 pt-4">
-                      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Assign to Client</h3>
-                      <div className="relative">
-                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <select 
-                          className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-3xl outline-none text-sm font-bold appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                          onChange={(e) => setOrderClientId(Number(e.target.value))}
-                          value={orderClientId || ''}
-                        >
-                          <option value="">Select a premium client...</option>
-                          {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
-                          ))}
-                        </select>
-                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                      </div>
+                {isAdmin && (
+                  <div className="space-y-4 pt-4 mb-4 border-b pb-6 dark:border-slate-800">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Assign to Existing Client</h3>
+                    <div className="relative">
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <select 
+                        className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-3xl outline-none text-sm font-bold appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                        onChange={(e) => setOrderClientId(Number(e.target.value) || null)}
+                        value={orderClientId || ''}
+                      >
+                        <option value="">New Customer (Public Order)...</option>
+                        {clients.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
+                        ))}
+                      </select>
+                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                     </div>
+                  </div>
+                )}
 
-                    <div className="space-y-4 pt-4">
-                      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Payment Status</h3>
-                      <div className="flex gap-2">
-                        <motion.button 
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setIsPaid(false)}
-                          className={cn(
-                            "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
-                            !isPaid 
-                              ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
-                              : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
-                          )}
-                        >
-                          Unpaid (Add to Due)
-                        </motion.button>
-                        <motion.button 
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setIsPaid(true)}
-                          className={cn(
-                            "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
-                            isPaid 
-                              ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
-                              : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
-                          )}
-                        >
-                          Paid Now
-                        </motion.button>
-                      </div>
-
-                      {isPaid && (
-                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</p>
-                          <div className="flex gap-2">
-                            {['Cash', 'Bkash', 'Bank'].map(type => (
-                              <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                key={type}
-                                onClick={() => setPaymentType(type as any)}
-                                className={cn(
-                                  "flex-1 py-2.5 rounded-xl font-bold text-[10px] transition-all border",
-                                  paymentType === type 
-                                    ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
-                                    : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
-                                )}
-                              >
-                                {type}
-                              </motion.button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-4 pt-4">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Your Details</h3>
+                {(!isAdmin || !orderClientId) && (
+                  <div className="space-y-4 pt-4 mb-4 border-b pb-6 dark:border-slate-800">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">{isAdmin ? "New Customer Details" : "Your Details"}</h3>
                     <input
                       type="text"
                       placeholder="Full Name"
                       value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
-                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold"
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
                     />
                     <input
                       type="tel"
                       placeholder="Phone Number"
                       value={customerPhone}
                       onChange={e => setCustomerPhone(e.target.value)}
-                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold"
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
                     />
                     <textarea
                       placeholder="Delivery Address"
                       value={customerAddress}
                       onChange={e => setCustomerAddress(e.target.value)}
-                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold h-24 resize-none"
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold h-24 resize-none focus:ring-2 focus:ring-blue-500/20"
                     />
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="space-y-4 pt-2">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Payment Status</h3>
+                    <div className="flex gap-2">
+                      <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setIsPaid(false)}
+                        className={cn(
+                          "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
+                          !isPaid 
+                            ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                            : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                        )}
+                      >
+                        Unpaid (Add to Due)
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setIsPaid(true)}
+                        className={cn(
+                          "flex-1 py-3 rounded-2xl font-bold text-xs transition-all border",
+                          isPaid 
+                            ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                            : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                        )}
+                      >
+                        Paid Now
+                      </motion.button>
+                    </div>
+
+                    {isPaid && (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Payment Method</p>
+                        <div className="flex gap-2">
+                          {['Cash', 'Bkash', 'Bank'].map(type => (
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              key={type}
+                              onClick={() => setPaymentType(type as any)}
+                              className={cn(
+                                "flex-1 py-2.5 rounded-xl font-bold text-[10px] transition-all border",
+                                paymentType === type 
+                                  ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-500/30" 
+                                  : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                              )}
+                            >
+                              {type}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -6898,90 +7553,59 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
               </div>
               
               <div className="flex flex-col gap-3">
-                {isAdmin ? (
-                  <>
-                    <div className="flex gap-3">
-                      <motion.button 
-                        whileTap={{ scale: 0.98 }}
-                        disabled={!orderClientId}
-                        onClick={() => {
-                          const client = clients.find(c => c.id === orderClientId);
-                          if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
-                        }}
-                        className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-                      >
-                        <MessageSquare size={20} />
-                        WhatsApp Quote
-                      </motion.button>
+                <div className="flex gap-3">
+                  {(isAdmin && orderClientId) ? (
+                    <motion.button 
+                      whileTap={{ scale: 0.98 }}
+                      disabled={!orderClientId}
+                      onClick={() => {
+                        const client = clients.find(c => c.id === orderClientId);
+                        if (client) generateWhatsAppMessage(client, cart, total, isPaid, paymentType);
+                      }}
+                      className="flex-1 py-5 bg-emerald-500 text-white rounded-[24px] font-black text-sm shadow-2xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare size={20} />
+                      WhatsApp Quote
+                    </motion.button>
+                  ) : null}
 
-                      <LaunchOrderButton 
-                        label="Confirm & Order"
-                        onClick={handleConfirmOrder}
-                        disabled={!orderClientId}
-                        isOrdering={isOrdering}
-                        themeColor={140}
-                      />
-                    </div>
-                    <motion.button 
-                      whileTap={{ scale: 0.98 }}
-                      disabled={!orderClientId || isOrdering}
-                      onClick={() => setShowGateway(true)}
-                      className="w-full py-4 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
-                    >
-                      {isOrdering ? (
-                         <div className="flex items-center gap-2">
-                           <motion.div 
-                              animate={{ x: [0, 400], opacity: [0, 1, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              className="absolute left-0"
-                           >
-                             <Plane size={20} className="rotate-90 text-white/50" />
-                           </motion.div>
-                           <span className="animate-pulse">Processing Payment...</span>
-                         </div>
-                      ) : (
-                        <>
-                          <CreditCard size={20} />
-                          Digital Payment (Bkash/Nagad)
-                        </>
-                      )}
-                    </motion.button>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <LaunchOrderButton 
-                      label="Place Cash Order"
-                      onClick={handlePlacePublicOrder}
-                      disabled={!customerName || !customerPhone || !customerAddress}
-                      isOrdering={isOrdering}
-                      themeColor={160}
-                    />
-                    <motion.button 
-                      whileTap={{ scale: 0.98 }}
-                      disabled={!customerName || !customerPhone || !customerAddress || isOrdering}
-                      onClick={() => setShowGateway(true)}
-                      className="w-full py-5 bg-gradient-to-r from-[#D12053] to-[#F7941D] text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
-                    >
-                      {isOrdering ? (
-                         <div className="flex items-center gap-2">
-                           <motion.div 
-                              animate={{ x: [0, 400], opacity: [0, 1, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              className="absolute left-0"
-                           >
-                             <Plane size={20} className="rotate-90 text-white/50" />
-                           </motion.div>
-                           <span className="animate-pulse tracking-widest uppercase text-[10px] font-bold">Connecting Secure Gateway...</span>
-                         </div>
-                      ) : (
-                        <>
-                          <CreditCard size={20} />
-                          Pay Now (Bkash/Nagad)
-                        </>
-                      )}
-                    </motion.button>
-                  </div>
-                )}
+                  <LaunchOrderButton 
+                    label={(!isAdmin || !orderClientId) ? "Place Cash Order" : "Confirm & Order"}
+                    onClick={(!isAdmin || !orderClientId) ? handlePlacePublicOrder : handleConfirmOrder}
+                    disabled={(!isAdmin || !orderClientId) ? (!customerName || !customerPhone || !customerAddress) : !orderClientId}
+                    isOrdering={isOrdering}
+                    themeColor={(!isAdmin || !orderClientId) ? 160 : 140}
+                  />
+                </div>
+                
+                <motion.button 
+                  whileTap={{ scale: 0.98 }}
+                  disabled={
+                    (!isAdmin || !orderClientId) 
+                      ? (!customerName || !customerPhone || !customerAddress || isOrdering)
+                      : (!orderClientId || isOrdering)
+                  }
+                  onClick={() => setShowGateway(true)}
+                  className="w-full py-5 glow-effect-container text-white rounded-[24px] font-black text-sm shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
+                >
+                  {isOrdering ? (
+                     <div className="flex items-center gap-2">
+                       <motion.div 
+                          animate={{ x: [0, 400], opacity: [0, 1, 0] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="absolute left-0"
+                       >
+                         <Plane size={20} className="rotate-90 text-white/50" />
+                       </motion.div>
+                       <span className="animate-pulse tracking-widest uppercase text-[10px] font-bold">Connecting Secure Gateway...</span>
+                     </div>
+                  ) : (
+                    <>
+                      <CreditCard size={20} />
+                      {(!isAdmin || !orderClientId) ? "Pay Now (Bkash/Nagad)" : "Digital Payment (Bkash/Nagad)"}
+                    </>
+                  )}
+                </motion.button>
               </div>
             </div>
           )}
@@ -6997,7 +7621,7 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
         onClick={() => setShowPendingOrders(false)}
       >
         <div 
-          className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+          className="w-full max-w-2xl max-h-[90vh] glow-effect-container text-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
           onClick={e => e.stopPropagation()}
         >
           <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center">
@@ -7028,6 +7652,11 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
                     <div className="text-right">
                       <p className="font-black text-blue-600">{formatCurrency(order.total)}</p>
                       <p className="text-[10px] text-gray-400">{order.date}</p>
+                      {(order as any).isPaid && (
+                        <p className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-sm inline-block mt-1 uppercase tracking-tighter">
+                          Paid: {(order as any).paymentType}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -7389,48 +8018,145 @@ const BandwidthTestPage = () => {
   };
 
   const AnimatedLoginForm = ({ onLogin }: { onLogin: () => void }) => {
-    return (
-      <div className="flex justify-center items-center py-20 overflow-hidden">
-        <div className="animated-login-container scale-75 md:scale-100">
-          {[...Array(50)].map((_, i) => (
-            <span 
-              key={i} 
-              style={{ 
-                '--i': i, 
-                transform: `scale(2.2) rotate(${i * (360 / 50)}deg)`,
-                animationDelay: `${i * (3 / 50)}s`
-              } as any} 
-            />
-          ))}
-          <div className="login-box-animated">
-            <h2 className="text-2xl font-bold text-[#0ef] text-center mb-1 drop-shadow-[0_0_8px_rgba(0,238,255,0.5)] uppercase tracking-tighter">System Access</h2>
-            <p className="text-[#0ef]/60 text-[10px] text-center mb-10 uppercase tracking-widest font-bold">Secure Google Identity</p>
-            
-            <div className="px-6 md:px-10">
-              <motion.button 
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => { playSound('click'); onLogin(); }}
-                className="w-full py-5 bg-[#0ef] text-black rounded-2xl font-black text-sm uppercase tracking-widest shadow-[0_0_30px_rgba(14,239,255,0.5)] flex items-center justify-center gap-4 transition-all mb-10"
-              >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-6 h-6 bg-white rounded-full p-1" />
-                Sign in with Google
-              </motion.button>
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isRegistering, setIsRegistering] = useState(false);
 
-              <div className="space-y-6 pt-4 border-t border-[#0ef]/10">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#0ef]/10 flex items-center justify-center text-[#0ef]">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-[10px] font-black text-[#0ef] uppercase tracking-wider">Role Analytics</h4>
-                    <p className="text-[9px] text-white/40 font-medium leading-tight">Admin, Staff, or Client status is detected automatically.</p>
-                  </div>
-                </div>
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoading(true);
+      try {
+        if (isRegistering) {
+          await registerWithEmail(email, password);
+          addNotification("Account created and logged in!");
+        } else {
+          await loginWithEmail(email, password);
+          addNotification("Welcome back!");
+        }
+      } catch (error: any) {
+        console.error("Auth error:", error);
+        addNotification("Auth failed: " + (error.message || "Unknown error"));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    return (
+      <div className="codingstella-wrapper min-h-fit py-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="codingstella-login_box"
+        >
+          <motion.div 
+            initial={{ y: -50 }}
+            animate={{ y: 0 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 100 }}
+            className="codingstella-login-header"
+          >
+            <span>{isRegistering ? 'Register' : 'Login'}</span>
+          </motion.div>
+
+          <form onSubmit={handleSubmit}>
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+              className="codingstella-input_box"
+            >
+              <input 
+                type="email" 
+                id="user" 
+                className="codingstella-input-field" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required 
+              />
+              <label htmlFor="user" className="codingstella-label">Email</label>
+              <User className="codingstella-icon" size={18} />
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+              className="codingstella-input_box"
+            >
+              <input 
+                type="password" 
+                id="pass" 
+                className="codingstella-input-field" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required 
+              />
+              <label htmlFor="pass" className="codingstella-label">Password</label>
+              <Lock className="codingstella-icon" size={18} />
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="codingstella-remember-forgot"
+            >
+              <div className="codingstella-remember-me">
+                <input type="checkbox" id="remember" />
+                <label htmlFor="remember">Remember me</label>
               </div>
-            </div>
-          </div>
-        </div>
+              <div className="codingstella-forgot">
+                <a href="#">Forgot password?</a>
+              </div>
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="codingstella-input_box"
+            >
+              <button type="submit" className="codingstella-input-submit glow-effect-container text-white" disabled={isLoading}>
+                {isLoading ? (
+                  <RefreshCw className="animate-spin mx-auto" size={20} />
+                ) : (
+                  <span>{isRegistering ? 'Register' : 'Login'}</span>
+                )}
+              </button>
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-center mt-4 text-sm text-gray-300"
+            >
+              <p>Or continue with</p>
+              <button 
+                type="button"
+                onClick={() => { playSound('click'); onLogin(); }}
+                className="mt-2 w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl flex items-center justify-center gap-2 transition-all font-bold"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                Google Login
+              </button>
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9 }}
+              className="codingstella-register"
+            >
+              <span>{isRegistering ? 'Already have an account? ' : "Don't have an account? "} 
+                <a href="#" onClick={(e) => { e.preventDefault(); setIsRegistering(!isRegistering); }}>
+                  {isRegistering ? 'Login' : 'Register'}
+                </a>
+              </span>
+            </motion.div>
+          </form>
+        </motion.div>
       </div>
     );
   };
@@ -7534,7 +8260,7 @@ const BandwidthTestPage = () => {
               {menuItems
                 .filter(item => (isAdmin || !item.adminOnly) && item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
                 .map(item => (
-                <li key={item.id} className="nav-link">
+                <li key={item.id} className="nav-link mb-2">
                   <a 
                     href="#" 
                     onClick={(e) => {
@@ -7542,10 +8268,13 @@ const BandwidthTestPage = () => {
                       if (item.id === 'cart') setShowCart(true);
                       else setActiveTab(item.id);
                     }}
-                    className={cn(activeTab === item.id && "bg-[#dc143c]/10")}
+                    className={cn(
+                      "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all",
+                      activeTab === item.id ? "glow-effect-container text-white scale-[1.02]" : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                    )}
                   >
-                    <i className={cn('bx icon', item.icon, activeTab === item.id && "!text-[#dc143c]")}></i>
-                    <span className={cn("text nav-text", activeTab === item.id && "!text-[#dc143c]")}>
+                    <i className={cn('bx icon text-xl', item.icon, activeTab === item.id && "text-white")}></i>
+                    <span className={cn("text nav-text font-bold", activeTab === item.id && "text-white")}>
                       {item.label}
                     </span>
                   </a>
@@ -8293,25 +9022,42 @@ const MePage = ({
       addNotification("Syncing local data...");
       
       try {
+        const batch = writeBatch(db);
+        let writeCount = 0;
+
         const localProducts = localStorage.getItem('cctv_products');
         if (localProducts) {
           const items = JSON.parse(localProducts);
-          for (const p of items) await setDoc(doc(db, 'products', String(p.id)), p);
+          for (const p of items) {
+            batch.set(doc(db, 'products', String(p.id)), p);
+            writeCount++;
+          }
         }
         
         const localClients = localStorage.getItem('cctv_clients');
         if (localClients) {
           const items = JSON.parse(localClients);
-          for (const c of items) await setDoc(doc(db, 'clients', String(c.id)), c);
+          for (const c of items) {
+            batch.set(doc(db, 'clients', String(c.id)), c);
+            writeCount++;
+          }
         }
         
         const localExpenses = localStorage.getItem('cctv_expenses');
         if (localExpenses) {
           const items = JSON.parse(localExpenses);
-          for (const e of items) await setDoc(doc(db, 'expenses', e.id), e);
+          for (const e of items) {
+            batch.set(doc(db, 'expenses', e.id), e);
+            writeCount++;
+          }
         }
         
-        addNotification("Sync complete!");
+        if (writeCount > 0) {
+          await batch.commit();
+          addNotification("Sync complete!");
+        } else {
+          addNotification("No local data found to sync.");
+        }
       } catch (err) {
         console.error("Sync error:", err);
         addNotification("Sync failed. Check console.");
@@ -8475,19 +9221,13 @@ const MePage = ({
         </AnimatePresence>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="glass-card p-6 flex flex-col items-center text-center h-fit overflow-hidden">
+          <div className="glass-card p-0 flex flex-col items-center text-center h-fit overflow-hidden border-none shadow-none bg-transparent">
             {!user && !staffUser ? (
               <div className="w-full">
                 <AnimatedLoginForm onLogin={loginWithGoogle} />
-                <div className="mt-6 flex flex-col items-center gap-2">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Client Login</p>
-                  <button onClick={() => { playSound('click'); loginWithGoogle(); }} className="px-6 py-2 bg-slate-100 dark:bg-slate-800 rounded-full text-xs font-bold hover:bg-slate-200 transition-colors">
-                    Access My Profile
-                  </button>
-                </div>
               </div>
             ) : (
-              <>
+              <div className="p-6 w-full flex flex-col items-center">
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-4xl font-bold mb-4 border-4 border-white shadow-2xl overflow-hidden">
                     {user?.photoURL || staffUser ? (
@@ -8529,7 +9269,7 @@ const MePage = ({
                     <LogOut size={16} /> Logout System
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
@@ -9038,7 +9778,7 @@ const MePage = ({
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-[450px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+          className="w-full max-w-[450px] glow-effect-container text-white rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
           onClick={e => e.stopPropagation()}
         >
           <h2 className="text-2xl font-black mb-6">Add New Client</h2>
@@ -9229,8 +9969,8 @@ const MePage = ({
                   value={category}
                   onChange={e => setCategory(e.target.value)}
                 >
-                  {expenseCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {Array.from(new Set(expenseCategories)).map((cat, idx) => (
+                    <option key={`${cat}-${idx}`} value={cat}>{cat}</option>
                   ))}
                 </select>
               )}
@@ -9251,6 +9991,49 @@ const MePage = ({
 
   // --- Main Render ---
 
+  // Helper to ensure all product categories are in our management system
+  const syncMissingCategories = () => {
+    setProductCategories(prev => {
+      const existingNames = new Set(prev.map(c => c.name.toLowerCase()));
+      const missingNames = Array.from(new Set(products.map(p => p.category)))
+        .filter(name => name && !existingNames.has(name.toLowerCase()));
+      
+      if (missingNames.length === 0) return prev;
+      
+      const newCats: CategoryData[] = missingNames.map(name => ({
+        id: `sync_${Date.now()}_${name.toLowerCase().replace(/\s+/g, '_')}_${Math.random().toString(36).substr(2, 9)}`,
+        name: name
+      }));
+      
+      // We use a small timeout for the notification to avoid issue with state updates
+      setTimeout(() => addNotification(`Synced ${newCats.length} missing categories found from products.`), 100);
+      return [...prev, ...newCats];
+    });
+  };
+
+  // Cleanup duplicate categories if any
+  useEffect(() => {
+    if (productCategories.length > 0) {
+      const seenIds = new Set();
+      const unique = productCategories.filter(cat => {
+        if (seenIds.has(cat.id)) return false;
+        seenIds.add(cat.id);
+        return true;
+      });
+      
+      if (unique.length !== productCategories.length) {
+        setProductCategories(unique);
+        localStorage.setItem('cctv_product_categories', JSON.stringify(unique));
+      }
+    }
+  }, [productCategories]);
+
+  useEffect(() => {
+    if (isAdmin && products.length > 0) {
+      syncMissingCategories();
+    }
+  }, [products.length, isAdmin]);
+
   return (
     <div className="w-full max-w-[450px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden flex flex-col md:flex-row">
       {/* Dynamic Background Layer */}
@@ -9264,6 +10047,7 @@ const MePage = ({
             onAdd={handleAddProduct} 
             productCategories={productCategories}
             setProductCategories={setProductCategories}
+            addNotification={addNotification}
           />
         )}
         {showEditProduct && (
@@ -9273,6 +10057,7 @@ const MePage = ({
             onSave={handleEditProduct} 
             productCategories={productCategories}
             setProductCategories={setProductCategories}
+            addNotification={addNotification}
           />
         )}
       </AnimatePresence>
@@ -9340,7 +10125,7 @@ const MePage = ({
                     { id: 'services', icon: LayoutGrid, label: 'Services', adminOnly: false },
                     { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
                     { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
-                    { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: true },
+                    { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: false },
                     { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
                     { id: 'manage-services', icon: LayoutGrid, label: 'Manage Services', adminOnly: true },
                     { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
@@ -9355,7 +10140,7 @@ const MePage = ({
                     <button 
                         key={item.id}
                         onClick={() => { setActiveTab(item.id); setShowMobileMenu(false); }}
-                        className={cn("w-full text-left p-3 text-sm font-medium hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-3 transition-all", activeTab === item.id ? "text-orange-600 dark:text-emerald-500 bg-orange-50 dark:bg-emerald-900/40 shadow-inner" : "")}
+                        className={cn("w-full text-left p-4 text-sm font-black rounded-2xl flex items-center gap-3 transition-all mb-1", activeTab === item.id ? "glow-effect-container text-white scale-[1.02]" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800")}
                     >
                         <motion.div animate={activeTab === item.id ? { y: [0, -3, 0], opacity: [0.5, 1, 0.5] } : { y: 0, opacity: 1 }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
                           <item.icon size={18} className={activeTab === item.id ? "drop-shadow-md" : ""} />
@@ -9423,16 +10208,18 @@ const MePage = ({
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="max-w-7xl mx-auto"
+              className="max-w-7xl mx-auto glow-effect-container rounded-[32px] p-1 shadow-2xl"
             >
+              <div className="bg-white dark:bg-slate-900 rounded-[28px] p-4 md:p-6 min-h-[60vh]">
               {activeTab === 'dashboard' && (
                 <Dashboard 
                   products={products}
                   clients={clients}
+                  publicOrders={publicOrders}
                   expenses={expenses}
                   sliderImages={sliderImages}
                   offers={offers}
@@ -9444,6 +10231,7 @@ const MePage = ({
                   onEditProduct={(p) => withPassword(() => setShowEditProduct(p), true)}
                   isAdmin={isAdmin}
                   isDarkMode={isDarkMode}
+                  productCategories={productCategories}
                 />
               )}
               {activeTab === 'shop-view' && (
@@ -9455,6 +10243,7 @@ const MePage = ({
                   addToCart={addToCart} 
                   setActiveTab={setActiveTab}
                   setSelectedProduct={setSelectedProduct}
+                  productCategories={productCategories}
                 />
               )}
               {activeTab === 'device-version' && (
@@ -9496,6 +10285,8 @@ const MePage = ({
                   productCategories={productCategories}
                   setProductCategories={setProductCategories}
                   products={products}
+                  setProducts={setProducts}
+                  addNotification={addNotification}
                 />
               )}
               {activeTab === 'track-order' && (
@@ -9527,7 +10318,7 @@ const MePage = ({
                 <StaffCheckIn user={user} staffUser={staffUser} />
               )}
               {activeTab === 'manage-staff' && isAdmin && (
-                <ManageStaff withPassword={withPassword} />
+                <ManageStaff withPassword={withPassword} addNotification={addNotification} />
               )}
               {activeTab === 'warranty' && isAdmin && <WarrantyPage clients={clients} />}
               {activeTab === 'support' && (
@@ -9576,8 +10367,9 @@ const MePage = ({
                   withPassword={withPassword}
                 />
               )}
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          </motion.div>
+        </AnimatePresence>
         </main>
 
         {/* Navigation - Mobile Only (Custom Tab Bar) */}
@@ -9595,7 +10387,10 @@ const MePage = ({
               <ul key={item.id}>
                 <li>
                   <a 
-                    className={cn(isActive && "active", "relative")}
+                    className={cn(
+                      "relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-500",
+                      isActive ? "glow-effect-container text-white scale-110" : "text-gray-400 hover:text-blue-500"
+                    )}
                     onClick={() => {
                       playSound('click');
                       if (item.id === 'cart') {
@@ -9606,7 +10401,7 @@ const MePage = ({
                       }
                     }}
                   >
-                    <item.icon size={24} />
+                    <item.icon size={isActive ? 22 : 24} />
                     {item.id === 'cart' && cart.length > 0 && (
                       <span className="custom-nav-badge">
                         {cart.reduce((sum, i) => sum + i.quantity, 0)}
@@ -9710,31 +10505,48 @@ const getStatusColor = (status: OrderStatus) => {
 
 const MyOrdersPage = ({ user, clients, formatCurrency }: { user: any | null, clients: Client[], formatCurrency: (amount: number) => string }) => {
   const client = useMemo(() => clients.find(c => c.email === user?.email || c.phone === user?.phoneNumber), [clients, user]);
-  
+  const [pendingPublicOrders, setPendingPublicOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (client) {
+      const q = query(collection(db, 'public_orders'), where('customerPhone', '==', client.phone), where('status', '==', 'pending'));
+      const unsub = onSnapshot(q, (snapshot) => {
+        setPendingPublicOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      return () => unsub();
+    }
+  }, [client]);
+
   if (!client) return <div className="p-4 text-center">No orders found. Please log in or contact support.</div>;
+  
+  const allOrders = [...pendingPublicOrders, ...(client.orders || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   return (
     <div className="space-y-4 p-4">
       <h2 className="text-xl font-black mb-4">My Orders</h2>
-      {client.orders.map(order => (
-        <div key={order.id} className="glass-card p-4">
-          <div className="flex justify-between items-center mb-2 border-b dark:border-slate-800 pb-2">
-            <span className="font-bold text-sm">Order ID: {order.id}</span>
-            <span className={cn("px-2 py-1 rounded text-[10px] font-black uppercase", getStatusColor(order.status))}>
-              {order.status}
-            </span>
+      {allOrders.length === 0 ? (
+        <div className="text-gray-500 py-4 text-sm">No orders yet.</div>
+      ) : (
+        allOrders.map(order => (
+          <div key={order.id} className="glass-card p-4">
+            <div className="flex justify-between items-center mb-2 border-b dark:border-slate-800 pb-2">
+              <span className="font-bold text-sm">Order ID: {order.id}</span>
+              <span className={cn("px-2 py-1 rounded text-[10px] font-black uppercase", getStatusColor(order.status))}>
+                {order.status}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {order.items.map((item: any, i: number) => (
+                <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                  <span>{item.name} x {item.quantity}</span>
+                  <span>{formatCurrency(item.price * item.quantity)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-right mt-2 text-sm font-bold text-blue-600">Total: {formatCurrency(order.total)}</div>
           </div>
-          <div className="space-y-1">
-            {order.items.map((item, i) => (
-              <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                <span>{item.name} x {item.quantity}</span>
-                <span>{formatCurrency(item.price * item.quantity)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="text-right mt-2 text-sm font-bold text-blue-600">Total: {formatCurrency(order.total)}</div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 };
@@ -9762,7 +10574,7 @@ const AddWorkModal = ({ clientId, onClose, handleAddWork }: { clientId: number, 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        className="w-full max-w-[400px] glow-effect-container text-white rounded-[32px] p-8 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-2xl font-black mb-6">Add New Work</h2>
@@ -9792,7 +10604,7 @@ const AddWorkModal = ({ clientId, onClose, handleAddWork }: { clientId: number, 
           <motion.button 
             whileTap={{ scale: 0.95 }}
             type="submit"
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-xl opacity-90 hover:opacity-100 mt-4"
+            className="w-full py-4 glow-effect-container text-white rounded-2xl font-bold text-sm shadow-xl opacity-90 hover:opacity-100 mt-4"
           >
             Save Work
           </motion.button>
@@ -9826,7 +10638,7 @@ const AddPaymentModal = ({ clientId, onClose, handleAddPayment }: { clientId: nu
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        className="w-full max-w-[400px] glow-effect-container text-white rounded-[32px] p-8 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-2xl font-black mb-6">Record Payment</h2>
@@ -9869,7 +10681,7 @@ const AddPaymentModal = ({ clientId, onClose, handleAddPayment }: { clientId: nu
           </div>
           <button 
             type="submit"
-            className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-green-500/20 mt-4"
+            className="w-full py-4 glow-effect-container text-white rounded-2xl font-bold text-sm shadow-xl shadow-green-500/20 mt-4"
           >
             Record Payment
           </button>
@@ -9904,7 +10716,7 @@ const EditClientModal = ({ client, onClose, onUpdate }: { client: Client, onClos
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl"
+        className="w-full max-w-[400px] glow-effect-container text-white rounded-[32px] p-8 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-2xl font-black mb-6">Edit Client</h2>

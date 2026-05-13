@@ -60,7 +60,7 @@ service cloud.firestore {
 
     // Public Orders: Anyone can create, admin can manage
     match /public_orders/{orderId} {
-      allow read: if isAdmin();
+      allow read: if true;
       allow create: if true;
       allow update, delete: if isAdmin() || (resource.data.status == "pending");
     }

@@ -1543,6 +1543,241 @@
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255, 140, 0, 0.4);
   }
+
+  /* CodingStella Modern Login Design */
+  .codingstella-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    background-image: url("https://images.unsplash.com/photo-1441233310697-37d45e569103?q=80&w=2072&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D");
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 24px;
+    overflow: hidden;
+  }
+
+  /* From Uiverse.io by bhaveshxrawat - Glowing Border Card */
+  .uiverse-glow-card {
+    width: 100%;
+    height: 320px;
+    background: #07182E;
+    position: relative;
+    display: flex;
+    place-content: center;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 20px;
+    transition: transform 0.3s ease;
+  }
+
+  .uiverse-glow-card:hover {
+    transform: scale(1.02);
+  }
+
+  .uiverse-glow-card::before {
+    content: '';
+    position: absolute;
+    width: 120px;
+    background-image: linear-gradient(180deg, rgb(0, 183, 255), rgb(255, 48, 255));
+    height: 150%;
+    animation: rotBGimg 3s linear infinite;
+    transition: all 0.2s linear;
+  }
+
+  @keyframes rotBGimg {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .uiverse-glow-card::after {
+    content: '';
+    position: absolute;
+    background: #07182E;
+    inset: 4px;
+    border-radius: 16px;
+  }
+
+  /* Global Glow Utility for Buttons and Popups */
+  .glow-effect-container {
+    position: relative;
+    overflow: hidden;
+    background: #07182E !important;
+    z-index: 0;
+  }
+
+  .glow-effect-container::before {
+    content: '';
+    position: absolute;
+    width: 100px;
+    background-image: linear-gradient(180deg, rgb(0, 183, 255), rgb(255, 48, 255));
+    height: 200%;
+    animation: rotBGimg 3s linear infinite;
+    z-index: -2;
+    top: -50%;
+    left: calc(50% - 50px);
+  }
+
+  .glow-effect-container::after {
+    content: '';
+    position: absolute;
+    background: inherit;
+    inset: 2px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .uiverse-glow-card-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .codingstella-login_box {
+    position: relative;
+    width: 450px;
+    backdrop-filter: blur(25px);
+    border: 2px solid #c6c3c3;
+    border-radius: 15px;
+    padding: 7.5em 2.5em 4em 2.5em;
+    color: #ffffff;
+    box-shadow: 0px 0px 10px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .codingstella-login-header {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #c6c3c3;
+    width: 140px;
+    height: 70px;
+    border-radius: 0 0 20px 20px;
+  }
+
+  .codingstella-login-header span {
+    font-size: 30px;
+    color: #000000;
+  }
+
+  .codingstella-login-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -30px;
+    width: 30px;
+    height: 30px;
+    border-top-right-radius: 50%;
+    background: transparent;
+    box-shadow: 15px 0 0 0 #c6c3c3;
+  }
+
+  .codingstella-login-header::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -30px;
+    width: 30px;
+    height: 30px;
+    border-top-left-radius: 50%;
+    background: transparent;
+    box-shadow: -15px 0 0 0 #c6c3c3;
+  }
+
+  .codingstella-input_box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin: 20px 0;
+  }
+
+  .codingstella-input-field {
+    width: 100%;
+    height: 55px;
+    font-size: 16px;
+    background: transparent;
+    color: #ffffff;
+    padding-inline: 20px 50px;
+    border: 2px solid #c6c3c3;
+    border-radius: 30px;
+    outline: none;
+  }
+
+  .codingstella-label {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    transition: 0.2s;
+    pointer-events: none;
+  }
+
+  .codingstella-input-field:focus ~ .codingstella-label,
+  .codingstella-input-field:not(:placeholder-shown) ~ .codingstella-label {
+    top: -10px;
+    left: 20px;
+    font-size: 14px;
+    background-color: #c6c3c3;
+    border-radius: 30px;
+    color: #000000;
+    padding: 0 10px;
+  }
+
+  .codingstella-icon {
+    position: absolute;
+    top: 18px;
+    right: 25px;
+    font-size: 20px;
+  }
+
+  .codingstella-remember-forgot {
+    display: flex;
+    justify-content: space-between;
+    font-size: 15px;
+    margin-bottom: 20px;
+  }
+
+  .codingstella-input-submit {
+    width: 100%;
+    height: 50px;
+    background: #ececec;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: 0.3s;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .codingstella-input-submit:hover {
+    background: #ffffff;
+  }
+
+  @media only screen and (max-width: 564px) {
+    .codingstella-login_box {
+      width: 90%;
+      padding: 7.5em 1.5em 4em 1.5em;
+    }
+  }
 }
 
 @keyframes blob {
