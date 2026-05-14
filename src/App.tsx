@@ -433,7 +433,7 @@ const ProductPastaCard = ({ product, onEdit, onDelete, isAdmin, onSelect }: { pr
           </div>
 
           <div className="text-center w-full px-2">
-            <h2 className="text-white font-black text-xs sm:text-sm uppercase tracking-tighter line-clamp-2 leading-tight mb-1">
+            <h2 className="text-white font-black text-xs sm:text-sm uppercase tracking-tighter leading-tight mb-1">
               {product.title || product.name}
             </h2>
             <div className="flex items-center justify-center gap-2">
@@ -2301,7 +2301,7 @@ const ProductList = ({
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
+      <div className="grid grid-cols-2 gap-4 px-2">
         {filteredProducts.map((product, idx) => (
           <motion.div 
             key={product.id}
@@ -2611,7 +2611,7 @@ const PublicStore = ({
   }, [sliderImages]);
 
   return (
-    <div className="space-y-6 pb-32 -mt-4">
+    <div className="w-full pb-32 -mt-4">
       {/* Daraz-Style Search Header */}
       <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl -mx-4 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
         <div className="flex items-center justify-between gap-4">
@@ -2849,7 +2849,7 @@ const PublicStore = ({
       </div>
 
       {/* Daraz-Style Main Product Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
+      <div className="grid grid-cols-2 gap-3 px-2 py-4">
         {filteredProducts.map((product, i) => (
           <motion.div 
             key={product.id}
@@ -10214,7 +10214,7 @@ const MePage = ({
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="max-w-7xl mx-auto glow-effect-container rounded-[32px] p-1 shadow-2xl"
             >
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] p-4 md:p-6 min-h-[60vh]">
+              <div className="rounded-[28px] p-4 md:p-6 min-h-screen w-full">
               {activeTab === 'dashboard' && (
                 <Dashboard 
                   products={products}

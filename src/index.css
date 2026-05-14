@@ -1564,7 +1564,8 @@
   /* From Uiverse.io by bhaveshxrawat - Glowing Border Card */
   .uiverse-glow-card {
     width: 100%;
-    height: 320px;
+    min-height: 320px;
+    height: auto;
     background: #07182E;
     position: relative;
     display: flex;
@@ -1572,40 +1573,28 @@
     place-items: center;
     overflow: hidden;
     border-radius: 20px;
-    transition: transform 0.3s ease;
-  }
-
-  .uiverse-glow-card:hover {
-    transform: scale(1.02);
+    cursor: pointer;
   }
 
   .uiverse-glow-card::before {
     content: '';
     position: absolute;
-    width: 120px;
+    width: 100px;
     background-image: linear-gradient(180deg, rgb(0, 183, 255), rgb(255, 48, 255));
-    height: 150%;
+    height: 130%;
     animation: rotBGimg 3s linear infinite;
     transition: all 0.2s linear;
-  }
-
-  @keyframes rotBGimg {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
   }
 
   .uiverse-glow-card::after {
     content: '';
     position: absolute;
     background: #07182E;
-    inset: 4px;
-    border-radius: 16px;
+    inset: 5px;
+    border-radius: 15px;
+    z-index: 0;
   }
-
+  
   /* Global Glow Utility for Buttons and Popups */
   .glow-effect-container {
     position: relative;
@@ -1642,7 +1631,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: 1rem;
   }
 
   .codingstella-login_box {
@@ -1785,6 +1774,15 @@
   33% { transform: translate(30px, -50px) scale(1.1); }
   66% { transform: translate(-20px, 20px) scale(0.9); }
   100% { transform: translate(0px, 0px) scale(1); }
+}
+
+@keyframes rotBGimg {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes blink {
