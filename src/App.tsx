@@ -27,6 +27,7 @@ import {
   Minus, 
   Moon, 
   Sun, 
+  UploadCloud,
   Leaf,
   Bell,
   RefreshCw,
@@ -2713,7 +2714,7 @@ const PublicStore = ({
               { label: 'Hot Deals', icon: Sparkles, color: 'from-orange-500 to-orange-600', shadow: 'shadow-orange-500/20', action: () => setActiveTab('offers') },
               { label: 'Free Delivery', icon: Truck, color: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/20', action: () => setActiveTab('products') },
               { label: 'Support', icon: Headphones, color: 'from-indigo-500 to-indigo-600', shadow: 'shadow-indigo-500/20', action: () => window.open('https://wa.me/8801817681233', '_blank') },
-              { label: 'Market', icon: ShoppingBag, color: 'from-pink-500 to-pink-600', shadow: 'shadow-pink-500/20', action: () => setActiveTab('products') },
+              { label: 'Market', icon: ShoppingBag, color: 'from-blue-900 to-blue-950', shadow: 'shadow-blue-900/20', action: () => setActiveTab('products') },
             ].map((cat, i) => (
               <motion.button 
                 key={i}
@@ -3052,80 +3053,137 @@ const ClientList = ({
   );
 };
 
-const ServicesPage = ({ isAdmin }: { isAdmin: boolean }) => {
-  const [services, setServices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+const ServicesPage = () => {
+  const [file, setFile] = useState<File | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployId, setDeployId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const q = query(collection(db, 'services'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setServices(data);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching services:", error);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const defaultServices = [
-    {
-      icon: 'bx-camera-movie',
-      title: 'CCTV Installation',
-      description: 'Professional installation of high-definition security cameras for homes and businesses. We ensure complete coverage and remote access setup.'
-    },
-    {
-      icon: 'bx-wrench',
-      title: 'Maintenance & Repair',
-      description: 'Regular maintenance and prompt repair services for security systems, ensuring your surveillance remains operational 24/7.'
-    },
-    {
-      icon: 'bx-briefcase',
-      title: 'Project Management',
-      description: 'Handling large-scale security projects from planning to execution, including wiring, networking, and system integration.'
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
     }
-  ];
+  };
 
-  const displayServices = services.length > 0 ? services : defaultServices;
+  const handleDeploy = async () => {
+    if (!file) return;
+    setDeploying(true);
+    setError(null);
+    setDeployId(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/deploy", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setDeployId(result.deployId);
+      } else {
+        setError(result.error);
+      }
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setDeploying(false);
+    }
+  };
 
   return (
-    <section className="services" id="services">
-      <div className="flex justify-between items-center mb-12">
-        <h2 className="services-heading !mb-0">IT & Security <span>Services</span></h2>
-      </div>
+    <div className="p-6 max-w-4xl mx-auto min-h-[70vh] flex flex-col justify-center items-center relative">
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-20 dark:opacity-10 bg-[radial-gradient(circle_at_50%_0%,#3b82f6,transparent_50%)]"></div>
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-2xl p-8 z-10 text-center"
+      >
+        <div className="w-20 h-20 mx-auto bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6">
+          <UploadCloud className="w-10 h-10 text-blue-500" />
+        </div>
+        
+        <h2 className="text-3xl font-black mb-3">AI Web Deployer</h2>
+        <p className="text-slate-500 dark:text-slate-400 mb-8">
+          Upload any website's .zip file (HTML/CSS/JS) and get a live shareable link instantly.
+        </p>
 
-      <div className="services-container">
-        {displayServices.map((service, index) => (
+        <div className="border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-2xl p-8 mb-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative cursor-pointer">
+          <input 
+            type="file" 
+            accept=".zip" 
+            onChange={handleFileChange} 
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <div className="flex flex-col items-center pointer-events-none">
+            <UploadCloud size={32} className="text-gray-400 mb-3" />
+            <p className="font-semibold text-slate-700 dark:text-slate-300">
+              {file ? file.name : "Drag & drop your .zip file here"}
+            </p>
+            {!file && <p className="text-sm text-slate-400 mt-1">or click to browse from your device</p>}
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm mb-6 flex items-center justify-center gap-2">
+            <AlertTriangle size={16} /> {error}
+          </div>
+        )}
+
+        {deployId && (
           <motion.div 
-            key={service.id || index} 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            viewport={{ once: true }}
-            className="services-box group relative"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl mb-6 text-left"
           >
-            {service.imageUrl ? (
-              <div className="w-full h-40 mb-6 overflow-hidden rounded-xl">
-                <img src={service.imageUrl} alt={service.title} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-              </div>
-            ) : (
-              <i className={`bx ${service.icon}`}></i>
-            )}
-            <h3>{service.title}</h3>
-            <p>{service.description}</p>
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => playSound('click')}
-              className="px-6 py-2 bg-[#dc143c] text-white rounded-full text-sm font-bold shadow-lg"
+            <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-bold mb-2">
+              <CheckCircle size={18} /> Successfully Deployed
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Your site is live! Share this link with your customers:</p>
+            <div className="flex bg-white dark:bg-slate-950 border border-green-200 dark:border-green-800 rounded-lg overflow-hidden">
+              <input 
+                type="text" 
+                readOnly 
+                value={`${window.location.origin}/d/${deployId}/`}
+                className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
+              />
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/d/${deployId}/`);
+                  alert("Copied to clipboard!");
+                }}
+                className="bg-green-500 text-white px-4 py-2 text-sm font-bold hover:bg-green-600 active:bg-green-700"
+              >
+                COPY
+              </button>
+            </div>
+            <a 
+              href={`/d/${deployId}/`} 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 block text-center text-sm font-semibold text-blue-500 hover:underline"
             >
-              Read More
-            </motion.button>
+              Open in new tab &rarr;
+            </a>
           </motion.div>
-        ))}
-      </div>
-    </section>
+        )}
+
+        <button 
+          onClick={handleDeploy}
+          disabled={!file || deploying}
+          className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-black rounded-xl text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+        >
+          {deploying ? (
+            <><RefreshCw className="animate-spin" /> Deploying...</>
+          ) : (
+            <><Zap /> Deploy Website</>
+          )}
+        </button>
+      </motion.div>
+    </div>
   );
 };
 
@@ -8212,7 +8270,7 @@ const BandwidthTestPage = () => {
       { id: 'dashboard', icon: 'bx-home-alt', label: 'Analytics', adminOnly: false },
       { id: 'shop-view', icon: 'bx-store', label: 'Shop View', adminOnly: false },
       { id: 'device-version', icon: 'bx-devices', label: 'Device Version', adminOnly: false },
-      { id: 'services', icon: 'bx-layer', label: 'Services', adminOnly: false },
+      { id: 'services', icon: 'bx-cloud-upload', label: 'AI Deploy', adminOnly: false },
       { id: 'clients', icon: 'bx-user-voice', label: 'CRM Clients', adminOnly: true },
       { id: 'categories', icon: 'bx-category', label: 'Categories', adminOnly: true },
       { id: 'products', icon: 'bx-package', label: 'Admin Panel', adminOnly: true },
@@ -10035,7 +10093,7 @@ const MePage = ({
   }, [products.length, isAdmin]);
 
   return (
-    <div className="w-full max-w-[450px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden flex flex-col md:flex-row">
+    <div className="w-full max-w-[550px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden flex flex-col md:flex-row">
       {/* Dynamic Background Layer */}
       <div className={cn("app-bg", isDarkMode ? "app-bg-dark" : "app-bg-light")} />
       
@@ -10100,7 +10158,7 @@ const MePage = ({
         {/* Header */}
         <header className="p-4 flex justify-between items-center sticky top-0 z-30 border-b border-white/10 dark:border-slate-800/30 md:px-8 shadow-sm">
           <div className="flex items-center gap-2 md:hidden">
-            <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 text-slate-500">
+            <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 text-blue-900 dark:text-blue-300">
                <Menu size={24} />
             </button>
             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden", isDarkMode ? "bg-emerald-600" : "bg-orange-500")}>
@@ -10254,7 +10312,7 @@ const MePage = ({
                 />
               )}
               {activeTab === 'services' && (
-                <ServicesPage isAdmin={isAdmin} />
+                <ServicesPage />
               )}
               {activeTab === 'manage-services' && isAdmin && (
                 <ManageServices withPassword={withPassword} />
@@ -10377,7 +10435,7 @@ const MePage = ({
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
             { id: 'device-version', icon: Laptop, label: 'Device' },
-            { id: 'services', icon: LayoutGrid, label: 'Services' },
+            { id: 'services', icon: UploadCloud, label: 'Deploy' },
             { id: isAdmin ? 'manage-staff' : 'staff-tracking', icon: isAdmin ? Users : Navigation, label: isAdmin ? 'Staff' : 'Check-in' },
             { id: 'cart', icon: ShoppingCart, label: 'Cart' },
             { id: 'me', icon: User, label: 'Account' },

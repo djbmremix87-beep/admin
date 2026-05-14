@@ -1594,6 +1594,18 @@
     border-radius: 15px;
     z-index: 0;
   }
+
+  @keyframes rotBGimg {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .uiverse-glow-card-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+  }
   
   /* Global Glow Utility for Buttons and Popups */
   .glow-effect-container {
@@ -1602,7 +1614,7 @@
     background: #07182E !important;
     z-index: 0;
   }
-
+  
   .glow-effect-container::before {
     content: '';
     position: absolute;
@@ -1614,7 +1626,7 @@
     top: -50%;
     left: calc(50% - 50px);
   }
-
+  
   .glow-effect-container::after {
     content: '';
     position: absolute;
@@ -1623,7 +1635,7 @@
     border-radius: inherit;
     z-index: -1;
   }
-
+  
   .uiverse-glow-card-content {
     position: relative;
     z-index: 1;
@@ -1802,4 +1814,167 @@
 
 .animate-blink {
   animation: blink 1s infinite;
+}
+
+/* Custom Service Card */
+.uiverse-service-card {
+  width: 300px;
+  height: 200px;
+  background: #243137;
+  position: relative;
+  display: grid;
+  place-content: center;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.5s ease-in-out;
+}
+
+.uiverse-service-card #logo-main, .uiverse-service-card #logo-second {
+  height: 100%;
+}
+
+.uiverse-service-card #logo-main {
+  fill: #bd9f67;
+}
+
+.uiverse-service-card #logo-second {
+  padding-bottom: 10px;
+  fill: none;
+  stroke: #bd9f67;
+  stroke-width: 1px;
+}
+
+.uiverse-service-border {
+  position: absolute;
+  inset: 0px;
+  border: 2px solid #bd9f67;
+  opacity: 0;
+  transform: rotate(10deg);
+  transition: all 0.5s ease-in-out;
+}
+
+.uiverse-service-bottom-text {
+  position: absolute;
+  left: 50%;
+  bottom: 13px;
+  transform: translateX(-50%);
+  font-size: 6px;
+  text-transform: uppercase;
+  padding: 0px 5px 0px 8px;
+  color: #bd9f67;
+  background: #243137;
+  opacity: 0;
+  letter-spacing: 7px;
+  transition: all 0.5s ease-in-out;
+}
+
+.uiverse-service-content {
+  transition: all 0.5s ease-in-out;
+}
+
+.uiverse-service-content .uiverse-service-logo {
+  height: 35px;
+  position: relative;
+  width: 33px;
+  overflow: hidden;
+  transition: all 1s ease-in-out;
+}
+
+.uiverse-service-content .uiverse-service-logo .uiverse-service-logo1 {
+  height: 33px;
+  position: absolute;
+  left: 0;
+}
+
+.uiverse-service-content .uiverse-service-logo .uiverse-service-logo2 {
+  height: 33px;
+  position: absolute;
+  left: 33px;
+}
+
+.uiverse-service-content .uiverse-service-logo .uiverse-service-trail {
+  position: absolute;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0;
+}
+
+.uiverse-service-content .uiverse-service-logo-bottom-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin-top: 30px;
+  color: #bd9f67;
+  padding-left: 8px;
+  font-size: 11px;
+  opacity: 0;
+  letter-spacing: none;
+  transition: all 0.5s ease-in-out 0.5s;
+}
+
+.uiverse-service-card:hover {
+  border-radius: 0;
+  transform: scale(1.1);
+}
+
+.uiverse-service-card:hover .uiverse-service-logo {
+  width: 134px;
+  animation: uiverse-service-opacity 1s ease-in-out;
+}
+
+.uiverse-service-card:hover .uiverse-service-border {
+  inset: 15px;
+  opacity: 1;
+  transform: rotate(0);
+}
+
+.uiverse-service-card:hover .uiverse-service-bottom-text {
+  letter-spacing: 3px;
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
+.uiverse-service-card:hover .uiverse-service-content .uiverse-service-logo-bottom-text {
+  opacity: 1;
+  letter-spacing: 9.5px;
+}
+
+.uiverse-service-card:hover .uiverse-service-trail {
+  animation: uiverse-service-trail 1s ease-in-out;
+}
+
+@keyframes uiverse-service-opacity {
+  0% {
+    border-right: 1px solid transparent;
+  }
+  10% {
+    border-right: 1px solid #bd9f67;
+  }
+  80% {
+    border-right: 1px solid #bd9f67;
+  }
+  100% {
+    border-right: 1px solid transparent;
+  }
+}
+
+@keyframes uiverse-service-trail {
+  0% {
+    background: linear-gradient(90deg, rgba(189, 159, 103, 0) 90%, rgb(189, 159, 103) 100%);
+    opacity: 0;
+  }
+  30% {
+    background: linear-gradient(90deg, rgba(189, 159, 103, 0) 70%, rgb(189, 159, 103) 100%);
+    opacity: 1;
+  }
+  70% {
+    background: linear-gradient(90deg, rgba(189, 159, 103, 0) 70%, rgb(189, 159, 103) 100%);
+    opacity: 1;
+  }
+  95% {
+    background: linear-gradient(90deg, rgba(189, 159, 103, 0) 90%, rgb(189, 159, 103) 100%);
+    opacity: 0;
+  }
 }
