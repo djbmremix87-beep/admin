@@ -8745,12 +8745,40 @@ const BandwidthTestPage = () => {
               <p>Or continue with</p>
               <button 
                 type="button"
-                onClick={() => { playSound('click'); onLogin(); }}
-                className="mt-2 w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl flex items-center justify-center gap-2 transition-all font-bold"
+                onClick={async () => { 
+                  playSound('click'); 
+                  setIsLoading(true);
+                  try {
+                    await onLogin(); 
+                  } catch (err: any) {
+                    console.error("Google login error:", err);
+                    const isIframe = window.self !== window.top;
+                    let msg = err.message || "Google Login failed";
+                    if (isIframe && (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error')) {
+                      msg = "Login blocked by browser. Please open this app in a NEW TAB to login with Google.";
+                    }
+                    addNotification(msg, "error");
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                className="mt-2 w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl flex items-center justify-center gap-2 transition-all font-bold disabled:opacity-50"
+                disabled={isLoading}
               >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                Google Login
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                {isLoading ? <RefreshCw className="animate-spin" size={18} /> : "Google sign in"}
               </button>
+              
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-xs text-gray-400 mb-2">Issue with Google Login?</p>
+                <button 
+                  type="button"
+                  onClick={() => setIsRegistering(!isRegistering)}
+                  className="text-blue-400 hover:text-blue-300 font-bold underline"
+                >
+                  {isRegistering ? "Already have an account? Login with Email" : "No Google? Register with Email"}
+                </button>
+              </div>
             </motion.div>
 
             <motion.div 
