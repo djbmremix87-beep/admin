@@ -40,7 +40,7 @@ export interface Product {
   category: string;
   image?: string;
   videoUrl?: string;
-  badge?: 'new' | 'hot' | 'lowstock';
+  badge?: 'new' | 'hot' | 'lowstock' | 'sale' | 'limited' | 'popular';
   description?: string;
   oldPrice?: number;
 }
@@ -114,14 +114,4 @@ export interface PublicOrder {
   total: number;
   date: string;
   status: 'pending' | 'accepted' | 'rejected';
-}
-
-export interface DeviceVersion {
-  id: string;
-  deviceName: string;
-  versionName: string;
-  description: string;
-  downloadUrl: string;
-  createdAt: string;
-  authorName: string;
 }

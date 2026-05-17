@@ -6,9 +6,12 @@ import {
   LayoutDashboard, 
   Users, 
   Package, 
+  Box,
   ShoppingCart, 
   Wallet, 
   ShieldCheck, 
+  Shield,
+  Star,
   BarChart3, 
   Wrench, 
   Settings, 
@@ -27,6 +30,7 @@ import {
   Minus, 
   Moon, 
   Sun, 
+  Home,
   UploadCloud,
   Leaf,
   Bell,
@@ -82,11 +86,10 @@ import {
   Cctv,
   Activity,
   Camera,
-  Laptop
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import gsap from 'gsap';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   MapContainer, 
   TileLayer, 
@@ -133,8 +136,7 @@ import {
   OrderStatus,
   WorkHistory,
   PaymentHistory,
-  PublicOrder,
-  DeviceVersion
+  PublicOrder
 } from './types';
 
 interface SalaryRecord {
@@ -168,11 +170,14 @@ interface Staff {
 
 // --- Default Data ---
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: 1, name: 'Ranger 2 Pro 3MP', price: 3200, stock: 15, category: 'indoor', badge: 'new', description: '360° coverage with AI human detection and privacy mode.' },
-  { id: 2, name: 'Ranger 2 Pro 5MP', price: 4500, stock: 8, category: 'indoor', badge: 'hot', description: 'Ultra HD 5MP resolution with smart tracking and two-way talk.' },
-  { id: 3, name: 'Bulb Cam 3MP', price: 2800, stock: 3, category: 'indoor', badge: 'lowstock', description: 'Easy installation in standard bulb socket with full color night vision.' },
-  { id: 4, name: 'NVR 8CH', price: 8500, stock: 5, category: 'nvr', description: '8-channel network video recorder with H.265+ compression.' },
-  { id: 5, name: 'Outdoor Bullet 5MP', price: 5200, stock: 12, category: 'outdoor', badge: 'new', description: 'IP67 weatherproof outdoor camera with 30m IR range.' }
+  { id: 1, name: 'Dahua Ranger 2 Pro 3MP', price: 3200, stock: 15, category: 'indoor', badge: 'new', image: 'https://images.unsplash.com/photo-1558002038-1a2a4b9da8af?auto=format&fit=crop&q=80&w=400', description: '360° coverage with AI human detection and privacy mode.' },
+  { id: 2, name: 'Hikvision Bullet 5MP HD', price: 4500, stock: 8, category: 'outdoor', badge: 'hot', image: 'https://images.unsplash.com/photo-1524333865981-d13b6831005b?auto=format&fit=crop&q=80&w=400', description: 'Ultra HD 5MP resolution with smart tracking and two-way talk.' },
+  { id: 3, name: 'Smart Bulb Cam 3MP', price: 2800, stock: 3, category: 'indoor', badge: 'sale', image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=400', description: 'Easy installation in standard bulb socket with full color night vision.' },
+  { id: 4, name: 'Dahua NVR 8CH 4K', price: 8500, stock: 5, category: 'nvr', badge: 'limited', image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=400', description: '8-channel network video recorder with 4K output support.' },
+  { id: 5, name: 'Outdoor Smart PTZ Cam', price: 5200, stock: 12, category: 'outdoor', badge: 'new', image: 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=400', description: 'IP67 weatherproof outdoor camera with pan-tilt-zoom.' },
+  { id: 6, name: 'Silent Dome Cam 2MP', price: 2100, stock: 20, category: 'indoor', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400', description: 'Discreet ceiling mounted dome camera for offices.' },
+  { id: 7, name: 'Wireless IP Portal Cam', price: 3900, stock: 7, category: 'wireless', badge: 'popular', image: 'https://images.unsplash.com/photo-1516245834210-c4c142787335?auto=format&fit=crop&q=80&w=400', description: 'Truly wireless camera with long-lasting battery life.' },
+  { id: 8, name: 'Network PoE Switch 8 Port', price: 1800, stock: 10, category: 'accessories', image: 'https://images.unsplash.com/photo-1620121692029-d088224ddc74?auto=format&fit=crop&q=80&w=400', description: 'High-speed PoE switch for powering multiple IP cameras.' }
 ];
 
 const DEFAULT_CLIENTS: Client[] = [
@@ -261,133 +266,6 @@ interface Alert {
   createdAt: string;
 }
 
-const DeviceVersionIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" height="120" width="120" viewBox="0 0 200 200">
-    <g style={{ order: -1 }}>
-      <polygon
-        transform="rotate(45 100 100)"
-        strokeWidth="1"
-        stroke="#d3a410"
-        fill="none"
-        points="70,70 148,50 130,130 50,150"
-        id="device-bounce"
-      ></polygon>
-      <polygon
-        transform="rotate(45 100 100)"
-        strokeWidth="1"
-        stroke="#d3a410"
-        fill="none"
-        points="70,70 148,50 130,130 50,150"
-        id="device-bounce2"
-      ></polygon>
-      <polygon
-        transform="rotate(45 100 100)"
-        strokeWidth="2"
-        stroke=""
-        fill="#414750"
-        points="70,70 150,50 130,130 50,150"
-      ></polygon>
-      <polygon
-        strokeWidth="2"
-        stroke=""
-        fill="url(#device-gradiente)"
-        points="100,70 150,100 100,130 50,100"
-      ></polygon>
-      <defs>
-        <linearGradient y2="100%" x2="10%" y1="0%" x1="0%" id="device-gradiente">
-          <stop style={{ stopColor: '#1e2026', stopOpacity: 1 }} offset="20%"></stop>
-          <stop style={{ stopColor: '#414750', stopOpacity: 1 }} offset="60%"></stop>
-        </linearGradient>
-      </defs>
-      <polygon
-        transform="translate(20, 31)"
-        strokeWidth="2"
-        stroke=""
-        fill="#b7870f"
-        points="80,50 80,75 80,99 40,75"
-      ></polygon>
-      <polygon
-        transform="translate(20, 31)"
-        strokeWidth="2"
-        stroke=""
-        fill="url(#device-gradiente2)"
-        points="40,-40 80,-40 80,99 40,75"
-      ></polygon>
-      <defs>
-        <linearGradient y2="100%" x2="0%" y1="-17%" x1="10%" id="device-gradiente2">
-          <stop style={{ stopColor: '#d3a51000', stopOpacity: 1 }} offset="20%"></stop>
-          <stop
-            style={{ stopColor: '#d3a51054', stopOpacity: 1 }}
-            offset="100%"
-            id="device-animatedStop"
-          ></stop>
-        </linearGradient>
-      </defs>
-      <polygon
-        transform="rotate(180 100 100) translate(20, 20)"
-        strokeWidth="2"
-        stroke=""
-        fill="#d3a410"
-        points="80,50 80,75 80,99 40,75"
-      ></polygon>
-      <polygon
-        transform="rotate(0 100 100) translate(60, 20)"
-        strokeWidth="2"
-        stroke=""
-        fill="url(#device-gradiente3)"
-        points="40,-40 80,-40 80,85 40,110.2"
-      ></polygon>
-      <defs>
-        <linearGradient y2="100%" x2="10%" y1="0%" x1="0%" id="device-gradiente3">
-          <stop style={{ stopColor: '#d3a51000', stopOpacity: 1 }} offset="20%"></stop>
-          <stop
-            style={{ stopColor: '#d3a51054', stopOpacity: 1 }}
-            offset="100%"
-            id="device-animatedStop"
-          ></stop>
-        </linearGradient>
-      </defs>
-      <polygon
-        transform="rotate(45 100 100) translate(80, 95)"
-        strokeWidth="2"
-        stroke=""
-        fill="#ffe4a1"
-        points="5,0 5,5 0,5 0,0"
-        id="device-particles"
-      ></polygon>
-      <polygon
-        transform="rotate(45 100 100) translate(80, 55)"
-        strokeWidth="2"
-        stroke=""
-        fill="#ccb069"
-        points="6,0 6,6 0,6 0,0"
-        id="device-particles"
-      ></polygon>
-      <polygon
-        transform="rotate(45 100 100) translate(70, 80)"
-        strokeWidth="2"
-        stroke=""
-        fill="#fff"
-        points="2,0 2,2 0,2 0,0"
-        id="device-particles"
-      ></polygon>
-      <polygon
-        strokeWidth="2"
-        stroke=""
-        fill="#292d34"
-        points="29.5,99.8 100,142 100,172 29.5,130"
-      ></polygon>
-      <polygon
-        transform="translate(50, 92)"
-        strokeWidth="2"
-        stroke=""
-        fill="#1f2127"
-        points="50,50 120.5,8 120.5,35 50,80"
-      ></polygon>
-    </g>
-  </svg>
-);
-
 const UiverseSearch = ({ value, onChange, placeholder }: { value: string, onChange: (v: string) => void, placeholder?: string }) => (
   <div className="uiverse-minimal-search-wrapper">
     <div className="uiverse-minimal-search-glow"></div>
@@ -402,70 +280,222 @@ const UiverseSearch = ({ value, onChange, placeholder }: { value: string, onChan
   </div>
 );
 
-const ProductPastaCard = ({ product, onEdit, onDelete, isAdmin, onSelect }: { product: any, onEdit?: (p: any) => void, onDelete?: (id: string) => void, isAdmin?: boolean, onSelect?: (p: any) => void }) => {
+const GlowingNav = ({ 
+  items, 
+  activeId, 
+  onSelect,
+  className
+}: { 
+  items: { id: string, label: string, icon: React.ReactNode }[], 
+  activeId: string, 
+  onSelect: (id: string) => void,
+  className?: string
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef<(HTMLLIElement | null)[]>([]);
+  const [styles, setStyles] = useState({
+    position: 0,
+    width: 0,
+    radialPosition: 0
+  });
+
+  const updatePositions = () => {
+    if (!containerRef.current) return;
+    const activeIndex = items.findIndex(item => item.id === activeId);
+    if (activeIndex === -1) return;
+
+    // Use a small timeout to ensure refs are ready
+    const timer = setTimeout(() => {
+      const activeElement = itemsRef.current[activeIndex];
+      const containerRect = containerRef.current?.getBoundingClientRect();
+
+      if (activeElement && containerRect) {
+        const rect = activeElement.getBoundingClientRect();
+        const offsetLeft = rect.left - containerRect.left;
+        const width = rect.width;
+        const radialPosition = (rect.left + rect.width / 2) - containerRect.left;
+
+        setStyles({
+          position: offsetLeft,
+          width: width,
+          radialPosition: radialPosition
+        });
+      }
+    }, 10);
+    return () => clearTimeout(timer);
+  };
+
+  useEffect(() => {
+    updatePositions();
+    window.addEventListener('resize', updatePositions);
+    return () => window.removeEventListener('resize', updatePositions);
+  }, [activeId, items]);
+
+  const handleMouseMove = (index: number, e: React.MouseEvent) => {
+    const el = itemsRef.current[index];
+    if (!el) return;
+    
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const tiltX = -(y - rect.height / 2) / 8;
+    const tiltY = (x - rect.width / 2) / 8;
+
+    el.style.setProperty("--tilt-bg-x", tiltX.toString());
+    el.style.setProperty("--tilt-bg-y", tiltY.toString());
+  };
+
+  const handleMouseLeave = (index: number) => {
+    const el = itemsRef.current[index];
+    if (!el) return;
+    el.style.setProperty("--tilt-bg-x", "0");
+    el.style.setProperty("--tilt-bg-y", "0");
+  };
+
   return (
-    <div className="uiverse-glow-card mx-auto cursor-pointer" onClick={() => (onSelect ? onSelect(product) : (onEdit ? onEdit(product) : null))}>
-      <div className="uiverse-glow-card-content">
-        <div className="flex justify-between items-start mb-2">
-          <span className="bg-blue-500/10 text-blue-400 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-blue-500/20 backdrop-blur-md">
-            {product.category}
-          </span>
-          {product.stock <= 5 && product.stock > 0 && (
-            <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-amber-500/20 backdrop-blur-md">
-              Low Stock
+    <div 
+      ref={containerRef}
+      className={cn("glowing-nav-container", className)}
+      style={{
+        "--after-bg-position": styles.position,
+        "--after-bg-width": styles.width,
+        "--after-radial-bg-position": styles.radialPosition,
+        "--after-shadow-offset": activeId ? 15 : 0,
+        "--after-bg-opacity": activeId ? 25 : 0
+      } as React.CSSProperties}
+    >
+      <ul className="glowing-nav-list">
+        {items.map((item, index) => (
+          <li 
+            key={item.id}
+            ref={el => { itemsRef.current[index] = el; }}
+            className={cn("glowing-nav-item", activeId === item.id && "active")}
+            onMouseMove={(e) => handleMouseMove(index, e)}
+            onMouseLeave={() => handleMouseLeave(index)}
+          >
+            <button 
+              onClick={() => {
+                playSound('click');
+                onSelect(item.id);
+              }}
+              className={cn("glowing-nav-button", activeId === item.id && "active")}
+            >
+              {item.icon}
+              <span className="text-[8px] font-black uppercase tracking-widest leading-none">{item.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const ProductPastaCard = ({ 
+  product, 
+  onSelect, 
+  isAdmin, 
+  onEdit, 
+  onDelete 
+}: { 
+  product: Product, 
+  onSelect?: (p: Product) => void,
+  isAdmin?: boolean,
+  onEdit?: (p: Product) => void,
+  onDelete?: (id: number | string) => void
+}) => {
+  return (
+    <div 
+      className="uiverse-glow-card group relative h-full flex flex-col cursor-pointer bg-white dark:bg-slate-900 overflow-hidden"
+      onClick={() => (onSelect ? onSelect(product) : (onEdit ? onEdit(product) : null))}
+    >
+      <div className="uiverse-glow-card-light"></div>
+      <div className="uiverse-glow-card-content flex flex-col h-full p-4 sm:p-5">
+        {/* Badge Overlay */}
+        <div className="absolute top-4 left-4 z-20 flex flex-col gap-1">
+          {product.badge && (
+            <span className="px-3 py-1 bg-blue-600 text-white text-[9px] font-black uppercase rounded-full shadow-lg">
+              {product.badge}
             </span>
           )}
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <div className="w-full aspect-video rounded-xl overflow-hidden bg-slate-900/50 border border-white/5 relative group">
-            {(product.imageUrl || product.image) ? (
-              <img 
-                src={product.imageUrl || product.image} 
-                alt={product.title || product.name} 
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                referrerPolicy="no-referrer" 
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-700">
-                <Camera size={40} />
-              </div>
-            )}
-          </div>
-
-          <div className="text-center w-full px-2">
-            <h2 className="text-white font-black text-xs sm:text-sm uppercase tracking-tighter leading-tight mb-1">
-              {product.title || product.name}
-            </h2>
-            <div className="flex items-center justify-center gap-2">
-               <span className="text-blue-400 font-black text-base italic tracking-tighter">৳{product.price}</span>
+        {/* Image Container with Lighting Effect */}
+        <div className="w-full aspect-square relative rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-800/40 flex items-center justify-center p-4 mb-4">
+          <div className="absolute inset-0 bg-png opacity-5" />
+          {product.image ? (
+            <img 
+              src={product.image} 
+              alt={product.name} 
+              className="w-full h-full object-contain relative z-10 transition-transform duration-700 group-hover:scale-110 drop-shadow-2xl"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = `https://placehold.co/400x300/f1f5f9/475569?text=${encodeURIComponent(product.name || 'Product')}`;
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Package size={50} className="text-slate-200 dark:text-slate-700" />
+            </div>
+          )}
+          
+          {/* Quick View Overlay */}
+          <div className="absolute inset-0 bg-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+            <div className="bg-white text-blue-600 px-4 py-2 rounded-full shadow-xl font-bold text-[10px] uppercase flex items-center gap-2">
+              <Eye size={14} />
+              View Detail
             </div>
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {isAdmin && (
-              <>
+        {/* Info Section */}
+        <div className="flex flex-col flex-1">
+          <div className="flex flex-col gap-1 mb-4">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white line-clamp-1 group-hover:text-blue-600 transition-colors">
+              {product.name}
+            </h4>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 dark:text-blue-400 font-black text-lg">
+                {formatCurrency(product.price)}
+              </span>
+              {product.oldPrice && (
+                <span className="text-xs text-slate-400 line-through">
+                  ৳{product.oldPrice}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-auto space-y-3">
+            <button 
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <ShoppingCart size={14} />
+              Quick Purchase
+            </button>
+
+            {isAdmin && onEdit && onDelete && (
+              <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onEdit && onEdit(product); }}
-                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-blue-500/20 text-white/40 hover:text-blue-400 flex items-center justify-center border border-white/10 transition-all active:scale-90"
+                  onClick={() => onEdit(product)} 
+                  className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all flex items-center justify-center gap-1 text-[9px] font-bold"
                 >
-                  <Edit2 size={12} />
+                  <Edit2 size={10} />
+                  Edit
                 </button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onDelete && onDelete(product.id); }}
-                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 flex items-center justify-center border border-white/10 transition-all active:scale-90"
+                  onClick={() => onDelete(product.id)} 
+                  className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 transition-all flex items-center justify-center gap-1 text-[9px] font-bold"
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={10} />
+                  Delete
                 </button>
-              </>
+              </div>
             )}
           </div>
-          
-          <button className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1 hover:gap-2 transition-all">
-            See Details <ChevronRight size={12} />
-          </button>
         </div>
       </div>
     </div>
@@ -504,138 +534,155 @@ export const getBase64Image = (url: string): Promise<string> => {
 };
 
 export const generateOrderPDF = async (order: PublicOrder, customLogo?: string | null) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
+  window.dispatchEvent(new Event('start-task-animation'));
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const formatCurrency = (v: number) => `BDT ${v.toLocaleString()}`;
 
-  // Pre-load images to base64
-  const itemsWithBase64 = await Promise.all(order.items.map(async (item) => {
-    if (item.image) {
-      try {
-        const base64 = await getBase64Image(item.image);
-        return { ...item, base64 };
-      } catch (e) {
-        console.error("Failed to load item image", e);
-        return { ...item, base64: null };
-      }
-    }
-    return { ...item, base64: null };
-  }));
+    // Helper to fetch image as base64
+    const getBase64Image = (url: string): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.setAttribute('crossOrigin', 'anonymous');
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg'));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    };
 
-  // --- Header ---
-  doc.setFillColor(37, 99, 235); // Blue
-  doc.rect(0, 0, pageWidth, 45, 'F');
-
-  if (customLogo) {
-    try {
-      doc.addImage(customLogo, 'PNG', margin, 5, 30, 30);
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('IT DEPARTMENT', margin + 35, 20);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Your Trusted Technology Partner', margin + 35, 26);
-      doc.text('CLIENT ORDER RECEIPT', margin + 35, 34);
-    } catch (e) {
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text('IT DEPARTMENT', margin, 20);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('CLIENT ORDER RECEIPT', margin, 30);
-    }
-  } else {
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('IT DEPARTMENT', margin, 20);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text('CLIENT ORDER RECEIPT', margin, 30);
-  }
-
-  // --- Order Info ---
-  const startY = 60;
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Order Details', margin, startY);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Order ID: ${order.id}`, margin, startY + 8);
-  doc.text(`Date: ${order.date}`, margin, startY + 14);
-  doc.text(`Status: ${order.status.toUpperCase()}`, margin, startY + 20);
-
-  // --- Customer Info ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Customer Information', pageWidth / 2, startY);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Name: ${order.customerName}`, pageWidth / 2, startY + 8);
-  doc.text(`Phone: ${order.customerPhone}`, pageWidth / 2, startY + 14);
-  
-  const addressLines = doc.splitTextToSize(`Address: ${order.customerAddress}`, (pageWidth / 2) - margin);
-  doc.text(addressLines, pageWidth / 2, startY + 20);
-
-  // --- Table ---
-  const tableData = itemsWithBase64.map((item, index) => [
-    index + 1,
-    '', // Space for image
-    item.name,
-    item.quantity.toString(),
-    formatCurrency(item.price).replace('BDT', '').trim(),
-    formatCurrency(item.price * item.quantity).replace('BDT', '').trim()
-  ]);
-
-  let finalY = 0;
-  autoTable(doc, {
-    startY: startY + 35,
-    head: [['SL', 'Image', 'Item', 'Qty', 'Rate', 'Total']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-    columnStyles: {
-      0: { cellWidth: 15, halign: 'center' },
-      1: { cellWidth: 25, halign: 'center', minCellHeight: 25 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 20, halign: 'center' },
-      4: { cellWidth: 30, halign: 'right' },
-      5: { cellWidth: 30, halign: 'right' }
-    },
-    didDrawCell: (data) => {
-      if (data.section === 'body' && data.column.index === 1) {
-        const item = itemsWithBase64[data.row.index];
-        if (item.base64) {
-          try {
-            doc.addImage(item.base64, 'JPEG', data.cell.x + 2, data.cell.y + 2, 21, 21);
-          } catch (e) {
-            console.error("Error adding image inside cell", e);
-          }
+    // Pre-load images to base64
+    const itemsWithBase64 = await Promise.all(order.items.map(async (item) => {
+      if (item.image) {
+        try {
+          const base64 = await getBase64Image(item.image);
+          return { ...item, base64 };
+        } catch (e) {
+          console.error("Failed to load item image", e);
+          return { ...item, base64: null };
         }
       }
-    },
-    didDrawPage: (data) => {
-      if (data.cursor) finalY = data.cursor.y;
+      return { ...item, base64: null };
+    }));
+
+    // --- Header ---
+    doc.setFillColor(37, 99, 235); // Blue
+    doc.rect(0, 0, pageWidth, 45, 'F');
+
+    if (customLogo) {
+      try {
+        const logoB64 = await getBase64Image(customLogo);
+        doc.addImage(logoB64, 'PNG', margin, 5, 30, 30);
+      } catch (e) {
+        console.warn("Logo load fail", e);
+      }
     }
-  });
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('IT DEPARTMENT', (customLogo ? margin + 35 : margin), 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Your Trusted Technology Partner', (customLogo ? margin + 35 : margin), 26);
+    doc.text('OFFICIAL ORDER INVOICE', (customLogo ? margin + 35 : margin), 34);
 
-  // --- Totals ---
-  // If table is empty or cursor not updated, fallback
-  if (!finalY) finalY = doc.internal.pageSize.getHeight() - 60;
-  
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Total BDT: ${formatCurrency(order.total).replace('BDT', '').trim()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    // --- Order Info ---
+    const startY = 60;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Order Details', margin, startY);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Invoice ID: ${order.id}`, margin, startY + 8);
+    doc.text(`Date: ${order.date}`, margin, startY + 14);
+    doc.text(`Status: ${order.status.toUpperCase()}`, margin, startY + 20);
 
-  // Footer
-  const footerY = pageHeight - 20;
-  doc.save(`Order_${order.id}.pdf`);
+    // --- Customer Info ---
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bill To', pageWidth / 2, startY);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${order.customerName}`, pageWidth / 2, startY + 8);
+    doc.text(`Phone: ${order.customerPhone}`, pageWidth / 2, startY + 14);
+    
+    const addressLines = doc.splitTextToSize(`Address: ${order.customerAddress}`, (pageWidth / 2) - margin);
+    doc.text(addressLines, pageWidth / 2, startY + 20);
+
+    // --- Table ---
+    const tableData = itemsWithBase64.map((item, index) => [
+      index + 1,
+      '', // Space for image
+      item.name,
+      item.quantity.toString(),
+      formatCurrency(item.price).replace('BDT', '').trim(),
+      formatCurrency(item.price * item.quantity).replace('BDT', '').trim()
+    ]);
+
+    let finalY = 0;
+    autoTable(doc, {
+      startY: startY + 35,
+      head: [['SL', 'Image', 'Item Name', 'Qty', 'Unit Price', 'Subtotal']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+      bodyStyles: { minCellHeight: 25, valign: 'middle' },
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 30, halign: 'center' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 15, halign: 'center' },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 25, halign: 'right' }
+      },
+      didDrawCell: (data) => {
+        if (data.section === 'body' && data.column.index === 1) {
+          const item = itemsWithBase64[data.row.index];
+          if (item.base64) {
+            try {
+              doc.addImage(item.base64, 'JPEG', data.cell.x + 2, data.cell.y + 2, 21, 21);
+            } catch (e) {
+              console.error("Error adding image in table", e);
+            }
+          }
+        }
+      },
+      didDrawPage: (data) => {
+        if (data.cursor) finalY = data.cursor.y;
+      }
+    });
+
+    if (!finalY) finalY = 150;
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL: ${formatCurrency(order.total)}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text("Thank you for choosing Al Amin Technology. This is a computer-generated voucher.", margin, pageHeight - 15);
+
+    doc.save(`${order.id}_Inverse.pdf`);
+  } catch (err) {
+    console.error("PDF Gen Error", err);
+  } finally {
+    setTimeout(() => {
+      window.dispatchEvent(new Event('stop-task-animation'));
+    }, 1500);
+  }
 };
 
 export const generateReceiptPDF = (order: Order) => {
@@ -703,14 +750,6 @@ const AIHelpDesk = ({ user, isAdmin, businessData, isDarkMode }: { user: Firebas
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      setMessages(prev => [...prev, { role: 'user', text: input.trim() }]);
-      setMessages(prev => [...prev, { role: 'model', text: "AI is not configured. Please set the GEMINI_API_KEY in the Secrets panel." }]);
-      setInput('');
-      return;
-    }
-
     const userMessage = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
@@ -723,9 +762,9 @@ const AIHelpDesk = ({ user, isAdmin, businessData, isDarkMode }: { user: Firebas
         const stats = {
           totalClients: businessData.clients.length,
           totalProducts: businessData.products.length,
-          totalDue: businessData.clients.reduce((sum, c) => sum + c.due, 0),
-          totalPaid: businessData.clients.reduce((sum, c) => sum + c.totalPaid, 0),
-          lowStockItems: businessData.products.filter(p => p.stock < 5).map(p => p.name)
+          totalDue: businessData.clients.reduce((sum, c) => sum + (c.due || 0), 0),
+          totalPaid: businessData.clients.reduce((sum, c) => sum + (c.totalPaid || 0), 0),
+          lowStockItems: businessData.products.filter(p => (p.stock || 0) < 5).map(p => p.name)
         };
         
         systemInstruction += `\n\nYou are also an Admin Assistant. You have access to the following business data:
@@ -738,22 +777,24 @@ const AIHelpDesk = ({ user, isAdmin, businessData, isDarkMode }: { user: Firebas
 You can help the admin with business insights, stock alerts, and financial summaries based on this data.`;
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        systemInstruction: systemInstruction,
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', text: userMessage }],
+          systemInstruction,
+        }),
       });
 
-      const chat = model.startChat({
-        history: messages.map(m => ({ 
-          role: m.role === 'model' ? 'model' : 'user', 
-          parts: [{ text: m.text }] 
-        })),
-      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to communicate with AI server");
+      }
 
-      const result = await chat.sendMessage(userMessage);
-      const response = await result.response;
-      const modelResponse = response.text() || "I'm sorry, I couldn't process that. Please try again or contact support.";
+      const data = await response.json();
+      const modelResponse = data.text || "I'm sorry, I couldn't process that. Please try again or contact support.";
       setMessages(prev => [...prev, { role: 'model', text: modelResponse }]);
     } catch (error: any) {
       console.error("AI Error:", error);
@@ -761,10 +802,9 @@ You can help the admin with business insights, stock alerts, and financial summa
       
       if (error?.message?.includes("quota")) {
         errorMessage = "Sorry, I've reached my limit for now. Please try again in a few minutes.";
-      } else if (error?.message?.includes("API key not valid")) {
-        errorMessage = "The API key is invalid. Please check your GEMINI_API_KEY in the Secrets panel.";
+      } else if (error?.message?.includes("Gemini API key")) {
+        errorMessage = "AI is not configured on the server. Please set the GEMINI_API_KEY in the environment.";
       } else if (error?.message) {
-        // Show a bit more detail if it's not a sensitive error
         errorMessage = `AI Error: ${error.message.substring(0, 100)}`;
       }
       
@@ -1094,8 +1134,8 @@ const TrackOrderPage = ({ formatCurrency, clients }: { formatCurrency: (v: numbe
               <p>No orders found for this number.</p>
             </div>
           ) : (
-            orders.map(order => (
-              <div key={order.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
+            orders.map((order, idx) => (
+              <div key={`${order.id}-${order.source}-${idx}`} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-700 pb-3">
                   <div>
                     <h4 className="font-black">Order ID: {order.id.slice(-6)}</h4>
@@ -1721,7 +1761,7 @@ const ProductDetailsModal = ({
           </button>
           
           <div className="flex flex-col sm:flex-row gap-6">
-            <div className="relative w-48 h-48 sm:w-60 sm:h-60 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden bg-slate-900/50 flex items-center justify-center shrink-0">
+            <div className="relative w-48 h-48 sm:w-60 sm:h-60 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden bg-png flex items-center justify-center shrink-0">
               {showVideo && product.videoUrl ? (
                 <video 
                   src={product.videoUrl} 
@@ -2199,12 +2239,79 @@ const ProductList = ({
 
   return (
     <div className="space-y-8 pb-32 md:pb-0">
-      <div className="flex flex-col gap-6">
+      {/* Hero Section */}
+      {!inventoryMode && (
+        <div className="relative w-full h-[400px] md:h-[500px] rounded-[40px] overflow-hidden group mb-12">
+          {/* Background with parallax effect simulation */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-105"
+            style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=2000")' }}
+          />
+          {/* Gradients */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 via-blue-900/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+          
+          <div className="relative h-full flex flex-col justify-center px-8 md:px-16 space-y-6 max-w-2xl">
+            <motion.div 
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-2"
+            >
+              <h2 className="text-4xl md:text-6xl font-black text-white leading-tight">
+                Protect What <br />
+                <span className="text-blue-400">Matters Most</span>
+              </h2>
+              <p className="text-blue-100/80 text-lg md:text-xl font-medium max-w-md">
+                High-Quality Security Cameras for Your Home & Business
+              </p>
+            </motion.div>
+            
+            <motion.button 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                const element = document.getElementById('best-sellers');
+                element?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="w-fit px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-sm rounded-2xl shadow-2xl transition-all flex items-center gap-3 group"
+            >
+              Shop Now
+              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            </motion.button>
+          </div>
+
+          {/* Floaters (Icons of tech) */}
+          <div className="absolute right-10 bottom-10 hidden lg:block">
+            <div className="relative">
+              <motion.div 
+                animate={{ y: [0, -20, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 shadow-2xl"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-white">
+                    <ShieldCheck size={28} />
+                  </div>
+                  <div className="text-white">
+                    <div className="text-[10px] font-bold opacity-60 uppercase">System Status</div>
+                    <div className="font-black">Active & Secure</div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6" id="best-sellers">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-black tracking-tighter leading-none">{inventoryMode ? 'MASTER INVENTORY' : 'PREMIUM HARDWARE'}</h2>
+            <h2 className="text-3xl font-black tracking-tighter leading-none">{inventoryMode ? 'MASTER INVENTORY' : 'SYSTEM MODULES'}</h2>
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-2">
-              {inventoryMode ? 'Node Control & Management' : 'High-End Enterprise Solutions'}
+              {inventoryMode ? 'Node Control & Management' : 'High-End Technology & Smart Hardware'}
             </p>
           </div>
           {isAdmin && (
@@ -2300,30 +2407,57 @@ const ProductList = ({
             </div>
           </div>
         )}
+      <div className="py-8 text-center space-y-2">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex flex-col items-center gap-1 group">
+          Our Best Sellers
+          <div className="w-12 h-1 bg-blue-600 rounded-full transition-all duration-500 group-hover:w-24" />
+        </h2>
+        <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.3em] font-mono">
+          Premier Selection & Trusted Performance
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 px-2">
-        {filteredProducts.map((product, idx) => (
-          <motion.div 
-            key={product.id}
-            initial={{ opacity: 0, y: 30, scale: 0.8 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ delay: (idx % 6) * 0.05 }}
-          >
-            <ProductPastaCard 
-              product={product} 
-              onSelect={setSelectedProduct}
-              isAdmin={isAdmin}
-              onEdit={onEditProduct}
-              onDelete={handleDeleteProduct}
-            />
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-2 sm:px-4 pb-12">
+        {filteredProducts.length > 0 ? (
+          filteredProducts.map((product, idx) => (
+            <motion.div 
+              key={product.id}
+              initial={{ opacity: 0, y: 30, scale: 0.8 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ delay: (idx % 6) * 0.05 }}
+              className="h-full"
+            >
+              <ProductPastaCard 
+                product={product} 
+                onSelect={setSelectedProduct}
+                isAdmin={isAdmin}
+                onEdit={onEditProduct}
+                onDelete={handleDeleteProduct}
+              />
+            </motion.div>
+          ))
+        ) : (
+          <div className="col-span-2 py-20 text-center flex flex-col items-center justify-center gap-4 text-gray-400">
+            <Package size={48} className="animate-pulse" />
+            <div className="space-y-1">
+              <p className="text-sm font-black uppercase tracking-widest leading-none">Infrastructure Offline</p>
+              <p className="text-[10px] font-bold lowercase tracking-tight opacity-50">No matching assets identified in this sector</p>
+            </div>
+            <button 
+              onClick={() => { setFilter('all'); setSearch(''); }}
+              className="px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-full text-[10px] font-black uppercase tracking-widest mt-2 hover:bg-slate-200"
+            >
+              Recalibrate Sensors
+            </button>
+          </div>
+        )}
       </div>
     </div>
+  </div>
   );
 };
+
 
 const AdminDashboard = ({ 
   products, 
@@ -2411,7 +2545,10 @@ const AdminDashboard = ({
         {[
           { icon: Users, label: 'Client Database', value: totalClients, color: 'text-orange-500 dark:text-emerald-500', bg: 'bg-orange-500/10 dark:bg-emerald-500/10' },
           { icon: Package, label: 'Global Assets', value: totalProducts, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { icon: Wallet, label: 'Total Equity', value: formatCurrency(monthlyIncome), color: 'text-orange-600 dark:text-emerald-400', bg: 'bg-orange-600/10 dark:bg-emerald-400/10' },
+          { 
+            label: 'Total Equity', 
+            isIncomeCard: true 
+          },
           { icon: Zap, label: 'Risk Exposure', value: formatCurrency(totalDue), color: 'text-rose-500', bg: 'bg-rose-500/10' },
         ].map((stat, i) => (
           <motion.div 
@@ -2419,16 +2556,59 @@ const AdminDashboard = ({
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="glass-card p-8 group hover:translate-y-[-8px]"
+            className={cn(
+              "group transition-all",
+              stat.isIncomeCard ? "income-card-theme h-full" : "glass-card p-8 hover:translate-y-[-8px] h-full"
+            )}
           >
-            <div className="flex items-center justify-between mb-8">
-              <div className={cn("p-4 rounded-2xl shadow-inner", stat.bg, stat.color)}>
-                <stat.icon size={24} strokeWidth={2.5} />
+            {stat.isIncomeCard ? (
+              <div className="card-outer h-full">
+                <div className="card">
+                  <div className="bg-custom">
+                    <div className="flex-row">
+                      <p className="heading">Income</p>
+                      <div className="tag-svg">
+                        <svg viewBox="0 0 925.1 925.1" className="w-5 h-5 fill-white">
+                          <path d="M453.5,26.514l-345.6,187.3l15.2-3.8l412.9-104.7l-35-64.6C491.8,23.614,470.5,17.313,453.5,26.514z"></path>
+                          <path d="M780.9,222.313l-26.2-103.4c-4-15.9-18.3-26.4-33.9-26.4c-2.8,0-5.7,0.3-8.6,1.1l-160.5,40.7l-347.4,88.1H599.4h181.5V222.313z"></path>
+                          <path d="M546.7,665.513v-176c0-36.699,29.8-66.5,66.5-66.5h218.6h16.5h16.5H878v-135.7c0-19.3-15.7-35-35-35h-21.5H805h-16.5H615.7H133.8h-16.5h-16.5h-64H35c-12.9,0-24.1,7-30.2,17.3c-3,5.2-4.8,11.2-4.8,17.7v5.6v574.9c0,19.301,15.7,35,35,35h807.9c19.3,0,35-15.699,35-35V732.114H613.2C576.5,732.114,546.7,702.214,546.7,665.513z"></path>
+                          <path d="M908,459.513c-4.5-2.699-9.6-4.3-15-4.8c-1-0.1-1.9-0.1-2.9-0.1H878h-5.2h-16.5h-39.6H613.2c-19.3,0-35,15.7-35,35v176c0,19.299,15.7,35,35,35H878h12.1c1,0,1.9-0.102,2.9-0.102c5.4-0.398,10.5-2.1,15-4.799c10.2-6.1,17.1-17.301,17.1-30.1v-176C925.1,476.813,918.2,465.614,908,459.513z M700.5,634.313c-31.3,0-56.8-25.4-56.8-56.801c0-31.299,25.399-56.799,56.8-56.799c31.3,0,56.8,25.4,56.8,56.799C757.3,608.913,731.9,634.313,700.5,634.313z"></path>
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="amount">
+                      <span className="typing">{formatCurrency(monthlyIncome)}</span>
+                      <span className="main-pr">↑ 26.5%</span>
+                    </div>
+                    <div className="compare text-light">Real-time enterprise metrics integration</div>
+                  </div>
+                  <div className="tags">
+                    <span>Fiscal Summary</span>
+                    <span>Stats</span>
+                  </div>
+                  <div className="chart">
+                    <div className="bar"><div className="pr-day">5%</div><div className="bar-label">S</div></div>
+                    <div className="bar"><div className="pr-day">-1.7%</div><div className="bar-label">M</div></div>
+                    <div className="bar"><div className="pr-day">2.3%</div><div className="bar-label">T</div></div>
+                    <div className="bar"><div className="pr-day">-3.8%</div><div className="bar-label">W</div></div>
+                    <div className="bar"><div className="pr-day">6.3%</div><div className="bar-label">T</div></div>
+                    <div className="bar"><div className="pr-day">-2.3%</div><div className="bar-label">F</div></div>
+                    <div className="bar"><div className="pr-day">2.0%</div><div className="bar-label">S</div></div>
+                  </div>
+                </div>
               </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-            </div>
-            <p className={cn("text-3xl font-black tracking-tighter mb-1", stat.color)}>{stat.value}</p>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-8">
+                  <div className={cn("p-4 rounded-2xl shadow-inner", stat.bg, stat.color)}>
+                    {stat.icon && <stat.icon size={24} strokeWidth={2.5} />}
+                  </div>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
+                </div>
+                <p className={cn("text-3xl font-black tracking-tighter mb-1", stat.color)}>{stat.value}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+              </>
+            )}
           </motion.div>
         ))}
       </div>
@@ -2516,8 +2696,8 @@ const AdminDashboard = ({
               {[
                 ...publicOrders.map(o => ({ ...o, clientName: o.customerName, type: 'Public' })),
                 ...clients.flatMap(c => (c.orders || []).map(o => ({ ...o, clientName: c.name, type: 'CRM' })))
-              ].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 12).map((order) => (
-                <tr key={order.id} className="group hover:bg-gray-50 dark:hover:bg-slate-800/10 transition-colors">
+              ].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 12).map((order, idx) => (
+                <tr key={`${order.id}-${order.type}-${idx}`} className="group hover:bg-gray-50 dark:hover:bg-slate-800/10 transition-colors">
                   <td className="py-5 font-mono text-[10px] font-bold text-blue-600 dark:text-emerald-400">{order.id}</td>
                   <td className="py-5 text-xs font-bold text-slate-900 dark:text-white capitalize">{order.clientName}</td>
                   <td className="py-5 text-xs font-black tracking-tighter text-slate-900 dark:text-white">{formatCurrency(order.total)}</td>
@@ -2636,7 +2816,7 @@ const PublicStore = ({
       {/* Promo Banner Slider - Hide when searching */}
       {!search && (
         <>
-          <div className="relative overflow-hidden rounded-3xl h-44 group shadow-2xl bg-slate-900">
+          <div className="relative overflow-hidden rounded-3xl h-48 md:h-[350px] lg:h-[450px] group shadow-2xl bg-slate-900">
             <AnimatePresence mode="wait">
               {sliderImages && sliderImages.length > 0 ? (
                 <motion.div
@@ -2822,20 +3002,30 @@ const PublicStore = ({
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 onClick={() => setSelectedProduct(product)}
-                className="min-w-[150px] bg-white dark:bg-slate-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-slate-700/50 cursor-pointer"
+                className="min-w-[180px] rounded-2xl p-3 cursor-pointer group glow-effect-container text-white"
               >
-                <div className="h-36 bg-gray-50 dark:bg-slate-900 rounded-xl mb-3 overflow-hidden relative">
+                <div className="h-44 rounded-xl mb-3 overflow-hidden relative bg-png flex items-center justify-center">
                   {product.image ? (
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    <img 
+                      src={product.image} 
+                      alt={product.name} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://placehold.co/400x400/07182e/ffffff?text=${encodeURIComponent(product.name || 'Product')}`;
+                      }}
+                    />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={32} /></div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                      <Package size={32} />
+                    </div>
                   )}
-                  <div className="absolute top-2 left-2 bg-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Save 15%</div>
+                  <div className="absolute top-2 left-2 bg-orange-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase shadow-lg">Save 15%</div>
                 </div>
-                <h4 className="text-[10px] font-bold line-clamp-1 mb-1">{product.name}</h4>
-                <div className="flex flex-col gap-1">
-                  <span className="text-orange-600 font-black text-sm">{formatCurrency(product.price)}</span>
-                  <span className="text-gray-400 text-[8px] line-through">{formatCurrency(product.price * 1.15)}</span>
+                <h4 className="text-[11px] font-black line-clamp-1 mb-1 uppercase tracking-tight group-hover:text-orange-400 transition-colors">{product.name}</h4>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-orange-500 font-black text-sm italic">{formatCurrency(product.price)}</span>
+                  <span className="text-gray-500 text-[9px] line-through">{formatCurrency(product.price * 1.15)}</span>
                 </div>
               </motion.div>
             ))}
@@ -2850,21 +3040,38 @@ const PublicStore = ({
       </div>
 
       {/* Daraz-Style Main Product Grid */}
-      <div className="grid grid-cols-2 gap-3 px-2 py-4">
-        {filteredProducts.map((product, i) => (
-          <motion.div 
-            key={product.id}
-            initial={{ opacity: 0, y: 30, scale: 0.8 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ delay: (i % 6) * 0.1 }}
-          >
-            <ProductPastaCard 
-              product={product} 
-              onSelect={setSelectedProduct}
-            />
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-2 gap-2 px-1 py-4 min-h-[400px]">
+        {filteredProducts.length > 0 ? (
+          filteredProducts.map((product, i) => (
+            <motion.div 
+              key={product.id}
+              initial={{ opacity: 0, y: 30, scale: 0.8 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ delay: (i % 6) * 0.1 }}
+              className="h-full"
+            >
+              <ProductPastaCard 
+                product={product} 
+                onSelect={setSelectedProduct}
+              />
+            </motion.div>
+          ))
+        ) : (
+          <div className="col-span-2 py-20 text-center flex flex-col items-center justify-center gap-4 text-white/40">
+            <Package size={48} className="animate-pulse" />
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest">No Products Found</p>
+              <p className="text-[10px] tracking-tight">Try adjusting your filters or search term</p>
+            </div>
+            <button 
+              onClick={() => { setFilter('all'); setSearch(''); }}
+              className="px-6 py-2 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest mt-2 hover:bg-blue-500 transition-colors"
+            >
+              Reset Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Support Contact Section for Clients */}
@@ -3049,140 +3256,6 @@ const ClientList = ({
       >
         <Plus size={28} />
       </motion.button>
-    </div>
-  );
-};
-
-const ServicesPage = () => {
-  const [file, setFile] = useState<File | null>(null);
-  const [deploying, setDeploying] = useState(false);
-  const [deployId, setDeployId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleDeploy = async () => {
-    if (!file) return;
-    setDeploying(true);
-    setError(null);
-    setDeployId(null);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch("/api/deploy", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        setDeployId(result.deployId);
-      } else {
-        setError(result.error);
-      }
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setDeploying(false);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-4xl mx-auto min-h-[70vh] flex flex-col justify-center items-center relative">
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-20 dark:opacity-10 bg-[radial-gradient(circle_at_50%_0%,#3b82f6,transparent_50%)]"></div>
-      
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-2xl p-8 z-10 text-center"
-      >
-        <div className="w-20 h-20 mx-auto bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6">
-          <UploadCloud className="w-10 h-10 text-blue-500" />
-        </div>
-        
-        <h2 className="text-3xl font-black mb-3">AI Web Deployer</h2>
-        <p className="text-slate-500 dark:text-slate-400 mb-8">
-          Upload any website's .zip file (HTML/CSS/JS) and get a live shareable link instantly.
-        </p>
-
-        <div className="border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-2xl p-8 mb-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative cursor-pointer">
-          <input 
-            type="file" 
-            accept=".zip" 
-            onChange={handleFileChange} 
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
-          <div className="flex flex-col items-center pointer-events-none">
-            <UploadCloud size={32} className="text-gray-400 mb-3" />
-            <p className="font-semibold text-slate-700 dark:text-slate-300">
-              {file ? file.name : "Drag & drop your .zip file here"}
-            </p>
-            {!file && <p className="text-sm text-slate-400 mt-1">or click to browse from your device</p>}
-          </div>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm mb-6 flex items-center justify-center gap-2">
-            <AlertTriangle size={16} /> {error}
-          </div>
-        )}
-
-        {deployId && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl mb-6 text-left"
-          >
-            <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-bold mb-2">
-              <CheckCircle size={18} /> Successfully Deployed
-            </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Your site is live! Share this link with your customers:</p>
-            <div className="flex bg-white dark:bg-slate-950 border border-green-200 dark:border-green-800 rounded-lg overflow-hidden">
-              <input 
-                type="text" 
-                readOnly 
-                value={`${window.location.origin}/d/${deployId}/`}
-                className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
-              />
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/d/${deployId}/`);
-                  alert("Copied to clipboard!");
-                }}
-                className="bg-green-500 text-white px-4 py-2 text-sm font-bold hover:bg-green-600 active:bg-green-700"
-              >
-                COPY
-              </button>
-            </div>
-            <a 
-              href={`/d/${deployId}/`} 
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 block text-center text-sm font-semibold text-blue-500 hover:underline"
-            >
-              Open in new tab &rarr;
-            </a>
-          </motion.div>
-        )}
-
-        <button 
-          onClick={handleDeploy}
-          disabled={!file || deploying}
-          className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-black rounded-xl text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-        >
-          {deploying ? (
-            <><RefreshCw className="animate-spin" /> Deploying...</>
-          ) : (
-            <><Zap /> Deploy Website</>
-          )}
-        </button>
-      </motion.div>
     </div>
   );
 };
@@ -3424,6 +3497,95 @@ const StaffTrackingMap = ({ staff }: { staff: Staff[] }) => {
   );
 };
 
+const StaffFlipCard = ({ 
+  member, 
+  onEdit, 
+  onDelete, 
+  onPaySalary,
+  renderCalendar
+}: { 
+  member: Staff, 
+  onEdit: (m: Staff) => void, 
+  onDelete: (id: string) => void,
+  onPaySalary: (m: Staff) => void,
+  renderCalendar: (attendance?: any) => React.ReactNode
+}) => {
+  return (
+    <div className="uiverse-staff-container mx-auto">
+      <div className="uiverse-staff-card">
+        <div className="uiverse-staff-front bg-slate-900">
+          <div className="uiverse-staff-card-top">
+            <p className="uiverse-staff-card-top-para">Staff</p>
+          </div>
+          
+          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/10 shadow-xl">
+            {member.image ? (
+              <img src={member.image} alt={member.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[#dc143c]">
+                <User size={48} />
+              </div>
+            )}
+          </div>
+          
+          <div className="text-center">
+            <p className="uiverse-staff-heading truncate max-w-[200px]">{member.name}</p>
+            <p className="text-[#dc143c] font-black text-[10px] uppercase tracking-[0.2em] mt-1">{member.role}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              member.isActive ? "bg-green-500 animate-pulse" : "bg-gray-500"
+            )} />
+            <p className="uiverse-staff-follow">
+              {member.isActive ? 'Active' : 'Inactive'} member
+            </p>
+          </div>
+        </div>
+
+        <div className="uiverse-staff-back bg-slate-950">
+          <p className="text-white font-black uppercase tracking-widest text-sm mb-2">Management</p>
+          
+          <div className="flex flex-col gap-3 w-full px-6">
+            <div className="flex gap-2">
+              <button 
+                onClick={(e) => { e.stopPropagation(); onEdit(member); }}
+                className="flex-1 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-bold"
+              >
+                <Edit2 size={12} /> Edit
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(member.id); }}
+                className="flex-1 py-2 bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-600 hover:text-white transition-all text-[10px] font-bold"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            </div>
+
+            <button 
+              onClick={(e) => { e.stopPropagation(); onPaySalary(member); }}
+              className="w-full py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all text-[10px] font-bold"
+            >
+              <DollarSign size={12} /> Pay Salary
+            </button>
+          </div>
+
+          <div className="mt-4 scale-75 origin-top">
+            {renderCalendar(member.attendance)}
+          </div>
+
+          <div className="uiverse-staff-icons mt-auto pb-4">
+            <Smartphone size={16} className="text-white/40" />
+            <Send size={16} className="text-white/40" />
+            <ShieldCheck size={16} className="text-white/40" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ManageStaff = ({ withPassword, addNotification }: { withPassword: (action: () => void) => void, addNotification: (text: string) => void }) => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -3605,27 +3767,18 @@ const ManageStaff = ({ withPassword, addNotification }: { withPassword: (action:
         <div className="flex flex-wrap items-center gap-4">
           <UiverseSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search staff..." />
           <div className="flex gap-2">
-            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex">
+            <div className="w-64 h-12">
+              <GlowingNav 
+                activeId={activeView}
+                items={[
+                  { id: 'map', icon: <MapIcon size={16} />, label: 'Live Map' },
+                  { id: 'list', icon: <Users size={16} />, label: 'Staff List' },
+                ]}
+                onSelect={(id) => setActiveView(id as 'list' | 'map')}
+                className="h-full scale-90"
+              />
+            </div>
             <button 
-              onClick={() => setActiveView('map')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
-                activeView === 'map' ? "bg-white dark:bg-slate-700 shadow-sm text-[#dc143c]" : "text-gray-500"
-              )}
-            >
-              <MapIcon size={16} /> Live Map
-            </button>
-            <button 
-              onClick={() => setActiveView('list')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
-                activeView === 'list' ? "bg-white dark:bg-slate-700 shadow-sm text-[#dc143c]" : "text-gray-500"
-              )}
-            >
-              <Users size={16} /> Staff List
-            </button>
-          </div>
-          <button 
             onClick={refreshData}
             className="p-2 glow-effect-container text-white rounded-xl hover:opacity-90 transition-colors"
             title="Refresh Data"
@@ -3672,62 +3825,32 @@ const ManageStaff = ({ withPassword, addNotification }: { withPassword: (action:
           </div>
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10 py-6">
           {filteredStaff.map(member => (
             <motion.div 
-              key={member.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:shadow-xl transition-all"
+              key={member.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             >
-              <div className="flex justify-between items-start mb-4">
-                {member.image ? (
-                  <img src={member.image} className="w-14 h-14 object-cover rounded-2xl shadow-md border-2 border-slate-100 dark:border-slate-800" alt={member.name} />
-                ) : (
-                  <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-[#dc143c] font-bold text-xl shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
-                    {member.name.charAt(0)}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button onClick={() => { setEditingStaff(member); setFormData({ name: member.name, phone: member.phone, email: member.email, role: member.role, isActive: member.isActive, image: member.image || '' }); setShowModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(member.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-bold text-lg mb-1">{member.name}</h3>
-              <p className="text-xs text-[#dc143c] font-medium mb-3 uppercase tracking-wider">{member.role}</p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Smartphone size={14} /> {member.phone}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Send size={14} /> {member.email}
-                </div>
-              </div>
-              
-              {renderAttendanceCalendarForAdmin(member.attendance)}
-
-              <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center text-[10px]">
-                <span className={cn(
-                  "px-2 py-1 rounded-full",
-                  member.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                )}>
-                  {member.isActive ? 'Active Staff' : 'Inactive'}
-                </span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => {
-                      setShowSalaryModal(member);
-                      setSalaryFormData({ baseAmount: '', bonusAmount: '', notes: '' });
-                    }}
-                    className="px-3 py-1.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors font-bold flex items-center gap-1 shadow-sm"
-                  >
-                    <DollarSign size={12} /> Pay Salary
-                  </button>
-                  <span className="text-gray-400 italic pt-1.5">ID: {member.id.substring(0, 4)}</span>
-                </div>
-              </div>
+              <StaffFlipCard 
+                member={member}
+                onEdit={(m) => {
+                  setEditingStaff(m);
+                  setFormData({ 
+                    name: m.name, 
+                    phone: m.phone, 
+                    email: m.email, 
+                    role: m.role, 
+                    isActive: m.isActive, 
+                    image: m.image || '' 
+                  });
+                  setShowModal(true);
+                }}
+                onDelete={handleDelete}
+                onPaySalary={(m) => {
+                  setShowSalaryModal(m);
+                  setSalaryFormData({ baseAmount: '', bonusAmount: '', notes: '' });
+                }}
+                renderCalendar={renderAttendanceCalendarForAdmin}
+              />
             </motion.div>
           ))}
         </div>
@@ -5056,7 +5179,7 @@ const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic, isLoading }: { cu
           initial={{ y: 20 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-36 h-36 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[48px] flex items-center justify-center shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] mb-10 overflow-hidden border border-white/20 relative z-20 backdrop-blur-xl"
+          className="w-36 h-36 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-full flex items-center justify-center shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] mb-10 overflow-hidden border border-white/20 relative z-20 backdrop-blur-xl"
         >
           {customLogo ? (
             <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -5160,11 +5283,388 @@ const SplashScreen = ({ customLogo, onEnter, onPlay, hasMusic, isLoading }: { cu
   );
 };
 
+const TaskAnimationOverlay = () => {
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    const start = () => setIsActive(true);
+    const stop = () => setIsActive(false);
+    window.addEventListener('start-task-animation', start);
+    window.addEventListener('stop-task-animation', stop);
+    return () => {
+      window.removeEventListener('start-task-animation', start);
+      window.removeEventListener('stop-task-animation', stop);
+    };
+  }, []);
+
+  if (!isActive) return null;
+
+  return (
+    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex flex-col justify-center items-center">
+      <div className="p-16 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 rounded-[40px] shadow-2xl flex flex-col items-center transform scale-90 sm:scale-100">
+        <div className="typewriter transform scale-[1.5] mb-12">
+            <div className="slide"><i></i></div>
+            <div className="paper"></div>
+            <div className="keyboard"></div>
+        </div>
+        <p className="font-black text-xl text-blue-600 dark:text-blue-400 tracking-widest uppercase animate-pulse text-center">Processing...</p>
+      </div>
+    </div>
+  );
+};
+
+const TopHeader = ({ 
+  user, 
+  isAdmin, 
+  cartCount, 
+  onShowCart, 
+  onLogout,
+  onShowLogin,
+  activeTab,
+  setActiveTab,
+  customLogo
+}: { 
+  user: any, 
+  isAdmin: boolean, 
+  cartCount: number, 
+  onShowCart: () => void, 
+  onLogout: () => void,
+  onShowLogin: () => void,
+  activeTab: string,
+  setActiveTab: (t: string) => void,
+  customLogo: string | null
+}) => {
+  return (
+    <header className={cn(
+      "sticky top-0 z-[60] w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 transition-all duration-300"
+    )}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-20 gap-4">
+          {/* Logo */}
+          <div 
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => setActiveTab('shop-view')}
+          >
+            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-blue-500/20 group-hover:scale-110 transition-all overflow-hidden border border-white/10">
+               {customLogo ? (
+                 <img src={customLogo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+               ) : (
+                 <ShieldCheck size={28} />
+               )}
+            </div>
+            <div className="hidden sm:block">
+              <h1 className="text-lg font-black tracking-tighter leading-none dark:text-white uppercase">IT Department</h1>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Technology Partner</p>
+            </div>
+          </div>
+
+          {/* Top Navigation - Basic links only as Sidebar handles main navigation on desktop */}
+          <nav className="hidden lg:flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab('shop-view')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                activeTab === 'shop-view' 
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
+                  : "text-gray-500 hover:text-blue-600 hover:bg-gray-50 dark:hover:bg-slate-800"
+              )}
+            >
+              <ShoppingBag size={18} />
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab('my-orders')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                activeTab === 'my-orders' 
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
+                  : "text-gray-500 hover:text-blue-600 hover:bg-gray-50 dark:hover:bg-slate-800"
+              )}
+            >
+              <Package size={18} />
+              Orders
+            </button>
+          </nav>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex relative group">
+              <input 
+                type="text" 
+                placeholder="Find components..."
+                className="w-48 xl:w-64 px-4 py-2.5 bg-gray-50 dark:bg-slate-900 border border-transparent focus:border-blue-500/50 rounded-2xl text-xs font-bold transition-all outline-none"
+              />
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={14} />
+            </div>
+
+            <button 
+              onClick={onShowCart}
+              className="relative p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 text-gray-700 dark:text-gray-300 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-sm group"
+            >
+              <ShoppingCart size={20} className="group-hover:text-blue-600 transition-colors" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-[10px] font-black flex items-center justify-center rounded-full ring-4 ring-white dark:ring-slate-950 animate-in zoom-in duration-300">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
+            {user ? (
+              <div className="flex items-center gap-2 pl-2">
+                <button 
+                  onClick={() => setActiveTab('me')}
+                  className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all p-0.5 bg-gray-100 dark:bg-slate-800"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover rounded-[14px]" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-blue-500/10 text-blue-600 font-black">
+                      {user.email?.[0].toUpperCase()}
+                    </div>
+                  )}
+                </button>
+                <div className="hidden xl:block">
+                  <p className="text-xs font-black dark:text-white truncate max-w-[100px] leading-none mb-1">{user.displayName || 'Guest User'}</p>
+                  <button onClick={onLogout} className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors block">LOGOUT</button>
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={onShowLogin}
+                className="px-6 py-2.5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-2xl text-xs font-black tracking-widest hover:scale-105 active:scale-95 transition-all"
+              >
+                SIGN IN
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const CartDrawer = ({ 
+  show, 
+  onClose, 
+  cart, 
+  user,
+  clients,
+  updateQuantity, 
+  removeItem, 
+  onPlaceOrder,
+  formatCurrency
+}: { 
+  show: boolean, 
+  onClose: () => void, 
+  cart: CartItem[], 
+  user: FirebaseUser | null,
+  clients: Client[],
+  updateQuantity: (id: any, d: number) => void, 
+  removeItem: (id: any) => void,
+  onPlaceOrder: (details: {name: string, phone: string, address: string}) => void,
+  formatCurrency: (v: number) => string
+}) => {
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+
+  // Auto-fill if user is logged in
+  useEffect(() => {
+    if (user && show) {
+      setCustomerName(user.displayName || '');
+      setCustomerPhone(user.phoneNumber || '');
+      // Try to find client address
+      const client = clients.find(c => c.phone === user.phoneNumber || c.email === user.email);
+      if (client?.address) setCustomerAddress(client.address);
+    }
+  }, [user, show, clients]);
+
+  const handleCheckoutRequest = () => {
+    if (!customerName || !customerPhone || !customerAddress) {
+      alert("Please fill all contact details correctly.");
+      return;
+    }
+    onPlaceOrder({ name: customerName, phone: customerPhone, address: customerAddress });
+  };
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[100]"
+          />
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 w-full max-w-[500px] bg-white dark:bg-slate-950 shadow-2xl z-[101] flex flex-col"
+          >
+            <div className="p-8 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight dark:text-white">Shopping Cart</h2>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{cart.length} Articles</p>
+              </div>
+              <button onClick={onClose} className="p-3 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 dark:custom-scrollbar space-y-8">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                  <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-[40px] flex items-center justify-center text-blue-600">
+                    <ShoppingBag size={48} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black dark:text-white">Empty Cart</h3>
+                    <p className="text-sm text-gray-500 font-medium mt-2">Looks like you haven't added anything yet.</p>
+                  </div>
+                  <button 
+                    onClick={onClose}
+                    className="px-8 py-3 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-2xl text-xs font-black tracking-widest hover:scale-105 active:scale-95 transition-all"
+                  >
+                    START SHOPPING
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-6">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Order Summary</h3>
+                    {cart.map((item, idx) => (
+                      <motion.div 
+                        key={item.productId}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="flex gap-6 group"
+                      >
+                        <div className="w-20 h-20 rounded-2xl bg-gray-100 dark:bg-slate-900 overflow-hidden shrink-0 border border-gray-100 dark:border-slate-800 group-hover:scale-105 transition-transform">
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col py-1">
+                          <div className="flex justify-between items-start mb-auto">
+                            <h4 className="font-black text-sm dark:text-white line-clamp-1 pr-4">{item.name}</h4>
+                            <button onClick={() => removeItem(item.productId)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                              <X size={16} />
+                            </button>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <div className="flex items-center bg-gray-50 dark:bg-slate-900 rounded-xl p-1 border border-gray-100 dark:border-slate-800">
+                              <button onClick={() => updateQuantity(item.productId, -1)} className="p-1 px-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors text-gray-500">
+                                <Minus size={12} />
+                              </button>
+                              <span className="w-8 text-center text-[10px] font-black dark:text-white">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.productId, 1)} className="p-1 px-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors text-gray-500">
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                            <span className="text-xs font-black dark:text-white">{formatCurrency(item.price * item.quantity)}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-4 pt-6 border-t dark:border-slate-800">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">ডেলিভারি তথ্য (Delivery Information)</h3>
+                    <div className="space-y-3">
+                       <div className="space-y-1">
+                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">আপনার নাম (Full Name)</label>
+                         <input 
+                           type="text" 
+                           placeholder="যেমন: আল আমিন"
+                           value={customerName}
+                           onChange={e => setCustomerName(e.target.value)}
+                           className="w-full p-4 bg-gray-50 dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
+                         />
+                       </div>
+                       <div className="space-y-1">
+                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">মোবাইল নাম্বার (Phone)</label>
+                         <input 
+                           type="tel" 
+                           placeholder="যেমন: 017xxxxxxxx"
+                           value={customerPhone}
+                           onChange={e => setCustomerPhone(e.target.value)}
+                           className="w-full p-4 bg-gray-50 dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
+                         />
+                       </div>
+                       <div className="space-y-1">
+                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">ঠিকানা (Full Address)</label>
+                         <textarea 
+                           placeholder="আপনার পূর্ণ ঠিকানা লিখুন..."
+                           value={customerAddress}
+                           onChange={e => setCustomerAddress(e.target.value)}
+                           className="w-full p-4 bg-gray-50 dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl outline-none text-sm font-bold h-24 resize-none focus:ring-2 focus:ring-blue-500/20"
+                         />
+                       </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-8 bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-800 space-y-6">
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-gray-500">Subtotal</span>
+                  <span className="font-black dark:text-white">{formatCurrency(total)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-bold text-gray-500">Shipping</span>
+                  <span className="font-black text-emerald-500">FREE</span>
+                </div>
+                <div className="pt-3 border-t dark:border-slate-800 flex justify-between items-end">
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-400">Total Amount</span>
+                  <span className="text-3xl font-black dark:text-white leading-none">{formatCurrency(total)}</span>
+                </div>
+              </div>
+              <button 
+                onClick={handleCheckoutRequest}
+                disabled={cart.length === 0 || !customerName || !customerPhone || !customerAddress}
+                className="w-full py-5 bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-800 text-white rounded-[24px] font-black text-sm tracking-widest shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all group overflow-hidden relative"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-3">
+                  PLACE ORDER NOW
+                  <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                </div>
+                <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
+    <>
+      <div className="lines z-[-1] opacity-20 pointer-events-none fixed inset-0">
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+        <div className="line"></div>
+      </div>
+      <ErrorBoundary>
+        <AppContent />
+        <TaskAnimationOverlay />
+      </ErrorBoundary>
+    </>
   );
 }
 
@@ -5178,7 +5678,6 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
   }, [activeTab]);
-  const [isSidebarClosed, setIsSidebarClosed] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('cctv_theme_preference');
     return saved !== null ? saved === 'true' : true;
@@ -5200,7 +5699,7 @@ function AppContent() {
   const offersAudioRef = useRef<HTMLAudioElement | null>(null);
   
   const adminEmails = ['itdepartmentpro33@gmail.com', 'djbmremix87@gmail.com'];
-  const isAdmin = user?.email && adminEmails.includes(user.email);
+  const isAdmin = user?.email && adminEmails.includes(user.email.toLowerCase());
 
   // Removed automatic redirection to shop-view for admins to avoid confusion
   useEffect(() => {
@@ -5237,9 +5736,10 @@ function AppContent() {
   const [adminPassword, setAdminPassword] = useState(() => {
     return localStorage.getItem('adminPassword') || '1233@';
   });
-  const [notifications, setNotifications] = useState<{id: number, text: string}[]>([]);
+  const [notifications, setNotifications] = useState<{id: number, text: string, type?: 'info' | 'success' | 'admin-order' | 'error', order?: PublicOrder}[]>([]);
   const [staffUser, setStaffUser] = useState<Staff | null>(null);
   const [clientProfile, setClientProfile] = useState<any | null>(null);
+  const [isMobileNavHidden, setIsMobileNavHidden] = useState(false);
 
   const handleLogout = () => {
     playSound('pop');
@@ -5325,7 +5825,7 @@ function AppContent() {
       if (newOrders.length > 0) {
         playSound('pop');
         const latestOrder = newOrders[0];
-        addNotification(`🔔 New Order From: ${latestOrder.customerName}! Total BDT ${latestOrder.total}`);
+        addNotification(`${latestOrder.customerName} has placed a new order of BDT ${latestOrder.total}`, 'admin-order', latestOrder);
       }
     }
     lastPublicOrderCount.current = publicOrders.length;
@@ -5408,7 +5908,7 @@ function AppContent() {
     if (isAdmin && publicOrders.length > 0) {
       const pendingCount = publicOrders.filter(o => o.status === 'pending').length;
       if (pendingCount > 0) {
-        addNotification(`Admin Alert: ${pendingCount} new order(s) waiting for confirmation!`);
+        addNotification(`You have ${pendingCount} new order(s) waiting for confirmation!`, 'admin-order');
       }
     }
   }, [publicOrders.length, isAdmin]);
@@ -5843,12 +6343,16 @@ function AppContent() {
     }
   };
 
-  const addNotification = (text: string) => {
+  const addNotification = (text: string, type: 'info' | 'success' | 'admin-order' | 'error' = 'info', order?: PublicOrder) => {
     const id = Date.now() + Math.random();
-    setNotifications(prev => [...prev, { id, text }]);
+    setNotifications(prev => [...prev, { id, text, type, order }]);
+    
+    // Admin orders stay longer
+    const duration = type === 'admin-order' ? 10000 : 3000;
+    
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 3000);
+    }, duration);
   };
 
   // --- Logic Functions ---
@@ -6083,6 +6587,8 @@ function AppContent() {
     paymentType: string = 'Cash'
   ) => {
     if (cart.length === 0) return;
+    
+    window.dispatchEvent(new Event('start-task-animation'));
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const orderId = `ORD-${Date.now()}`;
@@ -6129,6 +6635,8 @@ function AppContent() {
     } catch (error) {
       console.error("Error placing order:", error);
       handleFirestoreError(error, OperationType.WRITE, `public_orders/${orderId}`);
+    } finally {
+      window.dispatchEvent(new Event('stop-task-animation'));
     }
   };
 
@@ -6163,19 +6671,22 @@ function AppContent() {
       }
 
       if (client) {
-        // Update existing client
+        // Update existing client with new order and ensure details are refreshed
         const updatedClient = {
           ...client,
+          name: order.customerName, // Synchronize name
+          address: order.customerAddress || client.address, // Synchronize address
           orders: [newOrder, ...(client.orders || [])],
           due: (client.due || 0) + (isPaid ? 0 : orderTotal),
           totalPaid: (client.totalPaid || 0) + (isPaid ? orderTotal : 0),
           paymentHistory: [...paymentHistoryPayload, ...(client.paymentHistory || [])]
         };
         await setDoc(doc(db, 'clients', String(clientId)), updatedClient);
+        addNotification(`Updated profile for ${order.customerName}`, 'success');
       } else {
-        // Create new client
+        // Create brand new client
         const newClient: Client = {
-          id: clientId,
+          id: clientId as number,
           name: order.customerName,
           phone: order.customerPhone,
           address: order.customerAddress || '',
@@ -6188,6 +6699,7 @@ function AppContent() {
           paymentHistory: paymentHistoryPayload
         };
         await setDoc(doc(db, 'clients', String(clientId)), newClient);
+        addNotification(`New client added: ${order.customerName}`, 'success');
       }
 
       // Mark public order as accepted
@@ -6204,6 +6716,8 @@ function AppContent() {
   const placeOrder = async (clientId: number, isPaid: boolean = false, paymentType: 'Cash' | 'Bkash' | 'Bank' = 'Cash') => {
     const client = clients.find(c => c.id === clientId);
     if (!client || cart.length === 0) return;
+
+    window.dispatchEvent(new Event('start-task-animation'));
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const orderId = `ORD-${Date.now()}`;
@@ -6269,6 +6783,8 @@ function AppContent() {
         return;
       }
       handleFirestoreError(error, OperationType.WRITE, `clients/${clientId}`);
+    } finally {
+      window.dispatchEvent(new Event('stop-task-animation'));
     }
   };
 
@@ -6339,7 +6855,9 @@ function AppContent() {
   };
 
   const generatePDF = async (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
-    const doc = new jsPDF();
+    window.dispatchEvent(new Event('start-task-animation'));
+    try {
+      const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
@@ -6541,6 +7059,9 @@ function AppContent() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    } finally {
+      window.dispatchEvent(new Event('stop-task-animation'));
+    }
   };
 
   const generateWhatsAppMessage = (client: Client, items: CartItem[], total: number, isPaid: boolean = false, paymentType: string = 'Cash') => {
@@ -6562,7 +7083,9 @@ function AppContent() {
   };
 
   const generateClientProfilePDF = (client: Client) => {
-    const doc = new jsPDF();
+    window.dispatchEvent(new Event('start-task-animation'));
+    try {
+      const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
 
@@ -6647,6 +7170,9 @@ function AppContent() {
     });
 
     doc.save(`${client.name.replace(/\s+/g, '_')}_Profile.pdf`);
+    } finally {
+      window.dispatchEvent(new Event('stop-task-animation'));
+    }
   };
 
   const generateInventoryPDF = () => {
@@ -6822,10 +7348,19 @@ function AppContent() {
     try {
       // Background upload of media to Storage for cloud sync
       if (product.image && product.image.startsWith('data:')) {
-        product.image = await uploadProductFile(product.image, `products/${productId}/image`);
+        const uploadedUrl = await uploadProductFile(product.image, `products/${productId}/image`);
+        // If upload to storage failed and we still have data URL, check size before firestore
+        if (uploadedUrl.startsWith('data:') && uploadedUrl.length > 800000) {
+          throw new Error("Image too large to sync without cloud storage. Please try a smaller image.");
+        }
+        product.image = uploadedUrl;
       }
       if (product.videoUrl && product.videoUrl.startsWith('data:')) {
-        product.videoUrl = await uploadProductFile(product.videoUrl, `products/${productId}/video`);
+        const uploadedUrl = await uploadProductFile(product.videoUrl, `products/${productId}/video`);
+        if (uploadedUrl.startsWith('data:') && uploadedUrl.length > 800000) {
+          throw new Error("Video too large to sync without cloud storage. Please upload a smaller video.");
+        }
+        product.videoUrl = uploadedUrl;
       }
 
       await setDoc(doc(db, 'products', String(productId)), product);
@@ -6837,8 +7372,11 @@ function AppContent() {
         return updated;
       });
       
-      addNotification("Product synced to cloud!");
-    } catch (error) {
+      addNotification("Product successfully synced to cloud!", "success");
+    } catch (error: any) {
+      console.error("Cloud sync failed:", error);
+      const errorMsg = error.message?.includes('permission') ? "Permission denied. Check admin status." : (error.message || "Cloud sync failed.");
+      addNotification(`Cloud Sync Error: ${errorMsg}`, "error");
       handleFirestoreError(error, OperationType.WRITE, `products/${productId}`);
     }
   };
@@ -6886,10 +7424,18 @@ function AppContent() {
     try {
       let product = { ...updatedProduct };
       if (product.image && product.image.startsWith('data:')) {
-        product.image = await uploadProductFile(product.image, `products/${product.id}/image`);
+        const uploadedUrl = await uploadProductFile(product.image, `products/${product.id}/image`);
+        if (uploadedUrl.startsWith('data:') && uploadedUrl.length > 800000) {
+          throw new Error("Image too large. Please use a smaller file.");
+        }
+        product.image = uploadedUrl;
       }
       if (product.videoUrl && product.videoUrl.startsWith('data:')) {
-        product.videoUrl = await uploadProductFile(product.videoUrl, `products/${product.id}/video`);
+        const uploadedUrl = await uploadProductFile(product.videoUrl, `products/${product.id}/video`);
+        if (uploadedUrl.startsWith('data:') && uploadedUrl.length > 800000) {
+          throw new Error("Video too large. Please use a smaller file.");
+        }
+        product.videoUrl = uploadedUrl;
       }
 
       await setDoc(doc(db, 'products', String(product.id)), product);
@@ -6899,7 +7445,11 @@ function AppContent() {
         updateLocalStorage(updated);
         return updated;
       });
-    } catch (error) {
+      addNotification("Changes saved to cloud!", "success");
+    } catch (error: any) {
+      console.error("Cloud update failed:", error);
+      const errorMsg = error.message?.includes('permission') ? "Permission denied." : (error.message || "Sync failed.");
+      addNotification(`Update Error: ${errorMsg}`, "error");
       handleFirestoreError(error, OperationType.WRITE, `products/${updatedProduct.id}`);
     }
   };
@@ -7116,7 +7666,7 @@ function AppContent() {
     // Remove local ClientProfile, AddWorkModal, and AddPaymentModal definitions to use global ones
 
 
-  const PasswordModal = () => {
+  const PasswordModal = ({ onClose }: { onClose: () => void }) => {
     const [input, setInput] = useState('');
     const [error, setError] = useState(false);
 
@@ -7140,6 +7690,7 @@ function AppContent() {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        onClick={onClose}
       >
         <motion.div 
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -7149,6 +7700,7 @@ function AppContent() {
             "glow-effect-container text-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl ",
             error && "animate-shake"
           )}
+          onClick={e => e.stopPropagation()}
         >
           <div className="p-8 text-center">
             <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
@@ -7699,8 +8251,8 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
             {publicOrders.length === 0 ? (
               <div className="text-center py-12 text-gray-500">No pending orders.</div>
             ) : (
-              publicOrders.map(order => (
-                <div key={order.id} className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
+              publicOrders.map((order, idx) => (
+                <div key={`${order.id}-${idx}`} className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-bold text-lg">{order.customerName}</h3>
@@ -7719,8 +8271,8 @@ const PaymentGateway = ({ amount, onComplete, onClose }: { amount: number, onCom
                   </div>
                   
                   <div className="space-y-2 mb-4">
-                    {order.items.map(item => (
-                      <div key={item.productId} className="flex justify-between text-sm">
+                    {order.items.map((item, iidx) => (
+                      <div key={`${item.productId}-${iidx}`} className="flex justify-between text-sm">
                         <span>{item.quantity}x {item.name}</span>
                         <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
                       </div>
@@ -8246,556 +8798,8 @@ const BandwidthTestPage = () => {
     );
   };
 
-    const Sidebar = ({ 
-    activeTab, 
-    setActiveTab, 
-    isDarkMode, 
-    setIsDarkMode, 
-    user, 
-    isAdmin,
-    isClosed,
-    setIsClosed
-  }: { 
-    activeTab: string, 
-    setActiveTab: (tab: any) => void, 
-    isDarkMode: boolean, 
-    setIsDarkMode: (v: boolean) => void,
-    user: any,
-    isAdmin: boolean,
-    isClosed: boolean,
-    setIsClosed: (v: boolean) => void
-  }) => {
-    const [sidebarSearch, setSidebarSearch] = useState('');
-    const menuItems = [
-      { id: 'dashboard', icon: 'bx-home-alt', label: 'Analytics', adminOnly: false },
-      { id: 'shop-view', icon: 'bx-store', label: 'Shop View', adminOnly: false },
-      { id: 'device-version', icon: 'bx-devices', label: 'Device Version', adminOnly: false },
-      { id: 'services', icon: 'bx-cloud-upload', label: 'AI Deploy', adminOnly: false },
-      { id: 'clients', icon: 'bx-user-voice', label: 'CRM Clients', adminOnly: true },
-      { id: 'categories', icon: 'bx-category', label: 'Categories', adminOnly: true },
-      { id: 'products', icon: 'bx-package', label: 'Admin Panel', adminOnly: true },
-      { id: 'expenses', icon: 'bx-wallet', label: 'Finance', adminOnly: true },
-      { id: 'my-orders', icon: 'bx-shopping-bag', label: 'My Orders', adminOnly: false },
-      { id: 'bandwidth', icon: 'bx-pulse', label: 'Network', adminOnly: false },
-      { id: 'staff-tracking', icon: 'bx-navigation', label: 'Check-in', adminOnly: false },
-      { id: 'manage-staff', icon: 'bx-group', label: 'Manage Staff', adminOnly: true },
-      { id: 'manage-services', icon: 'bx-customize', label: 'Manage Services', adminOnly: true },
-      { id: isAdmin ? 'warranty' : 'support', icon: 'bx-support', label: 'Support', adminOnly: false },
-      { id: 'me', icon: 'bx-cog', label: 'Account', adminOnly: false },
-    ];
 
-    return (
-      <nav className={cn("custom-sidebar hidden md:block", isClosed && "close")}>
-        <header>
-          <div className="image-text">
-            <span className="image">
-              <img src={customLogo || "https://drive.google.com/uc?export=view&id=1ETZYgPpWbbBtpJnhi42_IR3vOwSOpR4z"} alt="Logo" />
-            </span>
 
-            <div className="text logo-text">
-              <span className="name">IT DEPARTMENT</span>
-              <span className="profession">Technology Partner</span>
-            </div>
-          </div>
-
-          <i 
-            className='bx bx-chevron-right toggle' 
-            onClick={() => setIsClosed(!isClosed)}
-          ></i>
-        </header>
-
-        <div className="menu-bar">
-          <div className="menu">
-            <li className="search-box">
-              <UiverseSearch 
-                value={sidebarSearch} 
-                onChange={setSidebarSearch} 
-                placeholder="Search..." 
-              />
-            </li>
-
-            <ul className="menu-links">
-              {menuItems
-                .filter(item => (isAdmin || !item.adminOnly) && item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                .map(item => (
-                <li key={item.id} className="nav-link mb-2">
-                  <a 
-                    href="#" 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (item.id === 'cart') setShowCart(true);
-                      else setActiveTab(item.id);
-                    }}
-                    className={cn(
-                      "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all",
-                      activeTab === item.id ? "glow-effect-container text-white scale-[1.02]" : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                    )}
-                  >
-                    <i className={cn('bx icon text-xl', item.icon, activeTab === item.id && "text-white")}></i>
-                    <span className={cn("text nav-text font-bold", activeTab === item.id && "text-white")}>
-                      {item.label}
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="bottom-content">
-            <li>
-              <a href="#" onClick={(e) => { e.preventDefault(); auth.signOut(); }}>
-                <i className='bx bx-log-out icon'></i>
-                <span className="text nav-text">Logout</span>
-              </a>
-            </li>
-
-            <li className="mode">
-              <div className="sun-moon">
-                <i className='bx bx-moon icon moon'></i>
-                <i className='bx bx-sun icon sun'></i>
-              </div>
-              <span className="mode-text text">{isDarkMode ? 'Dark mode' : 'Light mode'}</span>
-
-              <div className="toggle-switch" onClick={() => setIsDarkMode(!isDarkMode)}>
-                <span className="switch"></span>
-              </div>
-            </li>
-          </div>
-        </div>
-      </nav>
-    );
-  };
-
-  const DeviceVersionPage = ({ 
-    user, 
-    isAdmin, 
-    customLogo 
-  }: { 
-    user: FirebaseUser | null, 
-    isAdmin: boolean, 
-    customLogo: string | null 
-  }) => {
-    const [versions, setVersions] = useState<DeviceVersion[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [formData, setFormData] = useState({ deviceName: '', versionName: '', description: '', downloadUrl: '' });
-    const [uploadFile, setUploadFile] = useState<File | null>(null);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadMode, setUploadMode] = useState<'link' | 'file'>('file');
-    const [loading, setLoading] = useState(false);
-  
-    useEffect(() => {
-      const q = query(collection(db, 'device_versions'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        setVersions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeviceVersion)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'device_versions'));
-      return () => unsubscribe();
-    }, []);
-  
-    const handleUpload = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!formData.deviceName || !formData.versionName) {
-        alert('Please fill in Device Name and Version Name');
-        return;
-      }
-      
-      let finalUrl = formData.downloadUrl;
-      setLoading(true);
-      setUploadProgress(0);
-      
-      try {
-        if (uploadMode === 'file') {
-          if (!uploadFile) {
-            alert('Please select a firmware file first');
-            setLoading(false);
-            return;
-          }
-
-          console.log(`Starting upload for file: ${uploadFile.name} (${(uploadFile.size / 1024 / 1024).toFixed(2)} MB)`);
-          // Set metadata to help Firebase Storage identify the file type
-          const metadata = {
-            contentType: uploadFile.type || 'application/zip'
-          };
-          
-          if (uploadFile.size > 100 * 1024 * 1024) {
-            alert('File size exceeds 100MB. Please use a smaller file or upload to a drive and share the link.');
-            setLoading(false);
-            return;
-          }
-
-          const storageRef = ref(storage, `firmwares/${Date.now()}_${uploadFile.name}`);
-          
-          // Using uploadBytesResumable to track progress
-          const uploadTask = uploadBytesResumable(storageRef, uploadFile, metadata);
-          
-          await new Promise((resolve, reject) => {
-            uploadTask.on('state_changed', 
-              (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                setUploadProgress(progress);
-                if (progress === 100) {
-                  console.log("Upload reached 100%, waiting for server confirmation...");
-                } else {
-                  console.log(`Upload progress: ${Math.round(progress)}%`);
-                }
-              }, 
-              (error) => {
-                console.error("Firebase Storage Upload Error:", error);
-                let message = "Upload failed: ";
-                if (error.code === 'storage/unauthorized') {
-                  message += "Permission denied. Please log in again or check your account level.";
-                } else if (error.code === 'storage/canceled') {
-                  message += "Upload canceled.";
-                } else if (error.code === 'storage/quota-exceeded') {
-                  message += "Storage quota exceeded.";
-                } else {
-                  message += error.message;
-                }
-                alert(message);
-                setLoading(false); // Immediate reset for better UX
-                reject(error);
-              }, 
-              async () => {
-                try {
-                  console.log("Upload task finalized successfully, fetching URL...");
-                  const url = await getDownloadURL(uploadTask.snapshot.ref);
-                  finalUrl = url;
-                  console.log("Download URL obtained successfully.");
-                  resolve(true);
-                } catch (urlError: any) {
-                  console.error("Critical Get download URL error:", urlError);
-                  alert(`Server link generation failed: ${urlError.message}`);
-                  setLoading(false);
-                  reject(urlError);
-                }
-              }
-            );
-          });
-        }
-  
-        if (!finalUrl && uploadMode === 'link') {
-          alert('Please provide a valid download URL link');
-          setLoading(false);
-          return;
-        }
-
-        if (!finalUrl) {
-          throw new Error('Firmware URL could not be determined');
-        }
-  
-        console.log("Saving metadata to Firestore...");
-        await addDoc(collection(db, 'device_versions'), {
-          deviceName: formData.deviceName,
-          versionName: formData.versionName,
-          description: formData.description,
-          downloadUrl: finalUrl,
-          createdAt: new Date().toISOString(),
-          authorName: user?.displayName || user?.email || 'Admin'
-        });
-        
-        console.log("Metadata saved successfully");
-        setShowAddModal(false);
-        setFormData({ deviceName: '', versionName: '', description: '', downloadUrl: '' });
-        setUploadFile(null);
-        setUploadProgress(0);
-        playSound('success');
-        alert('Firmware uploaded successfully!');
-      } catch (error: any) {
-        console.error("Final catch in handleUpload:", error);
-        // Error already alerted in the task observer if it was a storage error
-        if (!error.code || !error.code.startsWith('storage/')) {
-          alert(`Error: ${error.message || 'An unexpected error occurred during upload.'}`);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    const handleDelete = async (id: string) => {
-      if (!confirm('Are you sure you want to delete this version?')) return;
-      try {
-        await deleteDoc(doc(db, 'device_versions', id));
-        playSound('pop');
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, 'device_versions');
-      }
-    };
-  
-    const filteredVersions = versions.filter(v => 
-      v.deviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.versionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  
-    return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-8 rounded-[40px] border border-white dark:border-slate-800 shadow-2xl">
-          <div className="flex items-center gap-6">
-            <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl p-1 shadow-2xl flex items-center justify-center border border-white/20">
-              <img src={customLogo || "https://drive.google.com/uc?export=view&id=1ETZYgPpWbbBtpJnhi42_IR3vOwSOpR4z"} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">IT DEPARTMENT</h1>
-              <p className="text-xs font-black text-emerald-500 uppercase tracking-[0.2em] mt-1">Your Trusted Technology Partner</p>
-            </div>
-          </div>
-  
-          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <UiverseSearch 
-              value={searchQuery} 
-              onChange={setSearchQuery} 
-              placeholder="Search firmware versions..." 
-            />
-            {isAdmin && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowAddModal(true)}
-                className="h-12 px-8 bg-emerald-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-2xl shadow-emerald-500/30 whitespace-nowrap"
-              >
-                <Plus size={18} strokeWidth={3} />
-                Add New Version
-              </motion.button>
-            )}
-          </div>
-        </div>
-  
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredVersions.length === 0 ? (
-            <div className="col-span-full py-20 bg-white/30 dark:bg-slate-900/30 rounded-[40px] border border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                <Download className="text-slate-400" size={40} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-400">No Versions Found</h3>
-              <p className="text-slate-500 max-w-[300px] mt-2">Try searching different keywords or add a new firmware version.</p>
-            </div>
-          ) : (
-            filteredVersions.map((v) => (
-              <motion.div
-                key={v.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-card group relative p-8 hover:translate-y-[-8px] transition-all duration-500"
-              >
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <a 
-                    href={v.downloadUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 bg-emerald-600/10 text-emerald-600 rounded-xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-lg"
-                  >
-                    <Download size={20} />
-                  </a>
-                  {isAdmin && (
-                    <button 
-                      onClick={() => handleDelete(v.id)}
-                      className="w-10 h-10 bg-rose-600/10 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-lg"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  )}
-                </div>
-  
-                <div className="mb-6 flex justify-center">
-                  <DeviceVersionIcon />
-                </div>
-  
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{v.deviceName}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-500 text-white rounded-md uppercase tracking-wider">
-                        v{v.versionName}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {new Date(v.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-  
-                  <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">
-                    {v.description}
-                  </p>
-  
-                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        <User size={14} className="text-slate-400" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Uploaded by</p>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{v.authorName}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-  
-        <AnimatePresence>
-          {showAddModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowAddModal(false)}
-                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl border border-white/20 overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-8">
-                  <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                    <X size={24} />
-                  </button>
-                </div>
-  
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-emerald-600/10 text-emerald-600 rounded-2xl flex items-center justify-center">
-                    <CloudUpload size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Add Version</h2>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Share firmware with staff</p>
-                  </div>
-                </div>
-  
-                <form onSubmit={handleUpload} className="space-y-5">
-                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
-                    <button 
-                      type="button"
-                      onClick={() => setUploadMode('file')}
-                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${uploadMode === 'file' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
-                    >
-                      Upload File
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setUploadMode('link')}
-                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${uploadMode === 'link' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
-                    >
-                      Paste Link
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Device Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.deviceName}
-                      onChange={e => setFormData({ ...formData, deviceName: e.target.value })}
-                      className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-                      placeholder="e.g. Ranger 2 Pro"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Version Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.versionName}
-                      onChange={e => setFormData({ ...formData, versionName: e.target.value })}
-                      className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-                      placeholder="e.g. 2.0.1_R"
-                    />
-                  </div>
-
-                  {uploadMode === 'file' ? (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Select Firmware File</label>
-                      <div className="relative group">
-                        <input
-                          type="file"
-                          onChange={e => setUploadFile(e.target.files?.[0] || null)}
-                          className="hidden"
-                          id="firmware-file"
-                          accept=".zip,.rar,.7z,.bin,.iso,.tar,.tgz"
-                        />
-                        <label 
-                          htmlFor="firmware-file"
-                          className="w-full h-24 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 transition-all group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50"
-                        >
-                          <CloudUpload className={`${uploadFile ? 'text-emerald-500' : 'text-slate-400'}`} size={24} />
-                          <span className="text-xs font-bold text-slate-500 mt-2">
-                            {uploadFile ? uploadFile.name : 'Click to select or drag and drop'}
-                          </span>
-                        </label>
-                      </div>
-                      {uploadProgress > 0 && (
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[10px] font-black text-emerald-500 uppercase tracking-widest px-1">
-                            <span>Uploading...</span>
-                            <span>{Math.round(uploadProgress)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${uploadProgress}%` }}
-                              className="bg-emerald-500 h-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Firmware Link / Download URL</label>
-                      <input
-                        type="text"
-                        required={uploadMode === 'link'}
-                        value={formData.downloadUrl}
-                        onChange={e => setFormData({ ...formData, downloadUrl: e.target.value })}
-                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-                        placeholder="https://..."
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Description</label>
-                    <textarea
-                      required
-                      value={formData.description}
-                      onChange={e => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full h-32 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold resize-none"
-                      placeholder="What's new in this version?"
-                    />
-                  </div>
-  
-                  <div className="pt-4 flex gap-4">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      className="h-14 flex-1 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
-                      disabled={loading || (uploadMode === 'file' && !uploadFile)}
-                    >
-                      {loading ? <RefreshCw className="animate-spin" size={18} /> : <CloudUpload size={18} />}
-                      {loading ? `Uploading ${Math.round(uploadProgress)}%` : 'Upload Version'}
-                    </motion.button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddModal(false)}
-                      className="h-14 px-8 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
 
 const MePage = ({ 
     isDarkMode, 
@@ -8861,12 +8865,12 @@ const MePage = ({
       const file = e.target.files?.[0];
       if (file && user) {
         if (file.size > 10 * 1024 * 1024) {
-          addNotification("File too large! Max 10MB.");
+          addNotification("File too large! Max 10MB.", "error");
           return;
         }
 
         setIsLogoUploading(true);
-        addNotification("Updating logo...");
+        addNotification("Preparing logo for upload...");
         try {
           // If it's a GIF, we skip canvas optimization to preserve animation
           const isGif = file.type === 'image/gif';
@@ -8875,7 +8879,7 @@ const MePage = ({
             // Optimization for non-GIFs
             const img = new Image();
             const url = URL.createObjectURL(file);
-            const optimizedBlob = await new Promise<Blob | null>((resolve) => {
+            const optimizedBlob = await new Promise<Blob | null>((resolve, reject) => {
               img.onload = () => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
@@ -8892,38 +8896,49 @@ const MePage = ({
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
-                  ctx.drawImage(img, 0, 0, width, height);
-                  canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.8);
+                  // Crop to square for perfect circle ("goal")
+                  const size = Math.min(img.width, img.height);
+                  const offsetX = (img.width - size) / 2;
+                  const offsetY = (img.height - size) / 2;
+                  
+                  canvas.width = 512;
+                  canvas.height = 512;
+                  
+                  ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, 512, 512);
+                  canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.9);
                 } else {
-                  resolve(null);
+                  reject(new Error("Canvas context failed"));
                 }
                 URL.revokeObjectURL(url);
               };
+              img.onerror = () => reject(new Error("Failed to load image"));
               img.src = url;
             });
 
             if (optimizedBlob) {
+              addNotification("Uploading as optimized WebP...");
               const storageRef = ref(storage, `settings/logo_${Date.now()}.webp`);
               const uploadTask = await uploadBytes(storageRef, optimizedBlob);
               const downloadUrl = await getDownloadURL(uploadTask.ref);
               setCustomLogo(downloadUrl);
               localStorage.setItem('cctv_custom_logo', downloadUrl);
-              addNotification("Logo optimized and uploaded!");
+              addNotification("Logo updated successfully!", "success");
             } else {
               throw new Error("Optimization failed");
             }
           } else {
             // Direct upload for GIFs
+            addNotification("Uploading GIF logo...");
             const storageRef = ref(storage, `settings/logo_${Date.now()}.gif`);
             const uploadTask = await uploadBytes(storageRef, file);
             const downloadUrl = await getDownloadURL(uploadTask.ref);
             setCustomLogo(downloadUrl);
             localStorage.setItem('cctv_custom_logo', downloadUrl);
-            addNotification("GIF Logo uploaded!");
+            addNotification("GIF Logo uploaded successfully!", "success");
           }
         } catch (error: any) {
           console.error("Logo upload error:", error);
-          addNotification("Logo upload failed: " + error.message);
+          addNotification("Upload failed: " + (error.message || "Unknown error"), "error");
         } finally {
           setIsLogoUploading(false);
         }
@@ -9449,8 +9464,12 @@ const MePage = ({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
-                        <ImageIcon size={20} />
+                      <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center text-blue-600 shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                        {customLogo ? (
+                          <img src={customLogo} alt="Logo" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon size={20} />
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-bold">Custom Logo</p>
@@ -10093,227 +10112,59 @@ const MePage = ({
   }, [products.length, isAdmin]);
 
   return (
-    <div className="w-full max-w-[550px] md:max-w-none mx-auto min-h-screen relative shadow-2xl overflow-hidden flex flex-col md:flex-row">
-      {/* Dynamic Background Layer */}
-      <div className={cn("app-bg", isDarkMode ? "app-bg-dark" : "app-bg-light")} />
-      
+    <div className="w-full max-w-[100vw] mx-auto min-h-screen relative overflow-hidden flex flex-col bg-white dark:bg-slate-950 font-sans">
       <AnimatePresence>
-        {showSplash && <SplashScreen customLogo={customLogo} onEnter={handleSplashEnter} onPlay={handlePlayIntro} hasMusic={true} isLoading={isInitialLoad} />}
-        {showAddProduct && (
-          <AddProductModal 
-            onClose={() => setShowAddProduct(false)} 
-            onAdd={handleAddProduct} 
-            productCategories={productCategories}
-            setProductCategories={setProductCategories}
-            addNotification={addNotification}
-          />
-        )}
-        {showEditProduct && (
-          <EditProductModal 
-            product={showEditProduct}
-            onClose={() => setShowEditProduct(null)} 
-            onSave={handleEditProduct} 
-            productCategories={productCategories}
-            setProductCategories={setProductCategories}
-            addNotification={addNotification}
+        {showSplash && (
+          <SplashScreen 
+            customLogo={customLogo} 
+            onEnter={handleSplashEnter} 
+            onPlay={handlePlayIntro} 
+            hasMusic={true} 
+            isLoading={isInitialLoad} 
           />
         )}
       </AnimatePresence>
 
-      {/* Notifications */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[400px] px-4 pointer-events-none">
-        <AnimatePresence>
-          {notifications.map(n => (
-            <motion.div 
-              key={n.id}
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-slate-800 text-white px-4 py-3 rounded-xl shadow-2xl mb-2 flex items-center gap-3"
-            >
-              <Bell size={18} className="text-blue-400" />
-              <span className="text-sm font-medium">{n.text}</span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {!showSplash && (
+        <div className="flex-1 flex flex-col min-h-screen">
+          <TopHeader 
+            user={user}
+            isAdmin={!!isAdmin}
+            cartCount={cart.reduce((s, i) => s + i.quantity, 0)}
+            onShowCart={() => setShowCart(true)}
+            onLogout={handleLogout}
+            onShowLogin={() => setShowPasswordModal(true)}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            customLogo={customLogo}
+          />
 
-      {/* Desktop Sidebar (Custom) */}
-      <Sidebar 
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
-        user={user}
-        isAdmin={isAdmin}
-        isClosed={isSidebarClosed}
-        setIsClosed={setIsSidebarClosed}
-      />
-
-      {/* Main Content Wrapper */}
-      <div className={cn(
-        "flex-1 flex flex-col h-screen overflow-hidden relative transition-all duration-300",
-        !isSidebarClosed ? "md:ml-[250px]" : "md:ml-[88px]"
-      )}>
-        {/* Header */}
-        <header className="p-4 flex justify-between items-center sticky top-0 z-30 border-b border-white/10 dark:border-slate-800/30 md:px-8 shadow-sm">
-          <div className="flex items-center gap-2 md:hidden">
-            <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 text-blue-900 dark:text-blue-300">
-               <Menu size={24} />
-            </button>
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden", isDarkMode ? "bg-emerald-600" : "bg-orange-500")}>
-              {customLogo ? (
-                <img src={customLogo} alt="Company Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <ShieldCheck size={24} />
-              )}
-            </div>
-            <div>
-              <p className="font-bold text-sm leading-none">IT Department Pro</p>
-            </div>
-          </div>
-          
-          {/* Mobile Menu Dropdown */}
-          {showMobileMenu && (
-            <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 p-4 z-50 md:hidden shadow-xl">
-                {[
-                    { id: 'dashboard', icon: LayoutDashboard, label: 'Analytics', adminOnly: true },
-                    { id: 'shop-view', icon: ShoppingCart, label: 'Shop View', adminOnly: true },
-                    { id: 'device-version', icon: Laptop, label: 'Device Version', adminOnly: false },
-                    { id: 'services', icon: LayoutGrid, label: 'Services', adminOnly: false },
-                    { id: 'clients', icon: Users, label: 'CRM Clients', adminOnly: true },
-                    { id: 'categories', icon: LayoutGrid, label: 'Categories', adminOnly: true },
-                    { id: 'products', icon: ShoppingCart, label: 'Products', adminOnly: false },
-                    { id: 'expenses', icon: Wallet, label: 'Finance', adminOnly: true },
-                    { id: 'manage-services', icon: LayoutGrid, label: 'Manage Services', adminOnly: true },
-                    { id: 'bandwidth', icon: Zap, label: 'Network', adminOnly: false },
-                    { id: 'staff-tracking', icon: Navigation, label: 'Check-in', adminOnly: false },
-                    { id: 'manage-staff', icon: Users, label: 'Manage Staff', adminOnly: true },
-                    { id: 'warranty', icon: ShieldCheck, label: 'Support', adminOnly: true },
-                    { id: 'ai-assistant', icon: Bot, label: 'AI Intelligence', adminOnly: false },
-                    { id: 'offers', icon: Megaphone, label: 'Marketing', adminOnly: false },
-                    { id: 'alerts', icon: Bell, label: 'Alerts', adminOnly: false },
-                    { id: 'me', icon: User, label: 'Account', adminOnly: false },
-                ].filter(item => isAdmin || !item.adminOnly).map(item => (
-                    <button 
-                        key={item.id}
-                        onClick={() => { setActiveTab(item.id); setShowMobileMenu(false); }}
-                        className={cn("w-full text-left p-4 text-sm font-black rounded-2xl flex items-center gap-3 transition-all mb-1", activeTab === item.id ? "glow-effect-container text-white scale-[1.02]" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800")}
-                    >
-                        <motion.div animate={activeTab === item.id ? { y: [0, -3, 0], opacity: [0.5, 1, 0.5] } : { y: 0, opacity: 1 }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
-                          <item.icon size={18} className={activeTab === item.id ? "drop-shadow-md" : ""} />
-                        </motion.div>
-                        {item.label}
-                    </button>
-                ))}
-            </div>
-          )}
-
-          
-          <div className="hidden md:block">
-            <h2 className="text-xl font-bold capitalize">
-              {activeTab === 'me' ? 'Profile & Settings' : activeTab}
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-3 ml-auto">
-            <motion.button 
-              whileHover={{ scale: 1.1, rotate: 15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-              className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl transition-all duration-300 text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-lg"
-            >
-              {isDarkMode ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} className="text-orange-600" />}
-            </motion.button>
-            <motion.button 
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setShowCart(true)}
-              aria-label="View shopping cart"
-              className="p-2.5 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl text-gray-600 dark:text-gray-300 relative shadow-sm hover:shadow-lg"
-            >
-              <ShoppingCart size={20} />
-              {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">
-                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-              )}
-            </motion.button>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-          {/* Admin Notification Header */}
-          {isAdmin && publicOrders.filter(o => o.status === 'pending').length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => setShowPendingOrders(true)}
-              className="mb-6 bg-orange-500 text-white p-4 rounded-2xl flex items-center justify-between cursor-pointer shadow-xl shadow-orange-500/20 animate-pulse"
-            >
-              <div className="flex items-center gap-3">
-                <Bell size={20} className="shake-animation" />
-                <span className="text-sm font-black uppercase tracking-tight">
-                  You have {publicOrders.filter(o => o.status === 'pending').length} new pending orders!
-                </span>
-              </div>
-              <ChevronRight size={20} />
-            </motion.div>
-          )}
-
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="max-w-7xl mx-auto glow-effect-container rounded-[32px] p-1 shadow-2xl"
-            >
-              <div className="rounded-[28px] p-4 md:p-6 min-h-screen w-full">
-              {activeTab === 'dashboard' && (
-                <Dashboard 
-                  products={products}
-                  clients={clients}
-                  publicOrders={publicOrders}
-                  expenses={expenses}
-                  sliderImages={sliderImages}
-                  offers={offers}
-                  formatCurrency={formatCurrency}
-                  addToCart={addToCart}
-                  setActiveTab={setActiveTab}
-                  setSelectedProduct={setSelectedProduct}
-                  setShowAddProduct={(v) => v ? withPassword(() => setShowAddProduct(v), true) : setShowAddProduct(v)}
-                  onEditProduct={(p) => withPassword(() => setShowEditProduct(p), true)}
-                  isAdmin={isAdmin}
-                  isDarkMode={isDarkMode}
-                  productCategories={productCategories}
-                />
-              )}
-              {activeTab === 'shop-view' && (
-                <PublicStore 
-                  products={products} 
-                  sliderImages={sliderImages}
-                  offers={offers}
-                  formatCurrency={formatCurrency} 
-                  addToCart={addToCart} 
-                  setActiveTab={setActiveTab}
-                  setSelectedProduct={setSelectedProduct}
-                  productCategories={productCategories}
-                />
-              )}
-              {activeTab === 'device-version' && (
-                <DeviceVersionPage 
-                  user={user}
-                  isAdmin={isAdmin}
-                  customLogo={customLogo}
-                />
-              )}
-              {activeTab === 'services' && (
-                <ServicesPage />
-              )}
+          <div className="flex-1 flex overflow-hidden">
+            <main className={cn(
+              "flex-1 overflow-y-auto custom-scrollbar h-[calc(100vh-80px)] transition-all duration-300"
+            )}>
+              <div className={cn(
+                "w-full h-full pb-28",
+                activeTab === 'shop-view' || activeTab === 'dashboard' ? "max-w-none" : "max-w-7xl mx-auto p-4 md:p-8"
+              )}>
+              {activeTab === 'dashboard' && (isAdmin ? <Dashboard 
+                products={products}
+                clients={clients}
+                publicOrders={publicOrders}
+                expenses={expenses}
+                sliderImages={sliderImages}
+                offers={offers}
+                formatCurrency={formatCurrency}
+                addToCart={addToCart}
+                setActiveTab={setActiveTab}
+                setSelectedProduct={setSelectedProduct}
+                setShowAddProduct={(v) => v ? withPassword(() => setShowAddProduct(v), true) : setShowAddProduct(v)}
+                onEditProduct={(p) => withPassword(() => setShowEditProduct(p), true)}
+                isAdmin={isAdmin}
+                isDarkMode={isDarkMode}
+                productCategories={productCategories}
+              /> : <PublicStore products={products} sliderImages={sliderImages} offers={offers} formatCurrency={formatCurrency} addToCart={addToCart} setActiveTab={setActiveTab} setSelectedProduct={setSelectedProduct} productCategories={productCategories} />)}
+              {activeTab === 'shop-view' && <PublicStore products={products} sliderImages={sliderImages} offers={offers} formatCurrency={formatCurrency} addToCart={addToCart} setActiveTab={setActiveTab} setSelectedProduct={setSelectedProduct} productCategories={productCategories} />}
               {activeTab === 'manage-services' && isAdmin && (
                 <ManageServices withPassword={withPassword} />
               )}
@@ -10327,7 +10178,7 @@ const MePage = ({
                 />
               )}
               {activeTab === 'my-orders' && (
-                <MyOrdersPage user={user} clients={clients} formatCurrency={formatCurrency} />
+                <MyOrdersPage user={user} clients={clients} formatCurrency={formatCurrency} isAdmin={isAdmin} acceptPublicOrder={acceptPublicOrder} addNotification={addNotification} />
               )}
               {activeTab === 'clients' && isAdmin && (
                 <ClientList 
@@ -10392,12 +10243,11 @@ const MePage = ({
                 />
               )}
               {activeTab === 'ai-assistant' && (
-                <EmptyPlaceholder 
-                  title="AI Intelligence"
-                  message="The IT Department neural network is initializing. Connect to a direct data stream to begin advanced pattern recognition."
-                  icon={Bot}
-                  actionLabel="Activate Core"
-                  onAction={() => addNotification("AI Core is ready. Please select a module.")}
+                <AIHelpDesk 
+                  user={user} 
+                  isAdmin={isAdmin} 
+                  businessData={{ products, clients, expenses }} 
+                  isDarkMode={isDarkMode} 
                 />
               )}
               {activeTab === 'me' && (
@@ -10426,125 +10276,104 @@ const MePage = ({
                 />
               )}
             </div>
-          </motion.div>
+          </main>
+        </div>
+      </div>
+    )}
+
+      {/* Cart Drawer is already added as a component above App */}
+      <CartDrawer 
+        show={showCart}
+        onClose={() => setShowCart(false)}
+        cart={cart}
+        user={user}
+        clients={clients}
+        updateQuantity={updateCartQuantity}
+        removeItem={removeFromCart}
+        formatCurrency={formatCurrency}
+        onPlaceOrder={(details) => placePublicOrder(details)}
+      />
+
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 items-end pointer-events-none">
+        <AnimatePresence mode="popLayout">
+          {notifications.map(n => (
+            <motion.div key={n.id} initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }} layout className="pointer-events-auto">
+               <div className="bg-slate-900 shadow-2xl text-white px-5 py-3 rounded-2xl border border-white/10 flex flex-col gap-2 min-w-[280px]">
+                  <div className="flex items-center gap-3">
+                     <Bell size={16} className="text-blue-400 shrink-0" />
+                     <span className="text-sm font-bold flex-1">{n.text}</span>
+                     <button onClick={() => setNotifications(prev => prev.filter(notif => notif.id !== n.id))} className="ml-2 text-gray-500 hover:text-white"><X size={14} /></button>
+                  </div>
+                  {n.type === 'admin-order' && n.order && (
+                    <div className="flex gap-2 mt-1 border-t border-white/5 pt-2">
+                       <button 
+                         onClick={() => {
+                           acceptPublicOrder(n.order!);
+                           setNotifications(prev => prev.filter(notif => notif.id !== n.id));
+                         }}
+                         className="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                       >
+                         Accept
+                       </button>
+                       <button 
+                         onClick={async () => {
+                           await updateDoc(doc(db, 'public_orders', n.order!.id), { status: 'rejected' });
+                           addNotification("Order rejected.");
+                           setNotifications(prev => prev.filter(notif => notif.id !== n.id));
+                         }}
+                         className="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                       >
+                         Reject
+                       </button>
+                    </div>
+                  )}
+               </div>
+            </motion.div>
+          ))}
         </AnimatePresence>
-        </main>
-
-        {/* Navigation - Mobile Only (Custom Tab Bar) */}
-        <nav className="md:hidden custom-nav">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-            { id: 'device-version', icon: Laptop, label: 'Device' },
-            { id: 'services', icon: UploadCloud, label: 'Deploy' },
-            { id: isAdmin ? 'manage-staff' : 'staff-tracking', icon: isAdmin ? Users : Navigation, label: isAdmin ? 'Staff' : 'Check-in' },
-            { id: 'cart', icon: ShoppingCart, label: 'Cart' },
-            { id: 'me', icon: User, label: 'Account' },
-          ].map((item, index) => {
-            const isActive = activeTab === item.id || (item.id === 'cart' && showCart);
-            return (
-              <ul key={item.id}>
-                <li>
-                  <a 
-                    className={cn(
-                      "relative w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-500",
-                      isActive ? "glow-effect-container text-white scale-110" : "text-gray-400 hover:text-blue-500"
-                    )}
-                    onClick={() => {
-                      playSound('click');
-                      if (item.id === 'cart') {
-                        setShowCart(true);
-                      } else {
-                        setActiveTab(item.id as any);
-                        setShowCart(false);
-                      }
-                    }}
-                  >
-                    <item.icon size={isActive ? 22 : 24} />
-                    {item.id === 'cart' && cart.length > 0 && (
-                      <span className="custom-nav-badge">
-                        {cart.reduce((sum, i) => sum + i.quantity, 0)}
-                      </span>
-                    )}
-                  </a>
-                </li>
-              </ul>
-            );
-          })}
-
-          <div 
-            className="tubelight"
-            style={{ 
-              left: `${(([
-                'dashboard',
-                'device-version',
-                'services',
-                isAdmin ? 'manage-staff' : 'staff-tracking',
-                'cart',
-                'me'
-              ].indexOf(showCart ? 'cart' : (['dashboard', 'device-version', 'services', isAdmin ? 'manage-staff' : 'staff-tracking', 'cart', 'me'].includes(activeTab) ? activeTab : 'dashboard')) || 0) * (100/6)) + (100/12)}%`
-            }}
-          >
-            <div className="light-ray"></div>
-          </div>
-        </nav>
       </div>
 
-      {/* Modals */}
+      {!showSplash && !isMobileNavHidden && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[98%] max-w-6xl z-[70] px-2">
+           <div className="overflow-x-auto no-scrollbar pb-1">
+             <GlowingNav 
+               activeId={activeTab}
+               className="min-w-max"
+               items={[
+                 { id: 'dashboard', icon: <Home size={18} />, label: 'Home' },
+                 { id: 'shop-view', icon: <ShoppingBag size={18} />, label: 'Product Page' },
+                 { id: 'my-orders', icon: <Package size={18} />, label: 'Orders' },
+                 ...(isAdmin ? [
+                   { id: 'clients', icon: <Users size={18} />, label: 'CRM' },
+                   { id: 'categories', icon: <LayoutGrid size={18} />, label: 'Cats' },
+                   { id: 'products', icon: <Box size={18} />, label: 'Admin' },
+                   { id: 'expenses', icon: <Wallet size={18} />, label: 'Finance' },
+                   { id: 'manage-staff', icon: <ShieldCheck size={18} />, label: 'Staff' },
+                   { id: 'manage-services', icon: <Wrench size={18} />, label: 'Services' },
+                 ] : []),
+                 { id: 'bandwidth', icon: <Activity size={18} />, label: 'Network' },
+                 { id: 'staff-tracking', icon: <Navigation size={18} />, label: 'Track' },
+                 { id: isAdmin ? 'warranty' : 'support', icon: <Headphones size={18} />, label: 'Help' },
+                 { id: 'me', icon: <User size={18} />, label: 'Account' },
+                 { id: 'hide-nav', icon: <X size={18} />, label: 'Close' },
+               ]}
+               onSelect={(id) => {
+                 if (id === 'hide-nav') setIsMobileNavHidden(true);
+                 else setActiveTab(id as any);
+               }}
+             />
+           </div>
+        </div>
+      )}
+
       <AnimatePresence>
-        {showPendingOrders && (
-          <PendingOrdersModal />
-        )}
-        {showCart && (
-          <CartModal />
-        )}
-        {selectedProduct && (
-            <ProductDetailsModal 
-              product={selectedProduct} 
-              onClose={() => setSelectedProduct(null)} 
-              addToCart={addToCart}
-              formatCurrency={formatCurrency}
-              addNotification={addNotification}
-              isAdmin={isAdmin && activeTab === 'products'}
-              onEdit={(p) => {
-                setSelectedProduct(null);
-                withPassword(() => setShowEditProduct(p), true);
-              }}
-              onDelete={(id) => {
-                withPassword(() => handleDeleteProduct(id));
-              }}
-            />
-        )}
-        {showClientProfile && (
-          <ClientProfile 
-            client={showClientProfile} 
-            onClose={() => setShowClientProfile(null)} 
-            onUpdateImage={handleUpdateClientImage}
-            onSetWarranty={handleSetWarranty}
-            onSetInstallationDate={handleSetInstallationDate}
-            onUpdateNotes={handleUpdateNotes}
-            onDeleteClient={(id) => withPassword(() => handleDeleteClient(id))}
-            onUpdateOrderStatus={updateOrderStatus}
-            onUpdateClientDetails={handleUpdateClientDetails}
-            formatCurrency={formatCurrency}
-            generateWhatsAppMessage={generateWhatsAppMessage}
-            generateClientProfilePDF={generateClientProfilePDF}
-            handleDeleteWork={handleDeleteWork}
-            handleDeletePayment={handleDeletePayment}
-            handleDeleteOrder={handleDeleteOrder}
-            handleAddWork={handleAddWork}
-            handleAddPayment={handleAddPayment}
-            clients={clients}
-          />
-        )}
-        {showAddClient && (
-          <AddClientModal onClose={() => setShowAddClient(false)} />
-        )}
-        {showCalculator && (
-          <CalculatorModal onClose={() => setShowCalculator(false)} />
-        )}
-        {showPasswordModal && (
-          <PasswordModal />
-        )}
+        {selectedProduct && <ProductDetailsModal product={selectedProduct} onClose={() => setSelectedProduct(null)} addToCart={addToCart} formatCurrency={formatCurrency} addNotification={addNotification} isAdmin={isAdmin && activeTab === 'products'} onEdit={(p) => { setSelectedProduct(null); withPassword(() => setShowEditProduct(p), true); }} onDelete={(id) => withPassword(() => handleDeleteProduct(id))} />}
+        {showAddProduct && <AddProductModal onClose={() => setShowAddProduct(false)} onAdd={handleAddProduct} productCategories={productCategories} setProductCategories={setProductCategories} addNotification={addNotification} />}
+        {showEditProduct && <EditProductModal product={showEditProduct} onClose={() => setShowEditProduct(null)} onSave={handleEditProduct} productCategories={productCategories} setProductCategories={setProductCategories} addNotification={addNotification} />}
+        {showPasswordModal && <PasswordModal onClose={() => setShowPasswordModal(false)} />}
+        {showClientProfile && <ClientProfile client={showClientProfile} onClose={() => setShowClientProfile(null)} onUpdateImage={handleUpdateClientImage} onSetWarranty={handleSetWarranty} onSetInstallationDate={handleSetInstallationDate} onUpdateNotes={handleUpdateNotes} onDeleteClient={(id) => withPassword(() => handleDeleteClient(id))} onUpdateOrderStatus={updateOrderStatus} onUpdateClientDetails={handleUpdateClientDetails} formatCurrency={formatCurrency} generateWhatsAppMessage={generateWhatsAppMessage} generateClientProfilePDF={generateClientProfilePDF} handleDeleteWork={handleDeleteWork} handleDeletePayment={handleDeletePayment} handleDeleteOrder={handleDeleteOrder} handleAddWork={handleAddWork} handleAddPayment={handleAddPayment} clients={clients} />}
+        {showAddClient && <AddClientModal onClose={() => setShowAddClient(false)} />}
+        {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}
       </AnimatePresence>
     </div>
   );
@@ -10561,47 +10390,144 @@ const getStatusColor = (status: OrderStatus) => {
   }
 };
 
-const MyOrdersPage = ({ user, clients, formatCurrency }: { user: any | null, clients: Client[], formatCurrency: (amount: number) => string }) => {
+const MyOrdersPage = ({ user, clients, formatCurrency, isAdmin, acceptPublicOrder, addNotification }: { user: any | null, clients: Client[], formatCurrency: (amount: number) => string, isAdmin: boolean, acceptPublicOrder: (order: PublicOrder) => Promise<void>, addNotification: (msg: string, type?: any) => void }) => {
   const client = useMemo(() => clients.find(c => c.email === user?.email || c.phone === user?.phoneNumber), [clients, user]);
-  const [pendingPublicOrders, setPendingPublicOrders] = useState<any[]>([]);
+  const [allPublicOrders, setAllPublicOrders] = useState<any[]>([]);
 
   useEffect(() => {
-    if (client) {
-      const q = query(collection(db, 'public_orders'), where('customerPhone', '==', client.phone), where('status', '==', 'pending'));
+    // If admin, show everything. If client, only their pending show via real-time (history is in client object)
+    const q = isAdmin 
+      ? query(collection(db, 'public_orders'), orderBy('date', 'desc'))
+      : client 
+        ? query(collection(db, 'public_orders'), where('customerPhone', '==', client.phone), where('status', '==', 'pending'))
+        : null;
+
+    if (q) {
       const unsub = onSnapshot(q, (snapshot) => {
-        setPendingPublicOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setAllPublicOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), source: 'public' })));
       });
       return () => unsub();
     }
-  }, [client]);
+  }, [client, isAdmin]);
 
-  if (!client) return <div className="p-4 text-center">No orders found. Please log in or contact support.</div>;
+  if (!isAdmin && !client) return <div className="p-4 text-center">No orders found. Please log in or contact support.</div>;
   
-  const allOrders = [...pendingPublicOrders, ...(client.orders || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const allOrders = isAdmin 
+    ? allPublicOrders
+    : [
+        ...allPublicOrders, 
+        ...(client?.orders || []).map(o => ({ ...o, source: 'crm' }))
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
+  const updateStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await updateDoc(doc(db, 'public_orders', orderId), { status: newStatus });
+      playSound('success');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-xl font-black mb-4">My Orders</h2>
+      <h2 className="text-xl font-black mb-4">{isAdmin ? "Manage All Orders" : "My Orders"}</h2>
       {allOrders.length === 0 ? (
-        <div className="text-gray-500 py-4 text-sm">No orders yet.</div>
+        <div className="text-gray-500 py-4 text-sm text-center">No orders yet.</div>
       ) : (
-        allOrders.map(order => (
-          <div key={order.id} className="glass-card p-4">
-            <div className="flex justify-between items-center mb-2 border-b dark:border-slate-800 pb-2">
-              <span className="font-bold text-sm">Order ID: {order.id}</span>
-              <span className={cn("px-2 py-1 rounded text-[10px] font-black uppercase", getStatusColor(order.status))}>
+        allOrders.map((order, idx) => (
+          <div key={`${order.id}-${order.source}-${idx}`} className="glass-card p-5 relative overflow-hidden group">
+            <div className="flex justify-between items-start mb-4 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Package size={16} className="text-blue-500" />
+                  <span className="font-black text-sm tracking-tight">Order #{order.id}</span>
+                </div>
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{order.date}</div>
+              </div>
+              <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm", getStatusColor(order.status))}>
                 {order.status}
               </span>
             </div>
-            <div className="space-y-1">
+
+            {isAdmin && (
+              <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-2 text-blue-600">
+                  <User size={14} />
+                  <span className="text-xs font-black uppercase tracking-widest">Customer Info</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Name</span>
+                  <span className="text-xs font-bold text-right">{order.customerName}</span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Phone</span>
+                  <span className="text-xs font-bold text-right">{order.customerPhone}</span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Address</span>
+                  <span className="text-xs font-bold text-right flex-1 line-clamp-1">{order.customerAddress || 'N/A'}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 mb-4">
+              <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                <ShoppingCart size={12} /> Items
+              </div>
               {order.items.map((item: any, i: number) => (
-                <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>{item.name} x {item.quantity}</span>
-                  <span>{formatCurrency(item.price * item.quantity)}</span>
+                <div key={i} className="flex justify-between items-center text-xs group/item">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold">
+                       {item.quantity}x
+                    </div>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                  </div>
+                  <span className="font-bold text-slate-400 group-hover/item:text-slate-700 transition-colors">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
-            <div className="text-right mt-2 text-sm font-bold text-blue-600">Total: {formatCurrency(order.total)}</div>
+
+            <div className="flex justify-between items-end pt-4 border-t dark:border-slate-800">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Grand Total</span>
+                <span className="text-lg font-black text-blue-600">{formatCurrency(order.total)}</span>
+              </div>
+              
+              {isAdmin ? (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to delete this order?')) {
+                        await deleteDoc(doc(db, 'public_orders', order.id));
+                        addNotification("Order deleted successfully.");
+                      }
+                    }}
+                    className="px-3 py-2 bg-red-100 dark:bg-rose-900/30 text-rose-600 rounded-xl text-[9px] font-black uppercase hover:bg-rose-600 hover:text-white transition-all"
+                    title="Delete Permanent"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                  {order.status === 'pending' && (
+                    <button 
+                      onClick={() => acceptPublicOrder(order as any)}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-green-600/20 active:scale-95"
+                    >
+                      Accept
+                    </button>
+                  )}
+                  <select 
+                    value={order.status}
+                    onChange={(e) => updateStatus(order.id, e.target.value)}
+                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-[9px] font-black uppercase outline-none focus:ring-2 ring-blue-500 transition-all border-none"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              ) : (
+                order.status === 'pending' && <span className="text-[10px] text-amber-500 font-bold italic animate-pulse">Awaiting Confirmation</span>
+              )}
+            </div>
           </div>
         ))
       )}
@@ -11135,8 +11061,8 @@ const ClientProfile = ({
           {currentClient.orders.length === 0 ? (
             <p className="text-xs text-gray-400 italic text-center py-4">No orders found</p>
           ) : (
-            currentClient.orders.map(order => (
-              <div key={order.id} className="glass-card p-3 group">
+            currentClient.orders.map((order, idx) => (
+              <div key={`${order.id}-${idx}`} className="glass-card p-3 group">
                 <div className="flex justify-between border-b dark:border-slate-800 pb-2 mb-2">
                   <div>
                     <span className="text-xs font-bold">{order.id}</span>

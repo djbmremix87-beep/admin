@@ -8,8 +8,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email.matches("(?i)itdepartmentpro33@gmail.com") ||
-        request.auth.token.email.matches("(?i)djbmremix87@gmail.com")
+        request.auth.token.email.toLowerCase() == "itdepartmentpro33@gmail.com" ||
+        request.auth.token.email.toLowerCase() == "djbmremix87@gmail.com"
       );
     }
 
@@ -18,11 +18,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Products: Anyone can read, only admin can write, anyone can update stock
+    // Products: Anyone can read, only admin can manage
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
-      allow update: if true; 
     }
 
     // Offers: Anyone can read, only admin can create/delete, anyone signed in can like/comment
@@ -77,12 +76,6 @@ service cloud.firestore {
     }
     match /expenses/{expenseId} {
       allow read, write: if isAdmin();
-    }
-
-    // Device Versions: Anyone can read, only admin can create/delete
-    match /device_versions/{versionId} {
-      allow read: if true;
-      allow write: if isAdmin();
     }
 
     // Health check
